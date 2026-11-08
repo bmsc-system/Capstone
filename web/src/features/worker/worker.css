@@ -162,6 +162,35 @@
   margin: 6px 0;
 }
 
+/* Tablets in landscape and laptops: the app keeps a centered column instead of
+   stretching cards and the tab bar edge to edge. The navy bar stays full width. */
+@media (min-width: 900px) {
+  .worker-shell {
+    --w-side: max(0px, calc((100vw - 820px) / 2));
+  }
+
+  .w-main:not(.w-main--scan) {
+    padding-left: var(--w-side);
+    padding-right: var(--w-side);
+  }
+
+  .w-main:not(.w-main--scan) .w-top {
+    margin-left: calc(-1 * var(--w-side));
+    margin-right: calc(-1 * var(--w-side));
+    padding-left: calc(var(--w-side) + 16px);
+    padding-right: calc(var(--w-side) + 8px);
+  }
+
+  .w-main:not(.w-main--scan) .w-top--with-back {
+    padding-left: calc(var(--w-side) + 4px);
+  }
+
+  .w-nav {
+    padding-left: calc(var(--w-side) + 4px);
+    padding-right: calc(var(--w-side) + 4px);
+  }
+}
+
 /* ---------------- Bottom nav ---------------- */
 .w-nav {
   position: fixed;

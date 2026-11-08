@@ -73,6 +73,41 @@
   flex: 1 1 auto;
 }
 
+/* When the title and the card's switches do not both fit (tablets, small
+   laptops, half-width cards), the switches move under the title instead of
+   squeezing it into a one-word-wide column. */
+@media (min-width: 768px) {
+  .ana-card__head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .ana-card__titles {
+    flex: 1 1 220px;
+  }
+
+  .ana-card__tools {
+    margin-left: auto;
+  }
+}
+
+/* Six figures read as two even rows of three until there is room for one row. */
+@media (min-width: 768px) and (max-width: 1399.98px) {
+  .ana-kpis:has(> :nth-child(6):last-child),
+  .app-shell--m .ana-kpis:has(> :nth-child(6):last-child),
+  .ana-kpis:has(> :nth-child(3):last-child),
+  .app-shell--m .ana-kpis:has(> :nth-child(3):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Tablets: five figures as three and two rather than two, two and one. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .app-shell--m .ana-kpis:has(> :nth-child(5):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .ana-card__title {
   display: flex;
   align-items: center;
@@ -644,17 +679,19 @@ a.ana-list__row:hover .ana-list__title { color: var(--c-primary); text-decoratio
     width: 100%;
   }
 
+  /* Tablets: the tabs wrap as a row of pills, like on desktop. A three-column
+     grid left small pills stranded in wide empty cells. */
   .app-shell--m .ana-toolbar .ant-segmented-group {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 4px;
     width: 100%;
   }
 
   .app-shell--m .ana-toolbar .ant-segmented-item-label {
-    white-space: normal;
-    line-height: 1.2;
-    padding: 6px 4px;
-    font-size: 12px;
+    white-space: nowrap;
+    padding: 0 12px;
+    font-size: 13px;
     text-align: center;
   }
 

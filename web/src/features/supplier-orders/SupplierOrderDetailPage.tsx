@@ -306,7 +306,9 @@ export default function SupplierOrderDetailPage() {
       title: 'Item description',
       key: 'material',
       render: (_: unknown, ln) => (
-        <div style={ln.cancelledAt ? { textDecoration: 'line-through', color: '#94a3b8' } : undefined}>
+        // A floor so the description is not squeezed into three lines while
+        // the narrow "For" column keeps spare room (tablets, small laptops).
+        <div style={{ minWidth: 200, ...(ln.cancelledAt ? { textDecoration: 'line-through', color: '#94a3b8' } : {}) }}>
           {formatPoMaterialLabel(ln.materialName, ln.gradeOrSpec, ln.sizeSpec)}
         </div>
       ),

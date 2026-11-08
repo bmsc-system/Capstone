@@ -31,6 +31,7 @@ const EXPORT_LIMIT = 2000;
 export default function AuditLogPage() {
   const phone = useMediaQuery(PHONE_QUERY);
   const cards = useMediaQuery(NARROW_QUERY);
+  const wideAudit = useMediaQuery('(min-width: 1280px)');
   const [tab, setTab] = useState<Tab>('ALL');
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
@@ -257,6 +258,9 @@ export default function AuditLogPage() {
             title: 'IP address',
             key: 'ip',
             width: 130,
+            // The list cannot scroll sideways; below 1280px the IP steps aside so
+            // "What happened" keeps its width (it showed one letter per line).
+            hidden: !wideAudit,
             render: (_: unknown, r) => <span className="audit-ip">{r.ipAddress || '—'}</span>,
           },
         ]}

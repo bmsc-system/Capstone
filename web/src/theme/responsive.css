@@ -3103,3 +3103,23 @@
     line-height: 1.25;
   }
 }
+
+/* ======================= Tablet portrait: job order side cards in two columns =======================
+   Below 992px the side cards (Finish, Details, Activity) drop under the operations at full width,
+   which stretched short label/value rows across the screen. Two columns use the width. */
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .jo-detail-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  .jo-detail-side > * {
+    margin-bottom: 0 !important;
+  }
+
+  .jo-detail-side > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}

@@ -3,6 +3,8 @@ import { Button, Checkbox, Input, InputNumber, Select, Spin, Switch, Tooltip, Ty
 import { SearchOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import { useSearchParams } from 'react-router-dom';
 import { MOBILE_SHELL_QUERY, NARROW_QUERY, useMediaQuery, useViewport } from '../../hooks/useViewport';
+
+const SKILL_CARDS_QUERY = '(max-width: 1439.98px)';
 import { jobOrdersApi } from '../../api/jobOrders.api';
 import { usersApi, workerProfileApi } from '../../api/users.api';
 import { getErrorMessage } from '../../api/client';
@@ -62,6 +64,9 @@ export default function WorkerSetupPage() {
 
   const { isNarrow } = useViewport();
   const compact = useMediaQuery(MOBILE_SHELL_QUERY);
+  // The skills table needs about 900px for its six columns; the detail pane only
+  // gets that on wide screens, so tablets and small laptops use the skill cards.
+  const skillCards = useMediaQuery(SKILL_CARDS_QUERY);
   const pushedDetail = useRef(false);
 
   const setWorker = (id: string) => {
@@ -511,7 +516,7 @@ export default function WorkerSetupPage() {
                       </Button>
                     </div>
                   </div>
-                  {compact ? (
+                  {skillCards ? (
                     <div className="wsm-list">
                       {skillRows.map((row) => {
                         const ev = evidenceByMachine.get(row.key);

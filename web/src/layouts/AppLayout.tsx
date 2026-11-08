@@ -25,7 +25,7 @@ import {
   CloseOutlined,
   AuditOutlined,
 } from '@ant-design/icons';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { confirmLogout } from '../utils/confirmLogout';
@@ -37,7 +37,7 @@ import { PersonAvatar } from '../components/PersonAvatar';
 import { Breadcrumbs, type Crumb } from '../components/ui/PageHeader';
 import { layout } from '../theme/tokens';
 import { officeCompactTheme } from '../theme/antTheme';
-import { MOBILE_SHELL_QUERY, useMediaQuery } from '../hooks/useViewport';
+import { MOBILE_SHELL_QUERY, RAIL_QUERY, useMediaQuery } from '../hooks/useViewport';
 import { formatShop, shopNow } from '../utils/shopTime';
 import { PageHeaderActionsProvider, usePageHeaderActionsSlot } from './pageHeaderActions';
 import './topBar.css';
@@ -186,13 +186,19 @@ function roleLabel(role?: string) {
 }
 
 function AppLayoutShell() {
-  const [collapsed, setCollapsed] = useState(false);
+  // Tablet landscape and small laptops start with the icon rail so pages get the
+  // width; the menu button still expands it. Crossing the breakpoint resets it.
+  const railByDefault = useMediaQuery(RAIL_QUERY);
+  const [collapsed, setCollapsed] = useState(railByDefault);
+  useEffect(() => setCollapsed(railByDefault), [railByDefault]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const screens = Grid.useBreakpoint();
   const isPhone = !screens.md;
-  const isCompact = !screens.lg;
   const mobileShell = useMediaQuery(MOBILE_SHELL_QUERY);
+  // One breakpoint for both: below 1024px the navy top bar and the menu drawer,
+  // from 1024px the sidebar. (992–1023px used to show both at once.)
+  const isCompact = mobileShell;
   const { user, logout, isAdmin, isOfficeStaff } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

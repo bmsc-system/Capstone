@@ -9,6 +9,8 @@ export const TOUCH_QUERY = '(max-width: 768px)';
 export const NARROW_QUERY = '(max-width: 991px)';
 /** Admin / Office mobile shell (navy bar, compact controls): phones and tablets. */
 export const MOBILE_SHELL_QUERY = '(max-width: 1023.98px)';
+/** Tablet landscape and small laptops (1024–1279px): the sidebar starts as an icon rail. */
+export const RAIL_QUERY = '(min-width: 1024px) and (max-width: 1279.98px)';
 
 const subscribers = new Map<string, (onChange: () => void) => () => void>();
 

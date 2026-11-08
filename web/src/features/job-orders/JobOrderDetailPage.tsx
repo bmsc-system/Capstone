@@ -1152,7 +1152,7 @@ function JobOrderDetailView() {
           </div>
         </Col>
 
-        <Col xs={24} lg={8}>
+        <Col xs={24} lg={8} className="jo-detail-side">
           {job.projectedCompletion || job.predictedCompletion ? <FinishCard job={job} /> : null}
           <div className="jo-dcard" style={cardStyle({ marginBottom: 16 })}>
             <div style={{ fontWeight: 800, fontSize: 14, color: NAVY, marginBottom: 12 }}>

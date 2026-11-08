@@ -1125,3 +1125,14 @@ td.ant-table-cell-row-hover.tabular-nums {
 .app-form-modal__body > :last-child {
   margin-bottom: 0;
 }
+
+/* Job cards: the job number never shortens to "JO-2…". When two status pills
+   do not fit beside it (narrow cards on tablets), they wrap under it. */
+.jo-card .jo-card__top {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.jo-card .jo-card__number {
+  flex: 1 0 auto;
+}

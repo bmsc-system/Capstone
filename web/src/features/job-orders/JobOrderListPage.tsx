@@ -31,7 +31,14 @@ import SelectMultipleIcon from '../../components/SelectMultipleIcon';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverdueCheck } from '../../hooks/useOverdueCheck';
 import { useIsPhone } from '../../hooks/useIsPhone';
-import { NARROW_QUERY } from '../../hooks/useViewport';
+import { useMediaQuery } from '../../hooks/useViewport';
+
+/** Below this width the list starts as cards (phones, tablets, small laptops). */
+const CARDS_BY_DEFAULT_QUERY = '(max-width: 1279.98px)';
+/** The list cannot scroll sideways, so on narrower screens the less important
+ *  columns step aside and the job title keeps a readable width. */
+const WIDE_LIST_QUERY = '(min-width: 1400px)';
+const MID_LIST_QUERY = '(min-width: 1280px)';
 import type { JobOrder, JobOrderStatus } from '../../types';
 import { compareByDue, compareOpenFirst } from './jobOrderSort';
 import { isJobOrderListTab } from './jobOrderListTabs';
@@ -160,7 +167,7 @@ const VIEW_STORAGE_KEY = 'jobOrders.view';
 function readViewMode(): ViewMode {
   const stored = localStorage.getItem(VIEW_STORAGE_KEY);
   if (stored === 'cards' || stored === 'list') return stored;
-  return window.matchMedia(NARROW_QUERY).matches ? 'cards' : 'list';
+  return window.matchMedia(CARDS_BY_DEFAULT_QUERY).matches ? 'cards' : 'list';
 }
 
 const VIEW_OPTIONS: { key: ViewMode; label: string; icon: ReactNode }[] = [
@@ -280,6 +287,8 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
     );
   const { isAdmin, canOfficeWrite } = useAuth();
   const isPhone = useIsPhone();
+  const wideList = useMediaQuery(WIDE_LIST_QUERY);
+  const midList = useMediaQuery(MID_LIST_QUERY);
 
   useEffect(() => {
     if (archivedOnly) {
@@ -597,6 +606,7 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
       dataIndex: 'updatedAt',
       key: 'updatedAt',
       width: 124,
+      hidden: !wideList,
       sorter: (a, b) =>
         dayjs(a.updatedAt || a.createdAt).valueOf() - dayjs(b.updatedAt || b.createdAt).valueOf(),
       render: (_: string | null | undefined, record) => {
@@ -623,13 +633,15 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
         </Tooltip>
       ),
       key: 'finish',
-      width: 124,
+      width: 140,
+      hidden: !midList,
       render: (_: unknown, record) => <FinishCell job={record} />,
     },
     {
       title: 'Progress',
       key: 'progress',
       width: 82,
+      hidden: !wideList,
       sorter: (a, b) => {
         const pa = a.opsTotal ? (a.opsCompleted || 0) / a.opsTotal : 0;
         const pb = b.opsTotal ? (b.opsCompleted || 0) / b.opsTotal : 0;
