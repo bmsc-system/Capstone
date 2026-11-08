@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button } from 'antd';
 import {
   CalendarOutlined,
@@ -227,8 +227,11 @@ export default function WorkerHomePage() {
     [operations, heroId, userId, todayKey]
   );
 
+  // A ref, not only state: a second tap can arrive before the re-render.
+  const actingRef = useRef(false);
   const act = async (op: Operation, kind: 'start' | 'resume') => {
-    if (acting) return;
+    if (acting || actingRef.current) return;
+    actingRef.current = true;
     setActing(true);
     try {
       const outcome = await record({
@@ -242,6 +245,9 @@ export default function WorkerHomePage() {
       showActionError(err);
     } finally {
       setActing(false);
+      window.setTimeout(() => {
+        actingRef.current = false;
+      }, 1500);
     }
   };
 

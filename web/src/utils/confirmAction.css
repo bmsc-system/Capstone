@@ -50,18 +50,30 @@
   margin-top: 8px;
 }
 
-.acct-sheet-btn--primary {
+/* Two classes so the blue wins over the grey .acct-sheet-btn from the global
+   stylesheet, which loads later: the main button must not look like Cancel. */
+.acct-sheet-btn.acct-sheet-btn--primary {
   background: #2563eb;
   color: #fff;
   font-weight: 700;
 }
 
-.acct-sheet-btn--primary:hover,
-.acct-sheet-btn--primary:focus {
+.acct-sheet-btn.acct-sheet-btn--primary:hover,
+.acct-sheet-btn.acct-sheet-btn--primary:focus {
   background: #1d4ed8;
 }
 
 .acct-sheet-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.acct-sheet-btn.acct-sheet-btn--danger {
+  background: #7A1528;
+  color: #fff;
+}
+
+.acct-sheet-btn.acct-sheet-btn--danger:hover,
+.acct-sheet-btn.acct-sheet-btn--danger:focus {
+  background: #641222;
 }

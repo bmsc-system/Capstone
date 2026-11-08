@@ -13,7 +13,8 @@ export async function validateOrShow<T = Record<string, unknown>>(form: FormInst
     const first = (err as { errorFields?: { name: (string | number)[] }[] })?.errorFields?.[0];
     if (first) {
       form.scrollToField(first.name, { block: 'center', behavior: 'smooth' });
-      message.error('Check the highlighted field.');
+      // One message even when the button is pressed again and again.
+      message.error({ content: 'Check the highlighted field.', key: 'form-check' });
     }
     throw err;
   }
@@ -21,6 +22,6 @@ export async function validateOrShow<T = Record<string, unknown>>(form: FormInst
 
 /** Scroll an element (an error banner or a row) into view and repeat the message as a toast. */
 export function showFormError(text: string, target?: Element | null) {
-  message.error(text);
+  message.error({ content: text, key: `form-error:${text}` });
   target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }

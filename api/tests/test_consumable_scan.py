@@ -106,3 +106,18 @@ def test_unified_scan_refuses_consumable_codes(app, worker, oil):
     assert err.value.code == "CONSUMABLE_NOT_SCANNED"
     db.session.refresh(oil)
     assert oil.quantity_on_hand == Decimal("5")
+
+
+def test_tool_scan_says_borrowed_or_returned_in_plain_words(app, worker):
+    from app.models.tool_type import ToolType, ToolUnit
+
+    caliper = ToolType(name="Vernier caliper", code="VCX")
+    db.session.add(caliper)
+    db.session.flush()
+    db.session.add(ToolUnit(tool_type_id=caliper.id, asset_code="VCX-01"))
+    db.session.commit()
+
+    first = scan_svc.unified_scan("VCX-01", worker.id)
+    assert first["displayLine"] == "Borrowed: Vernier caliper (VCX-01)"
+    again = scan_svc.unified_scan("VCX-01", worker.id)
+    assert again["displayLine"] == "Returned: Vernier caliper (VCX-01)"

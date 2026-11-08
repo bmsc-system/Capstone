@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Form,
   Input,
@@ -45,6 +45,18 @@ export default function JobOrderFormPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(isEdit);
   const [submitting, setSubmitting] = useState(false);
+  // Checking the form takes a moment before `submitting` turns on; a second
+  // click in that gap used to create the job order twice.
+  const savingRef = useRef(false);
+  const saveJob = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
+      await saveJobOnce();
+    } finally {
+      savingRef.current = false;
+    }
+  };
   const [error, setError] = useState('');
   const [jobNumber, setJobNumber] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<JobOrderStatus | null>(null);
@@ -127,7 +139,7 @@ export default function JobOrderFormPage() {
     setLoadedValues(null);
   }, [form, loading, loadedValues]);
 
-  const saveJob = async () => {
+  const saveJobOnce = async () => {
     let values: {
       clientId: string;
       title: string;

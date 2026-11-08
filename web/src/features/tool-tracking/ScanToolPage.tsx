@@ -459,13 +459,11 @@ export default function ScanToolPage() {
               </div>
             </>
           )}
-          {result?.quantityOnHandAfter != null && result.kind === 'CONSUMABLE_SCAN' ? (
-            <div style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 12 }}>
-              On hand now: {result.quantityOnHandAfter} {result.toolUnit || ''}
-            </div>
-          ) : (
-            <div style={{ height: 8 }} />
-          )}
+          <div style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 14, lineHeight: 1.45 }}>
+            {result?.type === 'RETURN'
+              ? 'Returned by mistake? Scan it again to borrow it back.'
+              : 'Borrowed by mistake? Scan it again to return it.'}
+          </div>
           {canUndo && (
             <Button
               block

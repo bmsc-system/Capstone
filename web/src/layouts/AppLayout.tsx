@@ -1,3 +1,4 @@
+import { STAY_OPEN } from '../components/ui/stayOpen';
 import { ConfigProvider, Grid, Layout, Menu, Button, Drawer, Popover, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -358,7 +359,7 @@ function AppLayoutShell() {
   ].filter((t) => allKeys.includes(t.key));
 
   return (
-    <ConfigProvider theme={mobileShell ? officeCompactTheme : undefined}>
+    <ConfigProvider theme={mobileShell ? officeCompactTheme : undefined} modal={STAY_OPEN}>
     <Layout
       className={`app-shell${isPhone ? ' app-shell--phone' : ''}${isCompact ? ' app-shell--compact' : ''}${mobileShell ? ' app-shell--m' : ''}`}
       style={{ height: '100%', overflow: 'hidden' }}

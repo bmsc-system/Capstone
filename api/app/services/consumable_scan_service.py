@@ -204,7 +204,8 @@ def unified_scan(
         data = event.to_dict()
         data["kind"] = "TOOL_UNIT"
         name = unit.tool_type.name if unit.tool_type else "Tool"
-        data["displayLine"] = f"{name} ({unit.asset_code}) — {event.type.value.title()}"
+        verb = "Returned" if event.type.value == "RETURN" else "Borrowed"
+        data["displayLine"] = f"{verb}: {name} ({unit.asset_code})"
         return data
 
     tool = Tool.query.filter_by(code=raw).first()

@@ -1,3 +1,4 @@
+import { STAY_OPEN } from '../components/ui/stayOpen';
 import { ConfigProvider, Popover } from 'antd';
 import {
   CalendarOutlined,
@@ -238,7 +239,7 @@ export default function WorkerLayout() {
 
   return (
     <WorkerThemeContext.Provider value={{ colors, logout }}>
-      <ConfigProvider theme={workerTheme}>
+      <ConfigProvider theme={workerTheme} modal={STAY_OPEN}>
         <MyOperationsProvider>
           <div
             className="worker-shell"

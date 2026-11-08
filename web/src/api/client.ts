@@ -47,6 +47,63 @@ apiClient.get = ((url: string, config?: object) => {
   return request;
 }) as typeof apiClient.get;
 
+/**
+ * The same save sent twice in a row is a double-click, not two decisions.
+ * While a write is on its way, and for a moment after it succeeds, an
+ * identical write (same method, address and body) gets the first one's answer
+ * instead of being sent again, so a panicked double-click cannot create two
+ * job orders or record a purchase twice. Failures are not remembered, so
+ * trying again after an error still sends.
+ */
+export const REPEAT_WINDOW_MS = 1500;
+const recentWrites = new Map<string, { request: Promise<unknown>; doneAt?: number }>();
+
+function writeKey(method: string, url: string, data: unknown): string | null {
+  if (typeof FormData !== 'undefined' && data instanceof FormData) return null;
+  if (typeof Blob !== 'undefined' && data instanceof Blob) return null;
+  try {
+    return `${method} ${url} ${JSON.stringify(data ?? null)}`;
+  } catch {
+    return null;
+  }
+}
+
+function once<T>(key: string | null, send: () => Promise<T>): Promise<T> {
+  if (!key) return send();
+  const now = Date.now();
+  for (const [k, v] of recentWrites) {
+    if (v.doneAt !== undefined && now - v.doneAt > REPEAT_WINDOW_MS) recentWrites.delete(k);
+  }
+  const hit = recentWrites.get(key);
+  if (hit) return hit.request as Promise<T>;
+  const request = send();
+  const entry: { request: Promise<unknown>; doneAt?: number } = { request };
+  recentWrites.set(key, entry);
+  request.then(
+    () => {
+      entry.doneAt = Date.now();
+    },
+    () => {
+      if (recentWrites.get(key) === entry) recentWrites.delete(key);
+    }
+  );
+  return request;
+}
+
+for (const method of ['post', 'put', 'patch'] as const) {
+  const send = apiClient[method].bind(apiClient);
+  apiClient[method] = ((url: string, data?: unknown, config?: object) =>
+    once(writeKey(method, url, data), () => send(url, data, config))) as (typeof apiClient)[typeof method];
+}
+const sendDelete = apiClient.delete.bind(apiClient);
+apiClient.delete = ((url: string, config?: { data?: unknown }) =>
+  once(writeKey('delete', url, config?.data), () => sendDelete(url, config))) as typeof apiClient.delete;
+
+/** Test hook: forget remembered writes. */
+export function forgetRecentWrites() {
+  recentWrites.clear();
+}
+
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('accessToken');
   if (token && config.headers) {

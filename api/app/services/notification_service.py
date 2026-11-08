@@ -33,8 +33,9 @@ from app.utils.phone import normalize_ph_mobile
 
 logger = logging.getLogger(__name__)
 
-TURNED_OFF = "Notifications are turned off (NOTIFICATIONS_ENABLED is false)"
-NOT_ALLOWLISTED = "Recipient is not on NOTIFY_ALLOWLIST"
+# Shown to staff as is, so in plain words (no setting names).
+TURNED_OFF = "Email sending is turned off on this server"
+NOT_ALLOWLISTED = "This server only sends email to approved test addresses"
 OPTED_OUT = "Client opted out of email updates"
 EMAIL_UPDATES_OFF = "Email updates are off for this client"
 BODY_NOT_STORED = "[not stored: contains a sign-in link or code]"

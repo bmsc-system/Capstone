@@ -1597,6 +1597,32 @@ CASH_STORES = ("Hardware store", "Industrial supply store", "Welding supply stor
 # Typical days between purchases and amount bought, by how fast an item is used.
 BUY_EVERY = {"high": 10, "mid": 20, "low": 42, "bulk": 60}
 BUY_AMOUNT = {"high": 10, "mid": 6, "low": 3, "bulk": 1}
+# Rough store prices in pesos per unit, so the sample amounts look like a real
+# shop's (a pail of oil is not ₱34). Matched on the item name; first match wins.
+SAMPLE_PRICES = (
+    ("masking tape", 45), ("teflon tape", 30), ("penetrating oil", 280), ("leather welding gloves", 250),
+    ("layout fluid", 450), ("parting blade", 650), ("shop rags", 60), ("spray paint", 150),
+    ("thread locker", 380), ("welding lens", 80),
+    ("hydraulic oil", 3200), ("cutting oil", 2800), ("way oil", 3000), ("gear oil", 3100),
+    ("coolant", 2600), ("oil", 2800), ("grease", 650),
+    ("carbide insert", 3500), ("carbide end mill", 1200), ("hss end mill", 450), ("end mill", 600),
+    ("drill bit", 180), ("center drill", 150), ("tap", 350), ("reamer", 900),
+    ("lathe tool bit", 220), ("tool bit", 220),
+    ("bandsaw blade", 1500), ("hacksaw blade", 60),
+    ("cutting disc", 45), ("grinding disc", 60), ("flap disc", 75), ("grinding stone", 350),
+    ("cup wire brush", 180), ("wire brush", 120), ("emery cloth", 350), ("sandpaper", 25),
+    ("mig wire", 1800), ("welding rod", 180), ("tungsten", 250), ("anti-spatter", 250),
+    ("marker", 35), ("soapstone", 20),
+    ("safety glasses", 120), ("ear plugs", 15), ("gloves", 25), ("face shield", 150),
+)
+
+
+def _sample_price(name):
+    low = (name or "").lower()
+    for word, price in SAMPLE_PRICES:
+        if word in low:
+            return Decimal(price)
+    return Decimal(100)
 
 
 def _consumables(rng, shop, ledger, counters):
@@ -1615,7 +1641,7 @@ def _consumables(rng, shop, ledger, counters):
         rate = _usage_rate(tool.name)
         every = BUY_EVERY[rate] + (index % 4) * 3
         amount = BUY_AMOUNT[rate] + (0 if rate == "bulk" else (index % 3) * 2)
-        cost = tool.unit_cost if tool.unit_cost is not None else Decimal(str(rng.randrange(15, 400)))
+        cost = tool.unit_cost if tool.unit_cost is not None else _sample_price(tool.name)
         day = shop.next_working(days[0] + timedelta(days=rng.randrange(max(1, every))))
         while day <= shop.end:
             qty = Decimal(max(1, round(amount * rng.uniform(0.6, 1.4))))

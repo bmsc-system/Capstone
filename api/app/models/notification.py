@@ -21,8 +21,16 @@ _TECHNICAL_ERROR = re.compile(
 )
 
 
+_OLD_WORDING = {
+    "Notifications are turned off (NOTIFICATIONS_ENABLED is false)": "Email sending is turned off on this server",
+    "Recipient is not on NOTIFY_ALLOWLIST": "This server only sends email to approved test addresses",
+}
+
+
 def readable_send_error(message: str | None) -> str | None:
     """Older rows kept the raw technical error; show those in plain words."""
+    if message in _OLD_WORDING:
+        return _OLD_WORDING[message]
     if message and _TECHNICAL_ERROR.search(message):
         return "The mail server could not be reached. Try sending again later."
     return message

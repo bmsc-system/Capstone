@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { Button, Modal } from 'antd';
 import type { ButtonProps } from 'antd';
 
@@ -60,6 +60,16 @@ export default function FormModal({
   children,
 }: Props) {
   const small = size === 'sm';
+  // A click right after the form opens is the rest of a double-click on the
+  // button that opened it; it must not press Save on values never looked at.
+  const openedAt = useRef(0);
+  useEffect(() => {
+    if (open) openedAt.current = Date.now();
+  }, [open]);
+  const pressOk = () => {
+    if (Date.now() - openedAt.current < 450 || confirmLoading) return;
+    onOk?.();
+  };
   const actions =
     footer === null ? null : footer !== undefined ? (
       <div className="app-form-modal__footer">{footer}</div>
@@ -71,7 +81,7 @@ export default function FormModal({
         <Button
           type="primary"
           loading={confirmLoading}
-          onClick={onOk}
+          onClick={pressOk}
           {...okButtonProps}
           style={{ fontWeight: 700, minWidth: 120, ...okButtonProps?.style }}
         >

@@ -42,6 +42,9 @@ function newActionId(): string {
 const SYNC_RETRY_MS = 30_000;
 const CACHE_REFRESH_MS = 5 * 60_000;
 
+/** How long a repeated tap on the same action is treated as the same tap. */
+const REPEAT_TAP_MS = 2000;
+
 export type RecordInput = Omit<NewQueuedAction, 'id' | 'userId' | 'at'>;
 
 export interface OfflineContextValue {
@@ -152,7 +155,12 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     void navigator.storage?.persist?.().catch(() => undefined);
   }, []);
 
-  const record = useCallback(
+  // A second tap on Start, Resume or Complete while the first is still going
+  // (or just finished) is the same decision: answer it with the first result
+  // instead of sending a second action the server would refuse.
+  const recentActions = useRef(new Map<string, { result: Promise<'sent' | 'queued'>; doneAt?: number }>());
+
+  const recordOnce = useCallback(
     async (input: RecordInput): Promise<'sent' | 'queued'> => {
       if (!userId) throw new Error('Sign in again to record this.');
       const action: NewQueuedAction = {
@@ -177,6 +185,31 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
       return 'queued';
     },
     [userId, online, refreshCache, syncNow]
+  );
+
+  const record = useCallback(
+    (input: RecordInput): Promise<'sent' | 'queued'> => {
+      const a = input as RecordInput & { operationId?: string; machineUnitId?: string; scanCode?: string };
+      const key = [a.kind, a.operationId ?? '', a.machineUnitId ?? '', a.scanCode ?? ''].join(':');
+      const now = Date.now();
+      const seen = recentActions.current;
+      for (const [k, v] of seen) if (v.doneAt !== undefined && now - v.doneAt > REPEAT_TAP_MS) seen.delete(k);
+      const hit = seen.get(key);
+      if (hit) return hit.result;
+      const result = recordOnce(input);
+      const entry: { result: Promise<'sent' | 'queued'>; doneAt?: number } = { result };
+      seen.set(key, entry);
+      result.then(
+        () => {
+          entry.doneAt = Date.now();
+        },
+        () => {
+          if (seen.get(key) === entry) seen.delete(key);
+        }
+      );
+      return result;
+    },
+    [recordOnce]
   );
 
   const retry = useCallback(

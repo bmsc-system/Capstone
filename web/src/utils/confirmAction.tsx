@@ -25,8 +25,18 @@ type NoticeOptions = {
 
 type DialogProps = ConfirmOptions & { single?: boolean; close: () => void };
 
+/** Taps in the first moments after the dialog opens are the tail end of a
+ *  double-click on the button that opened it, not a choice. */
+const ARM_DELAY_MS = 450;
+
 function Dialog({ title, content, okText, cancelText, danger, wide, onOk, onCancel, single, close }: DialogProps) {
   const [busy, setBusy] = useState(false);
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setArmed(true), ARM_DELAY_MS);
+    return () => window.clearTimeout(t);
+  }, []);
 
   const cancel = () => {
     if (busy) return;
@@ -43,6 +53,7 @@ function Dialog({ title, content, okText, cancelText, danger, wide, onOk, onCanc
   });
 
   const confirm = async () => {
+    if (!armed || busy) return;
     if (!onOk) {
       close();
       return;
@@ -61,7 +72,7 @@ function Dialog({ title, content, okText, cancelText, danger, wide, onOk, onCanc
       className="app-confirm-overlay"
       role="presentation"
       onClick={(e) => {
-        if (e.target === e.currentTarget) cancel();
+        if (e.target === e.currentTarget && armed) cancel();
       }}
     >
       <div
@@ -76,12 +87,12 @@ function Dialog({ title, content, okText, cancelText, danger, wide, onOk, onCanc
         {content ? <div className="app-confirm-card__body">{content}</div> : null}
         <div className="app-confirm-card__actions">
           {single ? (
-            <button type="button" className="acct-sheet-btn" onClick={() => close()}>
+            <button type="button" className="acct-sheet-btn" onClick={() => armed && close()}>
               {okText || 'OK'}
             </button>
           ) : (
             <>
-              <button type="button" className="acct-sheet-btn" onClick={cancel} disabled={busy}>
+              <button type="button" className="acct-sheet-btn" onClick={() => armed && cancel()} disabled={busy}>
                 {cancelText || 'Cancel'}
               </button>
               <button
@@ -100,11 +111,22 @@ function Dialog({ title, content, okText, cancelText, danger, wide, onOk, onCanc
   );
 }
 
+/** Pressing the same button again while its dialog is open must not stack a
+ *  second copy that would run the action twice. A different dialog (such as a
+ *  notice shown by the confirmed action) still opens. */
+const openTitles = new Set<string>();
+
 function mount(props: Omit<DialogProps, 'close'>) {
+  const key = typeof props.title === 'string' ? `${props.single ? 'n' : 'c'}:${props.title}` : null;
+  if (key) {
+    if (openTitles.has(key)) return;
+    openTitles.add(key);
+  }
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
   const close = () => {
+    if (key) openTitles.delete(key);
     root.unmount();
     host.remove();
   };

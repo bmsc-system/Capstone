@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useArmed } from '../../hooks/useArmed';
+import { confirmAction } from '../../utils/confirmAction';
 import { formatHoursMinutes } from '../../utils/duration';
 import { Button, message } from 'antd';
 import { CheckCircleFilled, FileTextOutlined, WarningOutlined } from '@ant-design/icons';
@@ -124,6 +126,19 @@ export default function AssignmentDetailPage() {
   const [reportForOp, setReportForOp] = useState<Operation | null>(null);
   const [reportNote, setReportNote] = useState('');
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const pauseArmed = useArmed(pauseForOp !== null);
+  const reportArmed = useArmed(reportForOp !== null);
+  // One action per operation at a time. Released a moment after it finishes so
+  // a tap that lands before the screen updates is not a second action.
+  const busyOps = useRef(new Set<string>());
+  const claim = (opId: string) => {
+    if (busyOps.current.has(opId)) return false;
+    busyOps.current.add(opId);
+    return true;
+  };
+  const release = (opId: string) => {
+    window.setTimeout(() => busyOps.current.delete(opId), 1500);
+  };
 
   const fetchJob = async () => {
     if (!id || !userId) return;
@@ -184,6 +199,7 @@ export default function AssignmentDetailPage() {
     op: Operation,
     action: 'start' | 'complete' | 'resume',
   ) => {
+    if (!claim(op.id)) return;
     setActionLoading(op.id);
     try {
       if (action === 'start') {
@@ -201,12 +217,14 @@ export default function AssignmentDetailPage() {
       showActionError(err);
     } finally {
       setActionLoading(null);
+      release(op.id);
     }
   };
 
   const confirmPause = async (reason: OperationPauseReason) => {
-    if (!pauseForOp) return;
-    setActionLoading(pauseForOp.id);
+    if (!pauseForOp || !pauseArmed || !claim(pauseForOp.id)) return;
+    const opId = pauseForOp.id;
+    setActionLoading(opId);
     try {
       const reasonLabel = PAUSE_REASONS.find((r) => r.value === reason)?.label || reason;
       await recordAction(
@@ -219,16 +237,19 @@ export default function AssignmentDetailPage() {
       message.error(getErrorMessage(err));
     } finally {
       setActionLoading(null);
+      release(opId);
     }
   };
 
   const confirmBreakdown = async (category: DowntimeCategory) => {
-    if (!reportForOp?.machineUnitId) return;
+    if (!reportForOp?.machineUnitId || !reportArmed) return;
     if (category === 'OTHER' && !reportNote.trim()) {
       message.warning('Add a note describing the breakdown when choosing Other');
       return;
     }
-    setActionLoading(reportForOp.id);
+    if (!claim(reportForOp.id)) return;
+    const opId = reportForOp.id;
+    setActionLoading(opId);
     try {
       const machine =
         reportForOp.machineUnitLabel || reportForOp.machineTypeName || 'machine';
@@ -249,6 +270,7 @@ export default function AssignmentDetailPage() {
       message.error(getErrorMessage(err));
     } finally {
       setActionLoading(null);
+      release(opId);
     }
   };
 
@@ -720,7 +742,10 @@ export default function AssignmentDetailPage() {
                         block
                         size="large"
                         loading={actionLoading === op.id}
-                        onClick={() => setPauseForOp(op)}
+                        onClick={() => {
+                          // Taps meant for Start land here once Pause replaces it.
+                          if (!busyOps.current.has(op.id)) setPauseForOp(op);
+                        }}
                         style={{ height: 48, fontWeight: 700 }}
                       >
                         Pause
@@ -730,7 +755,16 @@ export default function AssignmentDetailPage() {
                         block
                         size="large"
                         loading={actionLoading === op.id}
-                        onClick={() => runAction(op, 'complete')}
+                        onClick={() =>
+                          !busyOps.current.has(op.id) &&
+                          confirmAction({
+                            title: `Finish ${op.operationName || 'this step'}?`,
+                            content:
+                              'Mark it complete only when the work on this step is done. The Administrator checks it next.',
+                            okText: 'Mark complete',
+                            onOk: () => runAction(op, 'complete'),
+                          })
+                        }
                         style={{
                           height: 48,
                           fontWeight: 700,
@@ -769,6 +803,7 @@ export default function AssignmentDetailPage() {
                         icon={<WarningOutlined />}
                         disabled={actionLoading === op.id}
                         onClick={() => {
+                          if (busyOps.current.has(op.id)) return;
                           setReportNote('');
                           setReportForOp(op);
                         }}
@@ -795,7 +830,7 @@ export default function AssignmentDetailPage() {
               alignItems: 'flex-end',
               justifyContent: 'center',
             }}
-            onClick={() => setPauseForOp(null)}
+            onClick={() => pauseArmed && setPauseForOp(null)}
           >
             <div
               style={{
@@ -845,7 +880,7 @@ export default function AssignmentDetailPage() {
               alignItems: 'flex-end',
               justifyContent: 'center',
             }}
-            onClick={() => setReportForOp(null)}
+            onClick={() => reportArmed && setReportForOp(null)}
           >
             <div
               style={{
