@@ -44,7 +44,7 @@ def invitation_setup_url(raw_secret: str) -> str:
     return absolute_frontend_url(f"/set-password?token={raw_secret}")
 
 
-def _invalidate_open_invites(user_id: str) -> None:
+def _invalidate_open_invites(user_id: str) -> int:
     now = _utcnow()
     open_invites = UserInvitation.query.filter(
         UserInvitation.user_id == user_id,
@@ -53,6 +53,20 @@ def _invalidate_open_invites(user_id: str) -> None:
     ).all()
     for inv in open_invites:
         inv.revoked_at = now
+    return len(open_invites)
+
+
+def revoke_open_invites(user: User, *, reason: str) -> int:
+    """Revoke every unused setup link of the user without committing."""
+    count = _invalidate_open_invites(user.id)
+    if count:
+        write_audit_event(
+            "INVITATION_REVOKED",
+            "User",
+            user.id,
+            after={"count": count, "reason": reason},
+        )
+    return count
 
 
 def create_invited_user(

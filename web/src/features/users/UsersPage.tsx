@@ -215,18 +215,23 @@ export default function UsersPage() {
     if (!editUser) return;
     setEditSaving(true);
     try {
-      await usersApi.update(editUser.id, {
+      const { data } = await usersApi.update(editUser.id, {
         fullName: values.fullName.trim(),
         nickname: (values.nickname || '').trim() || null,
         email: (values.email || '').trim(),
         mobileNumber: (values.mobileNumber || '').trim() || undefined,
         role: values.role,
       });
-      message.success(
-        values.role !== editUser.role
-          ? 'Saved. The new role applies at their next sign-in.'
-          : 'Details saved'
-      );
+      if (data.delivery) {
+        // A pending user's email changed: the old link stopped working and a new one went out.
+        reportInviteDelivery(data.delivery, 'Details saved. The old setup link no longer works.', data.setupUrl);
+      } else {
+        message.success(
+          values.role !== editUser.role
+            ? 'Saved. The new role applies at their next sign-in.'
+            : 'Details saved'
+        );
+      }
       setEditUser(null);
       fetchUsers();
     } catch (err) {

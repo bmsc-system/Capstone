@@ -31,8 +31,9 @@ export const usersApi = {
     role: string;
     mobileNumber?: string;
   }) => apiClient.post<User & InviteResponse>('/users', data),
+  /** Changing a pending user's email also sends a fresh setup link (delivery, setupUrl). */
   update: (id: string, data: Partial<User>) =>
-    apiClient.patch<User>(`/users/${id}`, data),
+    apiClient.patch<User & InviteResponse>(`/users/${id}`, data),
   uploadPhoto: (id: string, file: File) => {
     const body = new FormData();
     body.append('file', file);

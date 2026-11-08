@@ -131,8 +131,16 @@ def update_user_route(user_id):
             400,
         )
 
+    old_email = user.email
     user = update_user(user, payload)
-    return jsonify(user.to_dict(include_profile=True, include_skills=True))
+    body = user.to_dict(include_profile=True, include_skills=True)
+    # The old setup link was revoked with the email change; a user still
+    # waiting to set a password gets a fresh link at the corrected address.
+    if user.email != old_email and user.status == UserStatus.INVITED:
+        invitation, _raw = resend_invitation(user, get_current_user_id(), InvitationChannel.EMAIL)
+        body["delivery"] = delivery_summary(getattr(invitation, "delivery", None))
+        body["setupUrl"] = getattr(invitation, "setup_url", None)
+    return jsonify(body)
 
 
 @users_bp.route("/<user_id>", methods=["DELETE"])

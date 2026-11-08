@@ -102,6 +102,11 @@ def update_user(user, data):
             if email and User.query.filter_by(email=email).first():
                 raise AppError("Email already exists", "CONFLICT", 409)
             user.email = email
+            # A setup link already sent went to the old address, which may be a
+            # mistyped stranger's. It must stop working once the email changes.
+            from app.services.invitation_service import revoke_open_invites
+
+            revoke_open_invites(user, reason="email_changed")
 
     if "nickname" in data:
         user.nickname = (data["nickname"] or "").strip()[:40] or None

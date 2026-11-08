@@ -637,3 +637,55 @@ def test_oversized_request_is_refused(client):
     )
     assert res.status_code == 413
     assert res.get_json()["error"]["code"] == "PAYLOAD_TOO_LARGE"
+
+
+def test_changing_a_pending_users_email_revokes_the_old_link(client):
+    """A link sent to a mistyped address must stop working once the email is fixed."""
+    from flask_jwt_extended import create_access_token
+
+    admin = _admin()
+    user, _inv, old_raw = create_invited_user(
+        full_name="Pending Office",
+        email="pending.typo@test.local",
+        mobile_number="",
+        role=UserRole.OFFICE_STAFF,
+        created_by_id=admin.id,
+    )
+    token = create_access_token(identity=admin.id, additional_claims={"role": "ADMIN"})
+    res = client.patch(
+        f"/api/v1/users/{user.id}",
+        json={"email": "pending.right@test.local"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert res.status_code == 200, res.get_json()
+    body = res.get_json()
+    assert body["email"] == "pending.right@test.local"
+    assert body["delivery"] is not None and body["setupUrl"]
+
+    accept = {"password": "Pending12345!x", "passwordConfirm": "Pending12345!x"}
+    old = client.post("/api/v1/auth/invitation/accept", json={"token": old_raw, **accept})
+    assert old.status_code == 400
+    assert old.get_json()["error"]["code"] == "INVITE_REVOKED"
+
+    new_raw = body["setupUrl"].split("token=", 1)[1]
+    new = client.post("/api/v1/auth/invitation/accept", json={"token": new_raw, **accept})
+    assert new.status_code == 200, new.get_json()
+
+
+def test_editing_other_details_keeps_the_setup_link(client):
+    from app.services.auth_service import update_user
+
+    admin = _admin()
+    user, _inv, raw = create_invited_user(
+        full_name="Pending Clerk",
+        email="pending.clerk@test.local",
+        mobile_number="",
+        role=UserRole.OFFICE_STAFF,
+        created_by_id=admin.id,
+    )
+    update_user(user, {"fullName": "Pending Clerk Two", "email": "pending.clerk@test.local"})
+    res = client.post(
+        "/api/v1/auth/invitation/accept",
+        json={"token": raw, "password": "Pending12345!x", "passwordConfirm": "Pending12345!x"},
+    )
+    assert res.status_code == 200, res.get_json()
