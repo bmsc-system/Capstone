@@ -94,6 +94,7 @@ def office_summary() -> dict:
         .filter(JobOrder.status == JobOrderStatus.DRAFT, JobOrder.archived_at.is_(None))
         .scalar()
     )
+    from app.services import consumable_request_service
     from app.services.read_cache import get_or_build
 
     # The replenishment forecast changes only when purchases do (writes clear the cache).
@@ -109,6 +110,8 @@ def office_summary() -> dict:
         "invoicesToRecord": _invoices_to_record(),
         "lateDeliveries": [d for d in deliveries if d["daysOverdue"] > 0],
         "deliveriesDueSoon": [d for d in deliveries if d["daysOverdue"] <= 0],
+        # Items the shop floor reported as running low or out, newest first.
+        "reportedLow": [r.to_dict() for r in consumable_request_service.open_requests()],
         "restockDue": [
             {
                 "id": r["toolId"],

@@ -21,6 +21,7 @@ from app.models.job_order import JobOrder
 from app.models.machine import MachineType, MachineUnit
 from app.models.material_catalog import MaterialCatalogItem
 from app.models.consumable_purchase import ConsumablePurchase
+from app.models.consumable_request import ConsumableRequest
 from app.models.material_purchase import MaterialPurchase
 from app.models.notification import NotificationLog
 from app.models.operation import JobOperation, OperationHelper
@@ -43,6 +44,7 @@ _COLUMN_SNAPSHOT_MODELS = (
     SupplierOrder,
     MaterialPurchase,
     ConsumablePurchase,
+    ConsumableRequest,
     SalesInvoice,
     ToolType,
     ToolUnit,

@@ -2146,6 +2146,8 @@ export interface OfficeSummary {
   invoicesToRecord: OfficeJobRef[];
   lateDeliveries: OfficeDeliveryRef[];
   deliveriesDueSoon: OfficeDeliveryRef[];
+  /** Items the shop floor reported as running low or out. */
+  reportedLow?: ConsumableReport[];
   restockDue: OfficeRestockItem[];
 }
 
@@ -2186,4 +2188,53 @@ export interface AuditLogOptions {
   users: { id: string; name: string; role: UserRole | string }[];
   entityTypes: { value: string; label: string }[];
   categories: { value: AuditCategory; label: string }[];
+}
+
+/** A consumable reported as running low or out from the shop floor. */
+export type ConsumableReportLevel = 'LOW' | 'OUT';
+
+export interface ConsumableReport {
+  id: string;
+  toolId: string;
+  name: string | null;
+  level: ConsumableReportLevel;
+  status: 'OPEN' | 'BOUGHT' | 'DISMISSED' | 'WITHDRAWN';
+  reportedById: string;
+  reportedByName: string | null;
+  reportedAt: string | null;
+  closedAt: string | null;
+  mine: boolean;
+}
+
+/** The consumables list a Production Worker sees: no prices or history. */
+export interface WorkerConsumable {
+  toolId: string;
+  name: string;
+  sizeSpec: string | null;
+  shopTerm: string | null;
+  unit: string;
+  report: ConsumableReport | null;
+}
+
+export interface WorkerMaterialLine {
+  id: string;
+  materialName: string;
+  gradeOrSpec: string | null;
+  sizeSpec: string | null;
+  quantity: number | null;
+  unit: string | null;
+  status: 'DRAFT' | 'ORDERED' | 'RECEIVED' | 'CONSUMED' | 'CANCELLED' | string;
+  expectedDate: string | null;
+  dateReceived: string | null;
+}
+
+/** Raw materials of one of the worker's open jobs. */
+export interface WorkerJobMaterials {
+  jobId: string;
+  jobNumber: string;
+  title: string;
+  clientName: string | null;
+  dueDate: string | null;
+  materialStatus: 'NOT_REQUIRED' | 'TO_ORDER' | 'ORDERED' | 'RECEIVED' | null;
+  lines: WorkerMaterialLine[];
 }

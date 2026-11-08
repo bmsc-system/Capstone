@@ -9,11 +9,14 @@ import type {
   Operation,
   OperationPauseReason,
   ReworkReasonCategory,
+  WorkerJobMaterials,
 } from '../types';
 import type { DowntimeCategory } from '../constants/downtimeReasons';
 
 export const operationsApi = {
   mine: () => apiClient.get<Operation[]>('/operations/mine'),
+  /** Raw materials of the worker's open jobs (no costs). */
+  myMaterials: () => apiClient.get<WorkerJobMaterials[]>('/operations/mine/materials'),
   start: (id: string, timestamp?: string) =>
     apiClient.post<Operation>(`/operations/${id}/start`, { timestamp }),
   pause: (id: string, reason: OperationPauseReason, note?: string, timestamp?: string) =>

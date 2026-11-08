@@ -97,6 +97,8 @@ ENTITY_LABELS = {
     "MaterialPurchase": "Material purchase",
     "SalesInvoice": "Sales invoice",
     "Tool": "Consumable",
+    "ConsumablePurchase": "Consumable purchase",
+    "ConsumableRequest": "Running low report",
     "ToolType": "Tool type",
     "ToolUnit": "Tool",
     "Stocktake": "Stock count",

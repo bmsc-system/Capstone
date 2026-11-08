@@ -27,6 +27,16 @@ def my_operations():
     )
 
 
+@operations_bp.route("/mine/materials", methods=["GET"])
+@jwt_required()
+@require_roles(UserRole.PRODUCTION_WORKER)
+def my_materials():
+    """Raw materials of the worker's open jobs: what, size, quantity, arrived or not."""
+    from app.services.consumable_request_service import worker_materials
+
+    return jsonify(worker_materials(get_current_user_id()))
+
+
 @operations_bp.route("/<operation_id>/assign", methods=["PATCH"])
 @jwt_required()
 @require_roles(UserRole.ADMIN)

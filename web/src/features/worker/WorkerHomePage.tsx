@@ -413,7 +413,7 @@ export default function WorkerHomePage() {
       label: 'Tools out',
       value: online && tools ? String(tools.length) : '—',
       sub: !online || !tools ? unknown : tools.length ? 'Out with you' : 'None out',
-      onClick: () => goSection('/inventory'),
+      onClick: () => navigate('/inventory?tab=tools'),
     },
   ];
 
@@ -492,7 +492,7 @@ export default function WorkerHomePage() {
                 Tools you&apos;re holding
                 {tools ? <span className="w-card__count"> · {tools.length}</span> : null}
               </span>
-              <button type="button" className="w-link" onClick={() => goSection('/inventory')}>
+              <button type="button" className="w-link" onClick={() => navigate('/inventory?tab=tools')}>
                 Inventory <RightOutlined style={{ fontSize: 10 }} />
               </button>
             </div>
@@ -505,7 +505,7 @@ export default function WorkerHomePage() {
             ) : (
               <div className="w-rows">
                 {tools.slice(0, 3).map((unit) => (
-                  <button key={unit.id} type="button" className="w-row" onClick={() => goSection('/inventory')}>
+                  <button key={unit.id} type="button" className="w-row" onClick={() => navigate('/inventory?tab=tools')}>
                     <span className="w-row__icon">
                       <ToolOutlined />
                     </span>
@@ -520,7 +520,7 @@ export default function WorkerHomePage() {
                   </button>
                 ))}
                 {tools.length > 3 && (
-                  <button type="button" className="w-row" style={{ minHeight: 44 }} onClick={() => goSection('/inventory')}>
+                  <button type="button" className="w-row" style={{ minHeight: 44 }} onClick={() => navigate('/inventory?tab=tools')}>
                     <span className="w-link" style={{ margin: 0 }}>
                       See all {tools.length}
                     </span>

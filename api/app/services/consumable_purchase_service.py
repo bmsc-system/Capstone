@@ -72,6 +72,11 @@ def record_purchase(data: dict, user_id: str) -> ConsumablePurchase:
         recorded_by_id=user_id,
     )
     db.session.add(purchase)
+    db.session.flush()
+    # Buying the item answers any running-low report from the shop floor.
+    from app.services.consumable_request_service import close_on_purchase
+
+    close_on_purchase(tool.id, user_id, consumable_purchase_id=purchase.id)
     db.session.commit()
     return purchase
 

@@ -1346,3 +1346,82 @@
   font-size: 13px;
   color: var(--c-text-muted);
 }
+
+/* Inventory: raw materials of my jobs */
+.w-inv-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--w-gap);
+}
+
+.w-inv-job__head {
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  padding-bottom: 8px !important;
+  min-height: 48px;
+}
+
+.w-inv-job__titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.w-inv-job__sub {
+  font-size: 12px;
+  color: var(--c-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Inventory: consumables with Running low / Out */
+.w-inv-hint {
+  font-size: 13px;
+  color: var(--c-text-muted);
+  margin: 0 2px 10px;
+}
+
+.w-inv-item.w-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.w-inv-item__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.w-inv-item__note {
+  font-size: 12px;
+  color: var(--c-text-muted);
+  padding-left: 48px;
+}
+
+.w-inv-item__actions {
+  display: flex;
+  gap: 8px;
+  padding-left: 48px;
+}
+
+/* Worker action buttons stay at least 48px tall. */
+.w-inv-btn.ant-btn {
+  flex: 1 1 0;
+  height: 48px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+@media (max-width: 360px) {
+  .w-inv-item__note,
+  .w-inv-item__actions {
+    padding-left: 0;
+  }
+}

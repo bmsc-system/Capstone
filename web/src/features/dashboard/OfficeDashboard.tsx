@@ -67,6 +67,11 @@ export default function OfficeDashboard() {
     };
   }, []);
 
+  const reported = data?.reportedLow ?? [];
+  const reportedIds = new Set(reported.map((r) => r.toolId));
+  const forecastDue = (data?.restockDue ?? []).filter((it) => !reportedIds.has(it.id));
+  const toBuyCount = reported.length + forecastDue.length;
+
   const tasks = useMemo<Task[]>(() => {
     if (!data) return [];
     return [
@@ -151,10 +156,10 @@ export default function OfficeDashboard() {
           icon={<AlertOutlined />}
           tone="amber"
           label="Consumables to buy"
-          value={data?.restockDue.length ?? 0}
-          valueTone={data?.restockDue.length ? 'amber' : undefined}
+          value={toBuyCount}
+          valueTone={reported.length ? 'red' : toBuyCount ? 'amber' : undefined}
           loading={loading}
-          hint="Due by the purchase forecast"
+          hint={reported.length ? `${reported.length} reported by workers` : 'Due by the purchase forecast'}
           onClick={() => navigate('/tools?tab=consumables')}
         />
       </StatGrid>
@@ -249,7 +254,7 @@ export default function OfficeDashboard() {
 
           <SectionCard
             title="Consumables to buy"
-            subtitle="Due or overdue by how often they are bought"
+            subtitle="Reported by workers, then due by how often they are bought"
             extra={
               <Button type="link" size="small" onClick={() => navigate('/tools?tab=consumables')}>
                 Inventory <RightOutlined />
@@ -258,11 +263,27 @@ export default function OfficeDashboard() {
           >
             {loading ? (
               <Skeleton active paragraph={{ rows: 3 }} title={false} />
-            ) : !data || data.restockDue.length === 0 ? (
+            ) : !data || toBuyCount === 0 ? (
               <EmptyState compact icon={<AlertOutlined />} title="Nothing due to buy" />
             ) : (
               <ul className="office-dash__list">
-                {data.restockDue.slice(0, 6).map((it) => (
+                {reported.slice(0, 6).map((r) => (
+                  <li key={`r-${r.id}`}>
+                    <button type="button" onClick={() => navigate('/tools?tab=consumables')}>
+                      <span className="office-dash__main">
+                        <strong>{r.name}</strong>
+                        <span>
+                          Reported by {r.reportedByName ?? 'a worker'}
+                          {r.reportedAt ? ` · ${formatShop(r.reportedAt, 'MMM D, h:mm A')}` : ''}
+                        </span>
+                      </span>
+                      <StatusPill tone={r.level === 'OUT' ? 'red' : 'amber'} compact>
+                        {r.level === 'OUT' ? 'Out' : 'Running low'}
+                      </StatusPill>
+                    </button>
+                  </li>
+                ))}
+                {forecastDue.slice(0, Math.max(6 - reported.length, 0)).map((it) => (
                   <li key={it.id}>
                     <button type="button" onClick={() => navigate('/tools?tab=consumables')}>
                       <span className="office-dash__main">

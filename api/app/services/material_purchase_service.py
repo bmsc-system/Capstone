@@ -691,6 +691,9 @@ def _receive_consumable(p: MaterialPurchase, when: date, actor_id: str):
             material_purchase_id=p.id,
         )
     )
+    from app.services.consumable_request_service import close_on_purchase
+
+    close_on_purchase(tool.id, actor_id, material_purchase_id=p.id)
 
 
 def receive_lines(

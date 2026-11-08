@@ -3,7 +3,7 @@ import type { Dayjs } from 'dayjs';
 import { Button, DatePicker, Drawer, Form, Input, InputNumber, Select, message } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { DownloadOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
-import { CalendarClock, CircleAlert, Package, Wallet } from 'lucide-react';
+import { BellRing, CalendarClock, CircleAlert, Package, Wallet } from 'lucide-react';
 import { analyticsApi } from '../../api/analytics.api';
 import { consumablesApi } from '../../api/consumables.api';
 import { getErrorMessage } from '../../api/client';
@@ -11,7 +11,7 @@ import StatusPill from '../../components/StatusPill';
 import { FilterBar, FormModal, TwoLineCell, rowOpenProps } from '../../components/ui';
 import ResponsiveTable from '../../components/ui/ResponsiveTable';
 import { MOBILE_SHELL_QUERY, NARROW_QUERY, useMediaQuery } from '../../hooks/useViewport';
-import type { ConsumablePurchase, ConsumableReplenishment, ReplenishmentItem } from '../../types';
+import type { ConsumablePurchase, ConsumableReplenishment, ConsumableReport, ReplenishmentItem } from '../../types';
 import { confirmAction } from '../../utils/confirmAction';
 import { exportCsv } from '../../utils/csvExport';
 import { formatShop, isFutureShopDay, shopToday } from '../../utils/shopTime';
@@ -54,6 +54,8 @@ type RecordValues = {
  */
 export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   const [data, setData] = useState<ConsumableReplenishment | null>(null);
+  // Running-low reports from the shop floor, by item.
+  const [reports, setReports] = useState<Record<string, ConsumableReport>>({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [summaryKey, setSummaryKey] = useState<string | null>(null);
@@ -68,8 +70,12 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: d } = await analyticsApi.consumableReplenishment();
+      const [{ data: d }, { data: open }] = await Promise.all([
+        analyticsApi.consumableReplenishment(),
+        consumablesApi.reports(),
+      ]);
       setData(d);
+      setReports(Object.fromEntries(open.map((r) => [r.toolId, r])));
     } catch (err) {
       message.error(getErrorMessage(err));
     } finally {
@@ -101,22 +107,25 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     const q = query.trim().toLowerCase();
     return items.filter((i) => {
       if (q && !`${i.name} ${i.shopTerm || ''} ${i.sizeSpec || ''}`.toLowerCase().includes(q)) return false;
+      if (summaryKey === 'reported' && !reports[i.toolId]) return false;
       if (summaryKey === 'overdue' && i.status !== 'OVERDUE') return false;
       if (summaryKey === 'due_soon' && i.status !== 'DUE_SOON') return false;
       if (summaryKey === 'ok' && i.status !== 'OK') return false;
       return true;
-    });
-  }, [items, query, summaryKey]);
+    }).sort((a, b) => Number(!!reports[b.toolId]) - Number(!!reports[a.toolId]));
+  }, [items, query, summaryKey, reports]);
 
   const cards: InventorySummaryCard[] = useMemo(() => {
     const s = data?.summary;
+    const reported = Object.keys(reports).length;
     return [
+      { key: 'reported', label: 'Reported low', shortLabel: 'Reported', value: reported, icon: BellRing, tone: reported ? 'red' : 'slate', caption: 'By workers on the shop floor' },
       { key: 'overdue', label: 'Overdue to buy', shortLabel: 'Overdue', value: s?.overdue ?? 0, icon: CircleAlert, tone: 'red', caption: 'Past the usual purchase date' },
       { key: 'due_soon', label: 'Due soon', value: s?.dueSoon ?? 0, icon: CalendarClock, tone: 'amber', caption: `Within ${data?.method.dueSoonDays ?? 7} days` },
       { key: 'ok', label: 'OK', value: items.filter((i) => i.status === 'OK').length, icon: Package, tone: 'green', caption: `${s?.forecast ?? 0} items with a forecast` },
       { key: 'spent', label: 'Bought · last 30 days', shortLabel: 'Bought (30 d)', value: s?.purchasesLast30Days ?? 0, icon: Wallet, tone: 'slate', caption: `Purchases worth ${peso(s?.spentLast30Days ?? 0)}` },
     ];
-  }, [data, items]);
+  }, [data, items, reports]);
 
   const openRecord = (target: ReplenishmentItem | 'any') => {
     form.resetFields();
@@ -151,6 +160,22 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     }
   };
 
+  const dismissReport = (r: ConsumableReport) =>
+    confirmAction({
+      title: `Dismiss the report for ${r.name ?? 'this item'}?`,
+      content: 'Use this when there is still enough on the shelf. Recording a purchase closes the report by itself.',
+      okText: 'Dismiss',
+      onOk: async () => {
+        try {
+          await consumablesApi.dismissReport(r.id);
+          message.success('Report dismissed');
+          await load();
+        } catch (err) {
+          message.error(getErrorMessage(err));
+        }
+      },
+    });
+
   const removePurchase = (p: ConsumablePurchase) =>
     confirmAction({
       title: 'Remove this purchase?',
@@ -182,11 +207,32 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
       />
     </div>
   );
-  const statusCell = (i: ReplenishmentItem) => (
-    <StatusPill color={STATUS[i.status].color} compact>
-      {STATUS[i.status].label}
-    </StatusPill>
+  const reportPill = (r: ConsumableReport) => (
+    <span
+      title={`Reported by ${r.reportedByName ?? 'a worker'}${r.reportedAt ? `, ${formatShop(r.reportedAt, 'MMM D, h:mm A')}` : ''}`}
+    >
+      <StatusPill color={r.level === 'OUT' ? 'red' : 'amber'} compact>
+        {r.level === 'OUT' ? 'Reported out' : 'Reported low'}
+      </StatusPill>
+    </span>
   );
+  const statusCell = (i: ReplenishmentItem) => {
+    const r = reports[i.toolId];
+    return (
+      <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+        {r ? reportPill(r) : null}
+        <StatusPill color={STATUS[i.status].color} compact>
+          {STATUS[i.status].label}
+        </StatusPill>
+        {r ? (
+          <span style={{ fontSize: 11, color: '#64748b' }}>
+            by {r.reportedByName ?? 'a worker'}
+            {r.reportedAt ? ` · ${formatShop(r.reportedAt, 'MMM D')}` : ''}
+          </span>
+        ) : null}
+      </span>
+    );
+  };
 
   const columns: TableColumnsType<ReplenishmentItem> = [
     { title: 'Consumable', key: 'name', render: (_: unknown, i) => itemCell(i), sorter: (a, b) => a.name.localeCompare(b.name) },
@@ -228,18 +274,33 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
           {
             title: '',
             key: 'actions',
-            width: 110,
+            width: 120,
             render: (_: unknown, i: ReplenishmentItem) => (
-              <Button
-                size="small"
-                icon={<ShoppingCartOutlined />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openRecord(i);
-                }}
-              >
-                Bought
-              </Button>
+              <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                <Button
+                  size="small"
+                  icon={<ShoppingCartOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openRecord(i);
+                  }}
+                >
+                  Bought
+                </Button>
+                {reports[i.toolId] ? (
+                  <Button
+                    size="small"
+                    type="link"
+                    style={{ paddingInline: 0 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dismissReport(reports[i.toolId]);
+                    }}
+                  >
+                    Dismiss report
+                  </Button>
+                ) : null}
+              </span>
             ),
           },
         ]
@@ -264,6 +325,11 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
       { key: 'q', header: 'Usual quantity', value: (r) => r.usualQuantity ?? '' },
       { key: 'x', header: 'Next purchase', value: (r) => r.nextPurchaseOn ?? '' },
       { key: 'st', header: 'Status', value: (r) => STATUS[r.status].label },
+      {
+        key: 'rp',
+        header: 'Reported by workers',
+        value: (r) => (reports[r.toolId] ? `${reports[r.toolId].level === 'OUT' ? 'Out' : 'Running low'} (${reports[r.toolId].reportedByName ?? ''})` : ''),
+      },
     ]);
 
   return (
