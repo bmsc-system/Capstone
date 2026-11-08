@@ -315,3 +315,43 @@ def test_admin_can_close_downtime(app, people):
     )
     assert res.status_code == 200, res.get_json()
     assert res.get_json()["endedAt"] is not None
+
+
+# Pareto detail: each cause says where its hours came from
+
+
+def test_pareto_causes_name_the_machine_and_jobs(people):
+    job, op = _finished_job(people, JobOrderStatus.COMPLETED, "1000", T0 + timedelta(hours=10))
+    machine_type = MachineType(code="PD_MILL", name="Detail mill")
+    db.session.add(machine_type)
+    db.session.flush()
+    unit = MachineUnit(machine_type_id=machine_type.id, label="Detail mill 1")
+    db.session.add(unit)
+    db.session.flush()
+    op.machine_unit_id = unit.id
+    for event, hour, reason in [
+        (OperationTimeEvent.START, 0, None),
+        (OperationTimeEvent.PAUSE, 2, OperationPauseReason.WAITING_MATERIAL),
+        (OperationTimeEvent.RESUME, 4, None),
+        (OperationTimeEvent.COMPLETE, 10, None),
+    ]:
+        db.session.add(
+            OperationTimeLog(operation_id=op.id, worker_id=people["worker"].id, event=event,
+                             event_at=T0 + timedelta(hours=hour), reason=reason)
+        )
+    db.session.add(
+        MachineDowntime(machine_unit_id=unit.id, started_at=T0 + timedelta(days=1),
+                        ended_at=T0 + timedelta(days=1, hours=3), category=DowntimeCategory.MECHANICAL_FAILURE,
+                        reason="Spindle", reported_by_id=people["worker"].id)
+    )
+    db.session.flush()
+
+    causes = {row["cause"]: row for row in analytics_service.delays(**PERIOD)["causes"]}
+    waiting = causes["WAITING_MATERIAL"]
+    assert waiting["detailBy"] == "machine"
+    assert waiting["details"][0]["label"] == "Detail mill 1"
+    assert waiting["details"][0]["hours"] == pytest.approx(2.0)
+    assert waiting["details"][0]["jobs"] == [job.job_number]
+    down = causes["MACHINE_DOWNTIME"]
+    assert [d["label"] for d in down["details"]] == ["Detail mill 1"]
+    assert down["details"][0]["count"] == 1

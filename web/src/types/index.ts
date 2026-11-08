@@ -1583,6 +1583,16 @@ export interface AnalyticsPauseReasonRow {
   totalPausedHours: number | null;
 }
 
+/** Where a delay cause's hours came from: a machine, supplier, outside shop or operation. */
+export interface AnalyticsDelayCauseDetail {
+  label: string;
+  hours: number | null;
+  count: number;
+  jobs: string[];
+  moreJobs: number;
+  note: string | null;
+}
+
 export interface AnalyticsDelayCauseRow {
   cause: string;
   causeType: 'PAUSE' | 'DOWNTIME' | 'REWORK' | string;
@@ -1591,6 +1601,9 @@ export interface AnalyticsDelayCauseRow {
   occurrenceCount: number;
   shareOfTotalPct: number | null;
   cumulativePct: number | null;
+  details?: AnalyticsDelayCauseDetail[];
+  moreDetails?: number;
+  detailBy?: 'machine' | 'supplier' | 'job' | 'outside shop' | 'operation' | null;
 }
 
 export interface AnalyticsDowntimeRow {

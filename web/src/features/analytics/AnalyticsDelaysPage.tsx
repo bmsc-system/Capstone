@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { PageSkeleton } from '../../components/ui';
-import type { AnalyticsLateJobCause } from '../../types';
+import type { AnalyticsDelayCauseDetail, AnalyticsLateJobCause } from '../../types';
 import { exportCsv } from '../../utils/csvExport';
 import { fmtDay, fmtNum, pctChange } from './format';
 import { Card, ChartEmpty, Grid, Kpi, Kpis, PALETTE, ParetoChart, SortedBars } from './kit';
@@ -31,6 +31,67 @@ function causeLabel(c: AnalyticsLateJobCause) {
   return c.cause === c.label ? reasonLabel(c.cause) : c.label;
 }
 
+const DETAIL_BY: Record<string, string> = {
+  machine: 'By machine',
+  supplier: 'By supplier',
+  job: 'By job',
+  'outside shop': 'By outside shop',
+  operation: 'By operation',
+};
+
+type CauseRow = {
+  label: string;
+  hours: number;
+  shareOfTotalPct: number;
+  details: AnalyticsDelayCauseDetail[];
+  moreDetails: number;
+  detailBy: string | null;
+};
+
+/** Under the Pareto chart: which machine, supplier, outside shop or operation
+ *  each cause's hours came from, so the top causes can be acted on. */
+function CauseDetails({ causes, vitalFew }: { causes: CauseRow[]; vitalFew: number }) {
+  return (
+    <div className="ana-causes">
+      <div className="ana-causes__title">Where the hours came from</div>
+      <ol className="ana-causes__list">
+        {causes.map((c, i) => (
+          <li key={c.label} className={`ana-causes__row${i < vitalFew ? ' is-vital' : ''}`}>
+            <span className="ana-causes__rank">{i + 1}</span>
+            <span className="ana-causes__cause">
+              <span className="ana-causes__name">{c.label}</span>
+              <span className="ana-causes__hours">
+                {fmtNum(c.hours, 1)} h · {fmtNum(c.shareOfTotalPct)}%
+              </span>
+            </span>
+            <span className="ana-causes__from">
+              {c.detailBy ? <span className="ana-causes__by">{DETAIL_BY[c.detailBy] ?? ''}</span> : null}
+              {c.details.length ? (
+                c.details.map((d) => {
+                  const jobs = d.jobs.length
+                    ? `${d.jobs.join(', ')}${d.moreJobs ? ` and ${d.moreJobs} more` : ''}`
+                    : null;
+                  return (
+                    <span key={d.label} className="ana-chip ana-causes__chip" title={jobs ?? undefined}>
+                      <strong>{d.label}</strong>&nbsp;· {fmtNum(d.hours, 1)} h
+                      {d.count > 1 ? ` · ${d.count}×` : ''}
+                      {d.note ? ` · ${d.note}` : ''}
+                      {jobs && c.detailBy !== 'job' ? <span className="ana-causes__jobs">&nbsp;({jobs})</span> : null}
+                    </span>
+                  );
+                })
+              ) : (
+                <span className="ana-muted">No detail recorded</span>
+              )}
+              {c.moreDetails ? <span className="ana-muted">+{c.moreDetails} more</span> : null}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 export default function AnalyticsDelaysPage() {
   const { period, previous } = usePeriods();
   const data = useDelays(period).data;
@@ -47,6 +108,9 @@ export default function AnalyticsDelaysPage() {
       cumulativePct: c.cumulativePct ?? 0,
       shareOfTotalPct: c.shareOfTotalPct ?? 0,
       count: c.occurrenceCount,
+      details: c.details ?? [],
+      moreDetails: c.moreDetails ?? 0,
+      detailBy: c.detailBy ?? null,
     }));
   const vitalFew = Math.min(data.vitalFewCount ?? 1, causes.length);
   const top = causes[0];
@@ -124,11 +188,19 @@ export default function AnalyticsDelaysPage() {
               { key: 'n', header: 'Times', value: (r) => r.count },
               { key: 's', header: 'Share %', value: (r) => r.shareOfTotalPct },
               { key: 'k', header: 'Cumulative %', value: (r) => r.cumulativePct },
+              {
+                key: 'd',
+                header: 'Where it came from',
+                value: (r) => r.details.map((d) => `${d.label} ${fmtNum(d.hours, 1)}h`).join('; '),
+              },
             ])
           }
         >
           {causes.length ? (
-            <ParetoChart rows={causes} threshold={threshold} vitalFew={vitalFew} height={300} />
+            <>
+              <ParetoChart rows={causes} threshold={threshold} vitalFew={vitalFew} height={300} />
+              <CauseDetails causes={causes} vitalFew={vitalFew} />
+            </>
           ) : (
             <ChartEmpty title="No delay hours in this period" height={220} />
           )}

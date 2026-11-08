@@ -1,8 +1,8 @@
 /** Inventory page tab labels — kept here so vitest can assert Batch 4 copy. */
 export const INVENTORY_TAB_OPTIONS = [
+  { label: 'Raw materials', value: 'raw-materials' },
   { label: 'Tools', value: 'tools' },
   { label: 'Consumables', value: 'consumables' },
-  { label: 'Raw materials', value: 'raw-materials' },
   { label: 'Catalog', value: 'catalog' },
 ] as const;
 

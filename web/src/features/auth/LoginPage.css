@@ -389,3 +389,9 @@
 .password-hints li.is-met::before {
   background: #15803d;
 }
+
+/* Placeholders are a light hint, not something to read as typed text. */
+.login-card .ant-input::placeholder {
+  color: #a8b3c4;
+  font-weight: 400;
+}

@@ -192,6 +192,7 @@ export default function LoginPage() {
                   size="large"
                   prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
                   autoComplete="username"
+                  placeholder="name@example.com"
                 />
               </Form.Item>
               <Form.Item
@@ -207,6 +208,7 @@ export default function LoginPage() {
                   size="large"
                   prefix={<LockOutlined style={{ color: '#94a3b8' }} />}
                   autoComplete="current-password"
+                  placeholder="Enter your password"
                 />
               </Form.Item>
               <Button

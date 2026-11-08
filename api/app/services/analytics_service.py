@@ -930,9 +930,12 @@ def delays(from_s=None, to_s=None):
     for p in pauses:
         if p["reason"] == OperationPauseReason.MACHINE_DOWN.value and p["machineUnitId"]:
             down_pauses[p["machineUnitId"]].append((p["start"], p["end"]))
+    overlap_by_unit = {}
     for uid, ivs in down_pauses.items():
         both = intersect_intervals(ivs, dt_intervals.get(uid, []))
-        overlap_hours += sum((e - s).total_seconds() for s, e in both) / 3600.0
+        unit_overlap = sum((e - s).total_seconds() for s, e in both) / 3600.0
+        overlap_by_unit[uid] = unit_overlap
+        overlap_hours += unit_overlap
     if overlap_hours:
         key = OperationPauseReason.MACHINE_DOWN.value
         pause_hours[key] = max(pause_hours[key] - overlap_hours, 0.0)
@@ -1049,12 +1052,25 @@ def delays(from_s=None, to_s=None):
                 "occurrenceCount": int(count or 0),
             }
         )
+    _attach_cause_details(
+        cause_rows,
+        pauses=pauses,
+        overlap_by_unit=overlap_by_unit,
+        dt_hours=dt_hours,
+        dt_counts=dt_counts,
+        dt_open=dt_open,
+        material=material,
+        late_back=late_back,
+        rework_ops=_rework_ops(start_utc, end_utc),
+    )
     # A row that rounds to 0.0 h (e.g. Machine down pauses fully covered by a
     # downtime record) explains no delay.
     cause_rows = [r for r in cause_rows if round(r["hours"], 1) > 0]
     pareto = pareto_rows(cause_rows)
     total_cause_hours = sum(r["hours"] for r in cause_rows)
     for row in pareto:
+        for d in row.get("details") or []:
+            d["hours"] = _num(d["hours"])
         row["hours"] = _num(row["hours"])
         row["shareOfTotalPct"] = _num(row["shareOfTotalPct"])
         row["cumulativePct"] = _num(row["cumulativePct"])
@@ -1099,6 +1115,144 @@ def delays(from_s=None, to_s=None):
 
 
 PARETO_THRESHOLD_PCT = 80.0
+CAUSE_DETAIL_LIMIT = 5
+
+
+def _rework_ops(start_utc, end_utc):
+    """Each redo operation finished in the period: where it ran and how long."""
+    return (
+        JobOperation.query.options(joinedload(JobOperation.job_order))
+        .filter(
+            *_completed_in_period_filters(start_utc, end_utc),
+            JobOperation.rework_of_operation_id.isnot(None),
+        )
+        .all()
+    )
+
+
+def _detail_rows(groups, limit=CAUSE_DETAIL_LIMIT):
+    """``groups``: label -> {"hours", "count", "jobs", "note"?}. Largest first,
+    with the job numbers involved (up to three)."""
+    rows = []
+    for label, g in groups.items():
+        jobs = sorted(j for j in g["jobs"] if j)
+        rows.append(
+            {
+                "label": label,
+                "hours": float(g["hours"]),
+                "count": int(g["count"]),
+                "jobs": jobs[:3],
+                "moreJobs": max(len(jobs) - 3, 0),
+                "note": g.get("note"),
+            }
+        )
+    rows = [r for r in rows if round(r["hours"], 1) > 0 or r["count"]]
+    rows.sort(key=lambda r: (-r["hours"], -r["count"], r["label"]))
+    return rows[:limit], max(len(rows) - limit, 0)
+
+
+def _attach_cause_details(cause_rows, *, pauses, overlap_by_unit, dt_hours, dt_counts, dt_open,
+                          material, late_back, rework_ops):
+    """Add ``details`` to each Pareto cause: which machine, supplier, outside shop
+    or operation the lost hours came from, so the cause can be acted on.
+    The chart itself is unchanged; the details are read under it."""
+    unit_ids = {p["machineUnitId"] for p in pauses if p["machineUnitId"]} | set(dt_hours)
+    unit_ids |= {op.machine_unit_id for op in rework_ops if op.machine_unit_id}
+    units = (
+        {u.id: u for u in MachineUnit.query.filter(MachineUnit.id.in_(list(unit_ids))).all()}
+        if unit_ids
+        else {}
+    )
+    job_ids = {p["jobOrderId"] for p in pauses if p["jobOrderId"]}
+    jobs = (
+        {j.id: j.job_number for j in JobOrder.query.filter(JobOrder.id.in_(list(job_ids))).all()}
+        if job_ids
+        else {}
+    )
+
+    def unit_label(uid):
+        u = units.get(uid)
+        return u.label if u else "No machine set"
+
+    def group():
+        return defaultdict(lambda: {"hours": 0.0, "count": 0, "jobs": set()})
+
+    # Pause reasons: by machine unit (Machine down keeps the overlap rule).
+    by_reason = defaultdict(group)
+    for p in pauses:
+        g = by_reason[p["reason"]][unit_label(p["machineUnitId"])]
+        g["hours"] += p["hours"]
+        g["count"] += 1
+        g["jobs"].add(jobs.get(p["jobOrderId"]))
+    down_key = OperationPauseReason.MACHINE_DOWN.value
+    for uid, hrs in overlap_by_unit.items():
+        g = by_reason[down_key].get(unit_label(uid))
+        if g is not None:
+            g["hours"] = max(g["hours"] - hrs, 0.0)
+
+    # Machine downtime: by machine unit.
+    downtime = {}
+    for uid, hrs in dt_hours.items():
+        open_n = dt_open.get(uid, 0)
+        downtime[unit_label(uid)] = {
+            "hours": hrs,
+            "count": dt_counts.get(uid, 0),
+            "jobs": set(),
+            "note": "still down" if open_n else None,
+        }
+
+    # Material delays: by supplier (late deliveries) or by job (not ordered).
+    by_material = defaultdict(group)
+    for r in material:
+        key = r["supplierNames"] if r["cause"] != "NOT_ORDERED" and r.get("supplierNames") else r["jobNumber"]
+        g = by_material[r["cause"]][key or "Unknown"]
+        g["hours"] += r["hours"]
+        g["count"] += 1
+        g["jobs"].add(r["jobNumber"])
+
+    # Late back from an outside shop: by the shop it was sent to.
+    outsourced = group()
+    for r in late_back:
+        g = outsourced[r.get("sentTo") or "Outside shop"]
+        g["hours"] += r["hours"]
+        g["count"] += 1
+        g["jobs"].add(r["jobNumber"])
+
+    # Redo: by operation and machine, per recorded category.
+    by_rework = defaultdict(group)
+    for op in rework_ops:
+        key = op.rework_reason_category.value if op.rework_reason_category else "UNCATEGORISED"
+        label = op.operation_name or "Operation"
+        if op.machine_unit_id:
+            label = f"{label} on {unit_label(op.machine_unit_id)}"
+        g = by_rework[key][label]
+        g["hours"] += float(op.actual_worked_hours or 0)
+        g["count"] += 1
+        g["jobs"].add(op.job_order.job_number if op.job_order else None)
+
+    reverse_material = {v: k for k, v in PARETO_CAUSE.items()}
+    for row in cause_rows:
+        kind, cause = row["causeType"], row["cause"]
+        if kind == "PAUSE":
+            row["details"], row["moreDetails"] = _detail_rows(by_reason.get(cause, {}))
+            row["detailBy"] = "machine"
+        elif kind == "DOWNTIME":
+            row["details"], row["moreDetails"] = _detail_rows(downtime)
+            row["detailBy"] = "machine"
+        elif kind == "MATERIAL":
+            mcause = reverse_material.get(cause)
+            row["details"], row["moreDetails"] = _detail_rows(by_material.get(mcause, {}))
+            row["detailBy"] = "job" if mcause == "NOT_ORDERED" else "supplier"
+        elif kind == "OUTSOURCED":
+            row["details"], row["moreDetails"] = _detail_rows(outsourced)
+            row["detailBy"] = "outside shop"
+        elif kind == "REWORK":
+            row["details"], row["moreDetails"] = _detail_rows(by_rework.get(cause.split(":", 1)[1], {}))
+            row["detailBy"] = "operation"
+        else:
+            row["details"], row["moreDetails"] = [], 0
+            row["detailBy"] = None
+
 
 
 def pareto_rows(rows, value_key="hours"):

@@ -18,15 +18,15 @@ const TAB_ICON: Record<PageTab, typeof Wrench> = {
   catalog: BookOpen,
 };
 
-/** Inventory: tools (borrowed by QR), consumables (what the shop buys),
- *  raw materials bought for jobs, and the catalog of what can be ordered. */
+/** Inventory: raw materials bought for jobs, tools (borrowed by QR),
+ *  consumables (what the shop buys), and the catalog of what can be ordered. */
 export default function ToolsPage() {
   const { canOfficeWrite } = useAuth();
   const [searchParams] = useSearchParams();
   // ?tab=consumables (or raw-materials, catalog) opens that tab, e.g. from Analytics.
   const [tab, setTab] = useState<PageTab>(() => {
     const asked = searchParams.get('tab');
-    return INVENTORY_TAB_OPTIONS.some((o) => o.value === asked) ? (asked as PageTab) : 'tools';
+    return INVENTORY_TAB_OPTIONS.some((o) => o.value === asked) ? (asked as PageTab) : INVENTORY_TAB_OPTIONS[0].value;
   });
 
   const tabOptions = useMemo(
@@ -57,9 +57,9 @@ export default function ToolsPage() {
         />
       </div>
 
+      {tab === 'raw-materials' && <RawMaterialsPanel />}
       {tab === 'tools' && <ToolsAssetsPanel />}
       {tab === 'consumables' && <ConsumablesPanel canEdit={canOfficeWrite} />}
-      {tab === 'raw-materials' && <RawMaterialsPanel />}
       {tab === 'catalog' && <MaterialCatalogPanel canEdit={canOfficeWrite} />}
     </div>
   );

@@ -8,9 +8,9 @@ import {
 describe('inventory tabs (Batch 4)', () => {
   it('renames the material catalog tab to Catalog', () => {
     expect(INVENTORY_TAB_OPTIONS.map((t) => t.label)).toEqual([
+      'Raw materials',
       'Tools',
       'Consumables',
-      'Raw materials',
       'Catalog',
     ]);
     expect(INVENTORY_TAB_OPTIONS.map((t) => t.label as string)).not.toContain('Material catalog');
