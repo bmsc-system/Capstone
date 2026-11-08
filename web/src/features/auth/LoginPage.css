@@ -135,7 +135,22 @@
 .login-card .ant-input-affix-wrapper,
 .login-card .ant-input-affix-wrapper-lg {
   border-radius: 8px !important;
-  border-color: #cbd5e1 !important;
+  /* A clearly visible edge: darker than the default light grey. */
+  border-color: #94a3b8 !important;
+}
+
+.login-card .ant-input-outlined,
+.login-card .ant-input-affix-wrapper {
+  border-width: 1.5px !important;
+}
+
+.login-card .ant-input-affix-wrapper .ant-input {
+  border-width: 0 !important;
+}
+
+.login-card .ant-input-outlined:hover,
+.login-card .ant-input-affix-wrapper:hover {
+  border-color: #64748b !important;
 }
 
 .login-card .ant-input-affix-wrapper .ant-input {
@@ -177,10 +192,20 @@
 }
 
 .login-card .ant-input:focus,
+.login-card .ant-input:focus:hover,
 .login-card .ant-input-focused,
-.login-card .ant-input-affix-wrapper-focused {
+.login-card .ant-input-affix-wrapper.ant-input-affix-wrapper-focused,
+.login-card .ant-input-affix-wrapper.ant-input-affix-wrapper-focused:hover {
   border-color: #2563eb !important;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25) !important;
+}
+
+/* The text box inside a field with an icon has no ring of its own; the
+   field's outline already shows the focus. */
+.login-card .ant-input-affix-wrapper .ant-input:focus,
+.login-card .ant-input-affix-wrapper .ant-input:focus:hover {
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .login-card__submit {
