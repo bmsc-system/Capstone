@@ -219,17 +219,26 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   const statusCell = (i: ReplenishmentItem) => {
     const r = reports[i.toolId];
     return (
-      <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-        {r ? reportPill(r) : null}
-        <StatusPill color={STATUS[i.status].color} compact>
-          {STATUS[i.status].label}
-        </StatusPill>
+      <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4, maxWidth: '100%' }}>
         {r ? (
-          <span style={{ fontSize: 11, color: '#64748b' }}>
-            by {r.reportedByName ?? 'a worker'}
-            {r.reportedAt ? ` · ${formatShop(r.reportedAt, 'MMM D')}` : ''}
-          </span>
-        ) : null}
+          <>
+            {reportPill(r)}
+            {/* A worker's report outranks the forecast, so the forecast pill is left out here
+                (the Next purchase column still shows the forecast date). */}
+            <span style={{ fontSize: 11, lineHeight: 1.35, color: '#64748b', maxWidth: '100%' }}>
+              <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                by {r.reportedByName ?? 'a worker'}
+              </span>
+              {r.reportedAt ? (
+                <span style={{ display: 'block', whiteSpace: 'nowrap' }}>{formatShop(r.reportedAt, 'MMM D, h:mm A')}</span>
+              ) : null}
+            </span>
+          </>
+        ) : (
+          <StatusPill color={STATUS[i.status].color} compact>
+            {STATUS[i.status].label}
+          </StatusPill>
+        )}
       </span>
     );
   };

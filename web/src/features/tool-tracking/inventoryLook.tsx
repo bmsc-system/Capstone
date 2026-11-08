@@ -139,13 +139,16 @@ export function InventorySummaryCards({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+        gridTemplateColumns: `repeat(${Math.max(4, Math.min(cards.length, 5))}, minmax(0, 1fr))`,
         gap: 10,
         marginBottom: 14,
       }}
-      className="inventory-summary-cards"
+      className={`inventory-summary-cards${cards.length > 4 ? ' inventory-summary-cards--five' : ''}`}
     >
       <style>{`
+        @media (max-width: 1279.98px) {
+          .inventory-summary-cards--five { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+        }
         @media (max-width: 900px) {
           .inventory-summary-cards { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
         }

@@ -58,7 +58,7 @@ function lineStatus(l: WorkerMaterialLine): { label: string; tone: Tone; sub: st
 }
 
 const NO_LINES: Record<string, string> = {
-  NOT_REQUIRED: 'No materials to buy (client-supplied or already in the shop).',
+  NOT_REQUIRED: 'No materials listed. The client supplies them or the shop already has them.',
   TO_ORDER: 'Materials not ordered yet. The office will order them.',
 };
 
