@@ -142,6 +142,35 @@
   border-radius: 0 !important;
 }
 
+/* A faint grey fill so the fields stand apart from the white card; the field
+   turns white while it is being typed in. */
+.login-card .ant-input-outlined,
+.login-card .ant-input-affix-wrapper {
+  background: #f4f6f9 !important;
+}
+
+.login-card .ant-input-affix-wrapper .ant-input {
+  background: transparent !important;
+}
+
+.login-card .ant-input-outlined:hover,
+.login-card .ant-input-affix-wrapper:hover {
+  background: #eef1f5 !important;
+}
+
+.login-card .ant-input-outlined:focus,
+.login-card .ant-input-outlined:focus:hover,
+.login-card .ant-input-outlined.ant-input-focused,
+.login-card .ant-input-affix-wrapper.ant-input-affix-wrapper-focused,
+.login-card .ant-input-affix-wrapper.ant-input-affix-wrapper-focused:hover {
+  background: #fff !important;
+}
+
+/* Browser autofill paints its own colour; keep it the same grey. */
+.login-card .ant-input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #f4f6f9 inset !important;
+}
+
 .login-card .ant-btn:not(.ant-btn-link),
 .login-card .ant-otp-input {
   border-radius: 8px !important;
