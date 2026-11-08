@@ -87,7 +87,11 @@ function Dialog({ title, content, okText, cancelText, danger, wide, onOk, onCanc
         {content ? <div className="app-confirm-card__body">{content}</div> : null}
         <div className="app-confirm-card__actions">
           {single ? (
-            <button type="button" className="acct-sheet-btn" onClick={() => armed && close()}>
+            <button
+              type="button"
+              className="acct-sheet-btn acct-sheet-btn--primary"
+              onClick={() => armed && close()}
+            >
               {okText || 'OK'}
             </button>
           ) : (

@@ -364,12 +364,12 @@ export default function WorkCalendarPage() {
         impactCount > 0
           ? `${impactCount} scheduled operation${impactCount === 1 ? '' : 's'} will fall outside working hours.`
           : 'No scheduled work is affected.',
-      okText: 'Delete',
+      okText: 'Remove',
       danger: true,
       onOk: async () => {
         try {
           await calendarApi.remove(exc.id);
-          message.success('Exception deleted');
+          message.success('Exception removed');
           setFormOpen(false);
           setEditing(null);
           await fetchMonth(anchor);
@@ -716,7 +716,7 @@ export default function WorkCalendarPage() {
               onClick={() => confirmDelete(editing)}
               style={{ marginRight: 'auto' }}
             >
-              Delete
+              Remove
             </Button>
           ) : null}
           {isAdmin ? (
