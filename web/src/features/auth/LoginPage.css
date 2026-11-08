@@ -36,7 +36,8 @@
   z-index: 1;
   width: 100%;
   max-width: 420px;
-  background: #fff;
+  /* Light grey card so the white fields stand out on it. */
+  background: #f4f6f9;
   border-radius: 12px;
   overflow: hidden;
   box-shadow:
@@ -157,11 +158,10 @@
   border-radius: 0 !important;
 }
 
-/* A faint grey fill so the fields stand apart from the white card; the field
-   turns white while it is being typed in. */
+/* White fields on the light grey card. */
 .login-card .ant-input-outlined,
 .login-card .ant-input-affix-wrapper {
-  background: #f4f6f9 !important;
+  background: #fff !important;
 }
 
 .login-card .ant-input-affix-wrapper .ant-input {
@@ -170,7 +170,7 @@
 
 .login-card .ant-input-outlined:hover,
 .login-card .ant-input-affix-wrapper:hover {
-  background: #eef1f5 !important;
+  background: #fff !important;
 }
 
 .login-card .ant-input-outlined:focus,
@@ -181,9 +181,9 @@
   background: #fff !important;
 }
 
-/* Browser autofill paints its own colour; keep it the same grey. */
+/* Browser autofill paints its own colour; keep the field white. */
 .login-card .ant-input:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px #f4f6f9 inset !important;
+  -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
 }
 
 .login-card .ant-btn:not(.ant-btn-link),
