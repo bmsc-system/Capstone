@@ -17,10 +17,10 @@ import {
   AimOutlined,
   FilterOutlined,
   CloseOutlined,
-  CalendarOutlined,
-  DashboardOutlined,
   WarningOutlined,
   InboxOutlined,
+  PauseCircleOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
 import PeriodNavigator from '../../components/PeriodNavigator';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -44,7 +44,6 @@ import ScheduleExpandShell from './ScheduleExpandShell';
 import WorkerPersonalSchedule from './WorkerPersonalSchedule';
 import ScheduleAgenda from './ScheduleAgenda';
 import ScheduleList from './ScheduleList';
-import { capacityLine } from './capacityText';
 import { MOBILE_SHELL_QUERY, TOUCH_QUERY, useMediaQuery } from '../../hooks/useViewport';
 import { personLabel } from '../../utils/people';
 import {
@@ -285,18 +284,18 @@ function AdminOfficeScheduleBoard() {
         : 'calc(100vh - 280px)';
   const today = dayjs().tz(SHOP_TZ).startOf('day');
   const showingToday = !today.isBefore(from, 'day') && !today.isAfter(to, 'day');
-  const nearFull = summary?.machinesNearFullCapacity || [];
-  const capacityRows = summary?.machineCapacity || [];
   const atRiskCount = summary?.jobsAtRisk?.length ?? 0;
-  const waitingJobs = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const op of data?.operations || []) {
-      if (op.waitingForMaterials && !seen.has(op.jobOrderId)) {
-        seen.set(op.jobOrderId, op.jobNumber || op.jobTitle || op.jobOrderId.slice(0, 8));
-      }
-    }
-    return [...seen.values()];
-  }, [data]);
+  const waitingCount = useMemo(
+    () => new Set((data?.operations || []).filter((op) => op.waitingForMaterials).map((op) => op.jobOrderId)).size,
+    [data],
+  );
+  // Units broken down now, and the operations booked on them that must be moved.
+  const downCount = useMemo(
+    () => new Set((data?.downtimes || []).filter((d) => d.open).map((d) => d.machineUnitId)).size,
+    [data],
+  );
+  const opsToMove = useMemo(() => (data?.operations || []).filter((op) => op.onDownUnit).length, [data]);
+  const stalledCount = useMemo(() => (data?.operations || []).filter((op) => op.stalled).length, [data]);
   const activeFilterCount =
     [machineTypeId, workerId, clientId].filter(Boolean).length + (includeCompleted ? 0 : 1);
 
@@ -424,20 +423,20 @@ function AdminOfficeScheduleBoard() {
             </div>
           </div>
           <div className="sched-m__stats">
-            <div className="sched-m__stat">
-              <div className="sched-m__stat-n">{summary?.jobsScheduled ?? '—'}</div>
-              <div className="sched-m__stat-l">JO scheduled</div>
-            </div>
-            <div className="sched-m__stat">
-              <div className="sched-m__stat-n">{nearFull.length}</div>
-              <div className="sched-m__stat-l">Near full</div>
-            </div>
             <div className={`sched-m__stat${atRiskCount ? ' is-danger' : ''}`}>
               <div className="sched-m__stat-n">{atRiskCount}</div>
               <div className="sched-m__stat-l">At risk</div>
             </div>
+            <div className={`sched-m__stat${downCount ? ' is-danger' : ''}`}>
+              <div className="sched-m__stat-n">{downCount}</div>
+              <div className="sched-m__stat-l">Machines down</div>
+            </div>
             <div className="sched-m__stat">
-              <div className="sched-m__stat-n">{waitingJobs.length}</div>
+              <div className="sched-m__stat-n">{stalledCount}</div>
+              <div className="sched-m__stat-l">Stalled</div>
+            </div>
+            <div className="sched-m__stat">
+              <div className="sched-m__stat-n">{waitingCount}</div>
               <div className="sched-m__stat-l">No material</div>
             </div>
           </div>
@@ -445,89 +444,37 @@ function AdminOfficeScheduleBoard() {
       ) : (
         <StatGrid min={200}>
           <StatCard
-            icon={<CalendarOutlined />}
-            tone="blue"
-            label="JO scheduled"
-            value={summary?.jobsScheduled ?? '—'}
-            loading={loading && !data}
-            hint={
-              plainStats
-                ? undefined
-                : summary?.jobsScheduled
-                  ? `${summary.operationsScheduled} operation${
-                      summary.operationsScheduled === 1 ? '' : 's'
-                    } on the board`
-                  : 'No job orders in this period'
-            }
-          />
-          <StatCard
-            icon={<DashboardOutlined />}
-            tone="amber"
-            label={
-              <>
-                Near full capacity
-                {capacityRows.length && !plainStats ? (
-                  <InfoTip
-                    label="How capacity is worked out"
-                    title="Load this period"
-                    content={
-                      <>
-                        <div>
-                          Hours booked inside the period, less hours already worked, over the shop
-                          hours (with overtime days) of units that are not down.
-                        </div>
-                        {capacityRows.map((c) => (
-                          <div key={c.machineTypeId}>{capacityLine(c)}</div>
-                        ))}
-                      </>
-                    }
-                  />
-                ) : null}
-              </>
-            }
-            value={
-              plainStats ? nearFull.length : nearFull.length ? nearFull.map((m) => m.machineTypeCode).join(', ') : 'None'
-            }
-            loading={loading && !data}
-            hint={
-              plainStats
-                ? undefined
-                : nearFull.length
-                ? nearFull.map((m) => `${m.machineTypeCode} ${m.projectedLoadPct ?? '—'}%`).join(' · ')
-                : 'None at 80% load or more'
-            }
-          />
-          <StatCard
             icon={<WarningOutlined />}
             tone="red"
             label="Jobs at risk"
             value={atRiskCount}
-            valueTone={atRiskCount > 0 ? 'red' : undefined}
+            valueTone={atRiskCount ? 'red' : undefined}
             loading={loading && !data}
-            hint={
-              plainStats
-                ? undefined
-                : atRiskCount
-                ? (summary?.jobsAtRisk || [])
-                    .slice(0, 4)
-                    .map((j) => j.jobNumber || j.jobTitle)
-                    .join(', ') + (atRiskCount > 4 ? '…' : '')
-                : 'None past date required'
-            }
+          />
+          <StatCard
+            icon={<ToolOutlined />}
+            tone="red"
+            label="Machines down"
+            value={downCount}
+            valueTone={downCount ? 'red' : undefined}
+            loading={loading && !data}
+            hint={opsToMove ? `${opsToMove} operation${opsToMove === 1 ? '' : 's'} to move` : undefined}
+          />
+          <StatCard
+            icon={<PauseCircleOutlined />}
+            tone="amber"
+            label="Stalled operations"
+            value={stalledCount}
+            valueTone={stalledCount ? 'amber' : undefined}
+            loading={loading && !data}
           />
           <StatCard
             icon={<InboxOutlined />}
             tone="amber"
             label="Waiting for materials"
-            value={waitingJobs.length}
+            value={waitingCount}
+            valueTone={waitingCount ? 'amber' : undefined}
             loading={loading && !data}
-            hint={
-              plainStats
-                ? undefined
-                : waitingJobs.length
-                ? waitingJobs.slice(0, 4).join(', ') + (waitingJobs.length > 4 ? '…' : '')
-                : 'All jobs have materials'
-            }
           />
         </StatGrid>
       )}
