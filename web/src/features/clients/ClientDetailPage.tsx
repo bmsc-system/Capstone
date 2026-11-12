@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Tooltip, message } from 'antd';
 import type { TableColumnsType } from 'antd';
 import {
-  CheckCircleOutlined,
+  CarOutlined,
   CopyOutlined,
   EditOutlined,
   BellOutlined,
@@ -21,7 +21,6 @@ import type { ClientDetail } from '../../types';
 import { DataTable, EmptyState, IdChip, Page, PageSkeleton, SectionCard, StatusPill, TabBar, rowOpenProps } from '../../components/ui';
 import './clientDetail.css';
 import { JOB_STATUS } from '../../theme/statuses';
-import type { Tone } from '../../theme/tokens';
 import { useAuth } from '../../hooks/useAuth';
 import ClientFormModal from './ClientFormModal';
 
@@ -81,12 +80,6 @@ function isOverdue(j: Job) {
   )
     return false;
   return j.dueDate.slice(0, 10) < shopToday().format('YYYY-MM-DD');
-}
-
-function onTimeTone(pct: number): Tone {
-  if (pct >= 90) return 'green';
-  if (pct >= 70) return 'amber';
-  return 'red';
 }
 
 async function copy(text: string, what: string) {
@@ -187,15 +180,13 @@ export default function ClientDetailPage() {
   const stats = useMemo(() => {
     const active = jobs.filter((j) => j.status === 'SCHEDULED' || j.status === 'IN_PROGRESS').length;
     const draft = jobs.filter((j) => j.status === 'DRAFT').length;
-    const judged = jobs.filter((j) => j.status === 'DELIVERED' && j.deliveredOnTime != null);
-    const onTime = judged.filter((j) => j.deliveredOnTime).length;
+    // Finished in the shop but not yet handed over to the client.
+    const awaitingDelivery = jobs.filter((j) => j.status === 'COMPLETED' || j.status === 'FOR_DELIVERY').length;
     const days = jobs.map(orderDay).filter((d): d is string => Boolean(d)).sort();
     return {
       active,
       draft,
-      onTime,
-      judged: judged.length,
-      onTimePct: judged.length ? Math.round((onTime / judged.length) * 100) : null,
+      awaitingDelivery,
       firstOrder: days[0] ?? null,
       lastOrder: days[days.length - 1] ?? null,
     };
@@ -378,21 +369,14 @@ export default function ClientDetailPage() {
               <span className="cd-stat__hint">Scheduled or in progress</span>
             </div>
             <div className="cd-stat">
-              <span
-                className={`cd-stat__icon cd-stat__icon--${stats.onTimePct == null ? 'slate' : onTimeTone(stats.onTimePct)}`}
-                aria-hidden
-              >
-                <CheckCircleOutlined />
+              <span className="cd-stat__icon cd-stat__icon--green" aria-hidden>
+                <CarOutlined />
               </span>
-              <span className="cd-stat__label">On-time delivery</span>
-              <span
-                className={`cd-stat__value${stats.onTimePct == null ? '' : ` tone-text--${onTimeTone(stats.onTimePct)}`}`}
-              >
-                {stats.onTimePct == null ? <None>No deliveries yet</None> : `${stats.onTimePct}%`}
+              <span className="cd-stat__label">Awaiting delivery</span>
+              <span className="cd-stat__value">
+                {stats.awaitingDelivery ? stats.awaitingDelivery : <None>None</None>}
               </span>
-              <span className="cd-stat__hint">
-                {stats.judged ? `${stats.onTime} of ${stats.judged} by the date required` : 'Counted when delivered'}
-              </span>
+              <span className="cd-stat__hint">Finished, not yet with the client</span>
             </div>
             <div className="cd-stat">
               <span className="cd-stat__icon cd-stat__icon--teal" aria-hidden>
