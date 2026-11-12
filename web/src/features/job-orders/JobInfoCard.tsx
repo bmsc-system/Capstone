@@ -201,7 +201,6 @@ export default function JobInfoCard({ job, finish }: { job: JobOrder; finish?: P
           <IdChip>{job.jobNumber || job.id.slice(0, 8).toUpperCase()}</IdChip>
           <StatusPill status={job.status} map={JOB_STATUS} compact />
           {job.jobType ? <StatusPill tone="slate" compact>{enumLabel(job.jobType)}</StatusPill> : null}
-          {job.priority === 'HIGH' ? <StatusPill tone="amber" compact>High priority</StatusPill> : null}
           {flags.map((f) => (
             <StatusPill key={f.label} tone={f.tone} compact>
               {f.label}

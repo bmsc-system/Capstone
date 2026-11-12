@@ -2441,12 +2441,11 @@ def _needs_material(rng, kind):
 
 
 def _priority(rng):
-    roll = rng.random()
-    if roll < 0.20:
-        return JobPriority.HIGH
-    if roll < 0.90:
-        return JobPriority.MODERATE
-    return JobPriority.LOW
+    # The shop works first come, first served and nothing reads the priority,
+    # so every sample job keeps the default. The draw stays so the rest of the
+    # generated history comes out the same.
+    rng.random()
+    return JobPriority.MODERATE
 
 
 def _op_count(rng):
