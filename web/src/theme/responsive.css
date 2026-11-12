@@ -791,21 +791,6 @@
     text-overflow: ellipsis;
   }
 
-  .app-shell--phone .m-action-bar .jo-split-btn {
-    display: flex;
-    width: 100%;
-  }
-
-  .app-shell--phone .m-action-bar .jo-split-btn__main {
-    flex: 1 1 auto;
-    width: auto;
-  }
-
-  .app-shell--phone .m-action-bar .jo-split-btn__trigger {
-    flex: 0 0 48px;
-    width: 48px;
-  }
-
   /* Three or more actions: the primary one gets its own full-width row. */
   .app-shell--phone .m-action-bar:has(> :nth-child(3)) {
     flex-wrap: wrap !important;

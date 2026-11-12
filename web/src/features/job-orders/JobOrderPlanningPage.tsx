@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { InputNumber, Button, Select, Typography, Alert, Tag, Tooltip, Popover, Badge, message, Input } from 'antd';
-import SplitActionButton from '../../components/SplitActionButton';
 import InfoTip from '../../components/InfoTip';
 import {
   CloseOutlined,
@@ -254,7 +253,6 @@ export default function JobOrderPlanningPage() {
   const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
   const [proposing, setProposing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
   const [openRows, setOpenRows] = useState<Record<string, boolean>>({});
@@ -800,51 +798,6 @@ export default function JobOrderPlanningPage() {
         status: 'SCHEDULED',
       };
     });
-
-  const buildDraftSchedulePayload = () =>
-    buildConfirmPayload().map((op) => ({
-      ...op,
-      // Stay PENDING until the schedule is confirmed; windows alone mark schedule stage.
-      status: op.status === 'SCHEDULED' ? 'PENDING' : op.status || 'PENDING',
-    }));
-
-  const savePlanning = async (exit = false) => {
-    if (!id) return;
-    setSaving(true);
-    setError('');
-    try {
-      const operationsPayload =
-        wizardStep === 3 && scheduleOps?.some((o) => o.scheduled)
-          ? buildDraftSchedulePayload()
-          : buildOperationsPayload();
-      const { data } = await jobOrdersApi.update(id, {
-        operations: operationsPayload,
-      });
-      setJob(data);
-      // Keep form rows in sync with persisted schedule so reopen lands on step 3.
-      if (wizardStep === 3 && scheduleOps?.some((o) => o.scheduled)) {
-        setOperations((prev) =>
-          prev.map((row, i) => {
-            const proposed = scheduleOps.find((p) => p.sequenceNo === i + 1);
-            if (!proposed?.scheduled) return row;
-            return {
-              ...row,
-              scheduledStart: proposed.scheduledStart || undefined,
-              scheduledEnd: proposed.scheduledEnd || undefined,
-              machineUnitId: proposed.machineUnitId || row.machineUnitId,
-              assignedWorkerId: proposed.assignedWorkerId || row.assignedWorkerId,
-            };
-          })
-        );
-      }
-      message.success(exit ? 'Saved' : 'Planning saved');
-      if (exit) navigate(jobOrdersListPath(job?.status || 'DRAFT'));
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const applyProposal = (data: ScheduleProposeResult) => {
     setScheduleOps(data.operations);
@@ -1686,22 +1639,14 @@ export default function JobOrderPlanningPage() {
               ) : null}
               <Tooltip title={advanceTooltip}>
                 <span>
-                  <SplitActionButton
-                    loading={proposing || saving}
+                  <Button
+                    type="primary"
+                    loading={proposing}
                     disabled={!canAdvanceToSchedule}
                     onClick={handleViewProposedSchedule}
-                    menu={{
-                      items: [
-                        {
-                          key: 'exit',
-                          label: 'Save and exit',
-                          onClick: () => savePlanning(true),
-                        },
-                      ],
-                    }}
                   >
                     View proposed schedule
-                  </SplitActionButton>
+                  </Button>
                 </span>
               </Tooltip>
             </div>
@@ -1806,22 +1751,14 @@ export default function JobOrderPlanningPage() {
               <Button onClick={goBackStep}>Back</Button>
               <Tooltip title={!canConfirm ? confirmBlockers.join(' ') : undefined}>
                 <span>
-                  <SplitActionButton
-                    loading={confirming || saving}
+                  <Button
+                    type="primary"
+                    loading={confirming}
                     disabled={!canConfirm}
                     onClick={handleConfirmSchedule}
-                    menu={{
-                      items: [
-                        {
-                          key: 'exit',
-                          label: 'Save and exit',
-                          onClick: () => savePlanning(true),
-                        },
-                      ],
-                    }}
                   >
                     Confirm schedule
-                  </SplitActionButton>
+                  </Button>
                 </span>
               </Tooltip>
             </div>
