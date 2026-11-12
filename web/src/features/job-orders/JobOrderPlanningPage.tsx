@@ -9,6 +9,7 @@ import {
   LockOutlined,
   PlusOutlined,
   StarFilled,
+  RightOutlined,
   StarOutlined,
   UpOutlined,
   UserAddOutlined,
@@ -1644,6 +1645,8 @@ export default function JobOrderPlanningPage() {
                     loading={proposing}
                     disabled={!canAdvanceToSchedule}
                     onClick={handleViewProposedSchedule}
+                    icon={<RightOutlined />}
+                    iconPlacement="end"
                   >
                     View proposed schedule
                   </Button>
