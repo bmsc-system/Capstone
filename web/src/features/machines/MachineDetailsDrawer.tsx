@@ -258,7 +258,7 @@ export default function MachineDetailsDrawer({
                 <>
                   {!unit.down && (
                     <Button danger onClick={() => actions.onReport(unit)}>
-                      Report breakdown
+                      Mark as down
                     </Button>
                   )}
                   <Button type="text" danger onClick={() => actions.onRetire(unit)}>

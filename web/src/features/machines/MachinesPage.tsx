@@ -259,7 +259,7 @@ export default function MachinesPage() {
         undefined,
         values.expectedRepairDate ? values.expectedRepairDate.format('YYYY-MM-DD') : null
       );
-      message.success('Breakdown reported');
+      message.success(`${reportFor.label} marked as down`);
       setReportFor(null);
       reportForm.resetFields();
       await fetchUnits();
@@ -797,13 +797,13 @@ export default function MachinesPage() {
       <FormModal
         size="sm"
         icon={<WarningOutlined />}
-        title="Report breakdown"
+        title="Mark as down"
         subtitle={reportFor ? `${reportFor.label}` : undefined}
         open={!!reportFor}
         onCancel={() => setReportFor(null)}
         onOk={submitReport}
         confirmLoading={saving}
-        okText="Report"
+        okText="Mark as down"
         destroyOnHidden
       >
         <Form form={reportForm} layout="vertical" style={{ marginTop: 12 }}>
