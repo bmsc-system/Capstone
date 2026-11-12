@@ -405,3 +405,23 @@ def test_release_endpoint_is_gone(client, seeded):
     job = _make_job(seeded, JobOrderStatus.DRAFT, worker_id=seeded["worker_id"], hours=2)
     admin = _auth_header(_login(client, "plan_admin@test.local", "Admin123!").get_json()["accessToken"])
     assert client.post(f"/api/v1/job-orders/{job.id}/release", headers=admin).status_code in (404, 405)
+
+
+def test_new_job_orders_get_their_own_board_color(client, seeded):
+    from app.models.job_order import AUTO_SCHEDULE_COLORS
+
+    office = _auth_header(_login(client, "plan_office@test.local", "Office123!").get_json()["accessToken"])
+    body = {"clientId": seeded["client_id"], "dueDate": "2026-12-01"}
+
+    colors = []
+    for n in range(3):
+        res = client.post("/api/v1/job-orders", json={**body, "title": f"Color {n}"}, headers=office)
+        assert res.status_code == 201, res.get_json()
+        colors.append(res.get_json()["scheduleColor"])
+    assert all(c in AUTO_SCHEDULE_COLORS for c in colors)
+    assert len(set(colors)) == 3
+
+    picked = client.post(
+        "/api/v1/job-orders", json={**body, "title": "Picked", "scheduleColor": "#123abc"}, headers=office
+    )
+    assert picked.get_json()["scheduleColor"] == "#123ABC"

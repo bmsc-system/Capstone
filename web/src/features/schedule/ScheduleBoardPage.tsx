@@ -1,4 +1,4 @@
-import { OPERATION_BAR_COLOR, OPERATION_STATUS, TONE_BAR_FILL } from '../../theme/statuses';
+import { OPERATION_BAR_COLOR, TONE_BAR_FILL } from '../../theme/statuses';
 import { Legend, StatCard, StatGrid, TabBar, type LegendItem } from '../../components/ui';
 import InfoTip from '../../components/InfoTip';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
@@ -67,10 +67,12 @@ type ViewMode = TimelineViewMode;
 
 
 const SCHEDULE_LEGEND: LegendItem[] = [
-  ...(['PENDING', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'REWORK'] as const).map((k) => ({
-    label: OPERATION_STATUS[k].label,
-    color: OPERATION_BAR_COLOR[k],
-  })),
+  // Bars take their job order's color; the status is written on the bar.
+  {
+    label: 'Each job order has its own color',
+    pattern: 'linear-gradient(90deg, #2563EB 0 33%, #DB2777 33% 66%, #4D7C0F 66%)',
+  },
+  { label: 'Completed (faded)', color: 'rgba(37, 99, 235, 0.55)' },
   { label: 'Waiting for materials', pattern: `${MATERIAL_WAIT_BAR_IMAGE}, ${OPERATION_BAR_COLOR.SCHEDULED}` },
   { label: 'At risk of missing date', color: '#fff', border: `2px solid ${TONE_BAR_FILL.red}` },
   {

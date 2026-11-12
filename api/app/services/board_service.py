@@ -331,7 +331,7 @@ def schedule_board(
                 "projectedCompletion": projected.isoformat() if projected else None,
                 "scheduleFlag": schedule_flag,
                 "isLate": is_late,
-                "scheduleColor": job.schedule_color if job else None,
+                "scheduleColor": job.board_color if job else None,
                 **(jobs_meta[job.id]["materialWait"] if job else {}),
                 **_floor_flags(op, now, open_downs),
             }

@@ -230,6 +230,13 @@ def _register_cli(app):
         seed_database()
         print("Database seeded successfully.")
 
+    @app.cli.command("assign-schedule-colors")
+    def assign_schedule_colors_command():
+        """Give open job orders without a saved color their own board color."""
+        from app.services.schedule_color_service import assign_missing_colors
+
+        print(f"Gave {assign_missing_colors()} job order(s) a schedule color.")
+
     @app.cli.command("create-admin")
     def create_admin_command():
         """Create an admin user interactively."""

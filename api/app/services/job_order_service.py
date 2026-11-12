@@ -23,6 +23,7 @@ from app.models.job_order import (
 from app.models.machine import MachineType
 from app.models.operation import JobOperation, OperationStatus
 from app.models.user import User, UserRole
+from app.services.schedule_color_service import next_schedule_color
 from app.utils.errors import AppError
 
 
@@ -628,6 +629,9 @@ def create_job_order(data, created_by_id, actor_role=None):
             material_received_date=_parse_date(data.get("materialReceivedDate")),
             supplier_id=(data.get("supplierId") or None),
             supplier_reference=(data.get("supplierReference") or None),
+            schedule_color=(
+                _normalize_schedule_color(data.get("scheduleColor")) or next_schedule_color()
+            ),
             created_by_id=created_by_id,
         )
         db.session.add(job)

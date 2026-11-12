@@ -588,6 +588,8 @@ const BoardRows = memo(function BoardRows({
                           width: barW,
                           background: color,
                           backgroundImage: waiting ? MATERIAL_WAIT_BAR_IMAGE : undefined,
+                          // Bars take their job's color, so finished work is faded instead.
+                          opacity: op.status === 'COMPLETED' && !muted ? 0.55 : undefined,
                           border: muted ? '1px solid #cbd5e1' : '1px solid rgba(15,23,42,0.28)',
                           outline: onDown
                             ? `2px dashed ${DOWN_COLOR}`

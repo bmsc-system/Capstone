@@ -1,4 +1,5 @@
 import enum
+import hashlib
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -15,6 +16,28 @@ def _utcnow():
 
 def _uuid():
     return str(uuid.uuid4())
+
+
+# Colors given to job orders on the schedule board so each job stands apart.
+# Jobs made one after another get very different colors. Red and amber are
+# left out because the board uses them for late, clashing, stalled and waiting
+# work. White bar text stays readable on all of them.
+AUTO_SCHEDULE_COLORS = (
+    "#2563EB",  # blue
+    "#DB2777",  # pink
+    "#4D7C0F",  # green
+    "#7C3AED",  # violet
+    "#0F766E",  # teal
+    "#92400E",  # brown
+    "#0891B2",  # cyan
+    "#475569",  # slate
+)
+
+
+def fallback_schedule_color(job_id) -> str:
+    """Steady color for a job saved before colors were given out."""
+    digest = hashlib.md5(str(job_id or "").encode()).hexdigest()
+    return AUTO_SCHEDULE_COLORS[int(digest, 16) % len(AUTO_SCHEDULE_COLORS)]
 
 
 class JobOrderStatus(enum.Enum):
@@ -456,6 +479,11 @@ class JobOrder(db.Model):
         ]
 
     @property
+    def board_color(self) -> str:
+        """Color the job's bars use on the schedule board."""
+        return self.schedule_color or fallback_schedule_color(self.id)
+
+    @property
     def job_number(self) -> str:
         year = self.created_at.year if self.created_at else datetime.now(timezone.utc).year
         return f"JO-{year}-{(self.id or '')[:4].upper()}"
@@ -539,7 +567,7 @@ class JobOrder(db.Model):
             "supplierId": self.supplier_id,
             "supplierName": self.supplier.name if self.supplier else None,
             "supplierReference": self.supplier_reference,
-            "scheduleColor": self.schedule_color,
+            "scheduleColor": self.board_color,
             "deliveredAt": self.delivered_at.isoformat() if self.delivered_at else None,
             "forDeliveryAt": self.for_delivery_at.isoformat() if self.for_delivery_at else None,
             "cancelledAt": self.cancelled_at.isoformat() if self.cancelled_at else None,
