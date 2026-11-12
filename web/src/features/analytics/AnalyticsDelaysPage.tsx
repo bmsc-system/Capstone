@@ -31,14 +31,6 @@ function causeLabel(c: AnalyticsLateJobCause) {
   return c.cause === c.label ? reasonLabel(c.cause) : c.label;
 }
 
-const DETAIL_BY: Record<string, string> = {
-  machine: 'By machine',
-  supplier: 'By supplier',
-  job: 'By job',
-  'outside shop': 'By outside shop',
-  operation: 'By operation',
-};
-
 type CauseRow = {
   label: string;
   hours: number;
@@ -48,45 +40,61 @@ type CauseRow = {
   detailBy: string | null;
 };
 
-/** Under the Pareto chart: which machine, supplier, outside shop or operation
- *  each cause's hours came from, so the top causes can be acted on. */
+const SOURCE_WORD: Record<string, string> = {
+  machine: 'machine',
+  supplier: 'supplier',
+  job: 'job',
+  'outside shop': 'outside shop',
+  operation: 'operation',
+};
+
+/** Under the Pareto chart: each cause with its biggest source, one line each.
+ *  The cards below break breakdowns, redo and material delays down further. */
 function CauseDetails({ causes, vitalFew }: { causes: CauseRow[]; vitalFew: number }) {
   return (
     <div className="ana-causes">
-      <div className="ana-causes__title">Where the hours came from</div>
+      <div className="ana-causes__title">Biggest source of each cause</div>
       <ol className="ana-causes__list">
-        {causes.map((c, i) => (
-          <li key={c.label} className={`ana-causes__row${i < vitalFew ? ' is-vital' : ''}`}>
-            <span className="ana-causes__rank">{i + 1}</span>
-            <span className="ana-causes__cause">
-              <span className="ana-causes__name">{c.label}</span>
-              <span className="ana-causes__hours">
-                {fmtNum(c.hours, 1)} h · {fmtNum(c.shareOfTotalPct)}%
+        {causes.map((c, i) => {
+          const [top, ...rest] = c.details;
+          const others = rest.length + (c.moreDetails || 0);
+          const word = c.detailBy ? SOURCE_WORD[c.detailBy] ?? 'source' : 'source';
+          return (
+            <li key={c.label} className={`ana-causes__row${i < vitalFew ? ' is-vital' : ''}`}>
+              <span className="ana-causes__rank">{i + 1}</span>
+              <span className="ana-causes__cause">
+                <span className="ana-causes__name">{c.label}</span>
+                <span className="ana-causes__hours">
+                  {fmtNum(c.hours, 1)} h · {fmtNum(c.shareOfTotalPct)}%
+                </span>
               </span>
-            </span>
-            <span className="ana-causes__from">
-              {c.detailBy ? <span className="ana-causes__by">{DETAIL_BY[c.detailBy] ?? ''}</span> : null}
-              {c.details.length ? (
-                c.details.map((d) => {
-                  const jobs = d.jobs.length
-                    ? `${d.jobs.join(', ')}${d.moreJobs ? ` and ${d.moreJobs} more` : ''}`
-                    : null;
-                  return (
-                    <span key={d.label} className="ana-chip ana-causes__chip" title={jobs ?? undefined}>
-                      <strong>{d.label}</strong>&nbsp;· {fmtNum(d.hours, 1)} h
-                      {d.count > 1 ? ` · ${d.count}×` : ''}
-                      {d.note ? ` · ${d.note}` : ''}
-                      {jobs && c.detailBy !== 'job' ? <span className="ana-causes__jobs">&nbsp;({jobs})</span> : null}
+              <span className="ana-causes__from">
+                {top ? (
+                  <>
+                    <span
+                      className="ana-chip ana-causes__chip"
+                      title={top.jobs.length ? `${top.jobs.join(', ')}${top.moreJobs ? ` and ${top.moreJobs} more` : ''}` : undefined}
+                    >
+                      <strong>{top.label}</strong>
+                      {top.hours != null ? <>&nbsp;· {fmtNum(top.hours, 1)} h</> : null}
                     </span>
-                  );
-                })
-              ) : (
-                <span className="ana-muted">No detail recorded</span>
-              )}
-              {c.moreDetails ? <span className="ana-muted">+{c.moreDetails} more</span> : null}
-            </span>
-          </li>
-        ))}
+                    {others ? (
+                      <span
+                        className="ana-muted"
+                        title={rest.map((d) => `${d.label}${d.hours != null ? ` · ${fmtNum(d.hours, 1)} h` : ''}`).join('\n') || undefined}
+                      >
+                        and {others} other {word}
+                        {others === 1 ? '' : 's'}
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  <span className="ana-muted">No detail recorded</span>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
