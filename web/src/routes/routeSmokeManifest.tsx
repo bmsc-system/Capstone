@@ -12,6 +12,7 @@ import UsersPage from '../features/users/UsersPage';
 import MachinesPage from '../features/machines/MachinesPage';
 import AttendancePage from '../features/attendance/AttendancePage';
 import AuditLogPage from '../features/audit/AuditLogPage';
+import NotificationsPage from '../features/notifications/NotificationsPage';
 import WorkerSetupPage from '../features/workers/WorkerSetupPage';
 import SuppliersAndOrdersPage from '../features/suppliers/SuppliersAndOrdersPage';
 import AccountSecurityPage from '../features/auth/AccountSecurityPage';
@@ -40,6 +41,7 @@ export const ROUTE_SMOKES: RouteSmoke[] = [
   { path: '/account/security', roles: ['ADMIN', 'OFFICE_STAFF', 'PRODUCTION_WORKER'], Page: AccountSecurityPage },
   { path: '/schedule', roles: ['ADMIN', 'OFFICE_STAFF', 'PRODUCTION_WORKER'], Page: ScheduleBoardPage },
   { path: '/dashboard', roles: ['ADMIN', 'OFFICE_STAFF'], Page: DashboardPage },
+  { path: '/notifications', roles: ['ADMIN', 'OFFICE_STAFF'], Page: NotificationsPage },
   { path: '/job-orders', roles: ['ADMIN', 'OFFICE_STAFF'], Page: JobOrderListPage },
   {
     path: '/job-orders/archived',

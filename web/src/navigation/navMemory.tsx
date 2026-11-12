@@ -33,6 +33,7 @@ export const NAV_SECTIONS = [
   '/home',
   '/inventory',
   '/account',
+  '/notifications',
 ] as const;
 
 export type NavSection = (typeof NAV_SECTIONS)[number];

@@ -1,0 +1,6 @@
+.notif-panel__foot {
+  display: flex;
+  justify-content: center;
+  padding: 6px 12px;
+  border-top: 1px solid #e2e8f0;
+}

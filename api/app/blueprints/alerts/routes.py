@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 
 from app.middleware.rbac import get_current_user_id, require_roles
@@ -14,7 +14,14 @@ _STAFF = (UserRole.ADMIN, UserRole.OFFICE_STAFF)
 @jwt_required()
 @require_roles(*_STAFF)
 def list_alerts():
-    return jsonify(svc.list_alerts(get_current_user_id()))
+    return jsonify(
+        svc.list_alerts(
+            get_current_user_id(),
+            limit=request.args.get("limit", type=int) or svc.LIST_LIMIT,
+            offset=request.args.get("offset", type=int) or 0,
+            unread_only=request.args.get("unread") in ("1", "true"),
+        )
+    )
 
 
 @alerts_bp.route("/unread-count", methods=["GET"])

@@ -3,13 +3,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Badge, Button, Popover, Skeleton } from 'antd';
 import { BellOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import './notificationBell.css';
 import EmptyState from './ui/EmptyState';
 import { alertsApi } from '../api/alerts.api';
 import type { StaffAlert } from '../types';
 
 const POLL_MS = 60_000;
 
-function alertPath(a: StaffAlert): string | null {
+export function alertPath(a: StaffAlert): string | null {
   if (a.jobOrderId) return `/job-orders/${a.jobOrderId}`;
   if (a.supplierOrderId) return `/supplier-orders/${a.supplierOrderId}`;
   if (a.kind === 'SINGLE_UNIT_DOWN' || a.kind === 'REPAIR_DATE_PASSED' || a.kind === 'WORK_ON_DOWN_UNIT') {
@@ -124,6 +125,18 @@ export default function NotificationBell({ className }: { className?: string }) 
             </div>
           ))
         )}
+      </div>
+      <div className="notif-panel__foot">
+        <Button
+          type="link"
+          size="small"
+          onClick={() => {
+            setOpen(false);
+            navigate('/notifications');
+          }}
+        >
+          View all notifications
+        </Button>
       </div>
     </div>
   );

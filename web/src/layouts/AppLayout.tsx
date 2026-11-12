@@ -105,6 +105,7 @@ const SECTION_META: Record<string, { title: string; subtitle?: string }> = {
   '/attendance': { title: 'Attendance' },
   '/analytics': { title: 'Analytics' },
   '/audit-log': { title: 'Audit log' },
+  '/notifications': { title: 'Notifications' },
   '/settings/shop': { title: 'Shop details' },
   '/account': { title: 'Account security' },
 };

@@ -26,6 +26,8 @@ class StaffAlertKind:
     WORK_ON_DOWN_UNIT = "WORK_ON_DOWN_UNIT"
     REPAIR_DATE_PASSED = "REPAIR_DATE_PASSED"
     LOW_STOCK = "LOW_STOCK"
+    OPERATION_DONE = "OPERATION_DONE"
+    JOB_DONE = "JOB_DONE"
 
 
 class StaffAlert(db.Model):

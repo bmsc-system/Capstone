@@ -396,3 +396,39 @@ def test_history_counts_redos_in_the_total_but_not_the_averages(shop):
     assert hist["summary"]["operationsTotal"] == 2 == hist["operations"]["total"]
     assert hist["summary"]["operationsCompleted"] == 1
     assert hist["summary"]["reworkCount"] == 1
+
+
+def test_the_admin_is_told_when_an_operation_and_then_the_job_is_finished(client, shop):
+    from app.models.staff_alert import StaffAlert
+
+    ana, admin = shop["ana"], shop["admin"]
+    job = _job(shop)
+    first = _op(job, 1, shop["types"]["LAYOUT"], lead=ana)
+    second = _op(job, 2, shop["types"]["LAYOUT"], lead=ana)
+
+    def finish(op):
+        url = f"/api/v1/operations/{op.id}"
+        assert client.post(f"{url}/start", json={}, headers=_headers(ana)).status_code == 200
+        res = client.post(f"{url}/complete", json={}, headers=_headers(ana))
+        assert res.status_code == 200, res.get_json()
+
+    finish(first)
+    alerts = StaffAlert.query.filter_by(recipient_id=admin.id).all()
+    assert [a.kind for a in alerts] == ["OPERATION_DONE"]
+    assert alerts[0].title.startswith("Layout finished")
+    assert "Next: Layout" in (alerts[0].message or "")
+    # Office staff and workers are not told about every operation.
+    assert StaffAlert.query.filter_by(recipient_id=shop["office"].id).count() == 0
+
+    finish(second)
+    kinds = {a.kind for a in StaffAlert.query.filter_by(recipient_id=admin.id)}
+    assert kinds == {"OPERATION_DONE", "JOB_DONE"}
+
+    page = client.get("/api/v1/alerts?limit=1", headers=_headers(admin)).get_json()
+    assert len(page["items"]) == 1 and page["total"] == 2 and page["hasMore"] is True
+    assert page["items"][0]["kind"] == "JOB_DONE"
+    rest = client.get("/api/v1/alerts?limit=1&offset=1", headers=_headers(admin)).get_json()
+    assert rest["items"][0]["kind"] == "OPERATION_DONE" and rest["hasMore"] is False
+    client.post(f"/api/v1/alerts/{page['items'][0]['id']}/read", headers=_headers(admin))
+    unread = client.get("/api/v1/alerts?unread=1", headers=_headers(admin)).get_json()
+    assert [a["kind"] for a in unread["items"]] == ["OPERATION_DONE"]

@@ -54,6 +54,61 @@ def _notify_after_complete(job):
     except Exception:  # noqa: BLE001
         pass
 
+def _alert_operation_done(operation, job):
+    """Tell the Admin an operation is finished, or that the whole job is when it
+    was the last one. Added to the caller's transaction."""
+    from app.models.staff_alert import StaffAlertKind
+    from app.services.staff_alert_service import raise_alert
+
+    name = operation.operation_name or (
+        operation.operation_type.name if operation.operation_type else "Operation"
+    )
+    unit = operation.machine_unit.label if operation.machine_unit else None
+    worker = operation.assigned_worker
+    who = (worker.nickname or worker.full_name) if worker else None
+    number = job.job_number or job.title
+    done_at = _ensure_utc(operation.actual_end).isoformat() if operation.actual_end else ""
+
+    if job.status == JobOrderStatus.COMPLETED:
+        last = " on ".join(p for p in (name, unit) if p)
+        raise_alert(
+            roles=[UserRole.ADMIN],
+            kind=StaffAlertKind.JOB_DONE,
+            title=f"{number} finished: all operations done",
+            message=f"Last: {last}{f' by {who}' if who else ''}. Ready for the sales invoice.",
+            job_order_id=job.id,
+            dedupe_key=f"job-done:{job.id}:{done_at}",
+        )
+        return
+
+    parts = [p for p in (unit, who) if p]
+    if operation.actual_worked_hours is not None and operation.estimated_hours:
+        parts.append(
+            f"{float(operation.actual_worked_hours):.1f} h of {float(operation.estimated_hours):.1f} h target"
+        )
+    elif operation.is_outsourced and operation.returned_date:
+        parts.append("returned")
+    nxt = next(
+        (
+            o
+            for o in sorted(job.operations or [], key=lambda o: o.sequence_no or 0)
+            if o.status != OperationStatus.COMPLETED
+        ),
+        None,
+    )
+    if nxt is not None:
+        nxt_unit = nxt.machine_unit.label if nxt.machine_unit else None
+        parts.append(f"Next: {nxt.operation_name}{f' on {nxt_unit}' if nxt_unit else ''}")
+    raise_alert(
+        roles=[UserRole.ADMIN],
+        kind=StaffAlertKind.OPERATION_DONE,
+        title=f"{name} finished · {number}",
+        message=" · ".join(parts) or None,
+        job_order_id=job.id,
+        dedupe_key=f"op-done:{operation.id}:{done_at}",
+    )
+
+
 def _parse_timestamp(value):
     if value is None or value == "":
         return datetime.now(timezone.utc)
@@ -447,6 +502,7 @@ def complete_operation(operation, user_id, user_role, timestamp, received_at=Non
         )
         job.status = derive_job_status(job)
         advance_part_condition(job)
+        _alert_operation_done(operation, job)
         db.session.commit()
         _notify_after_complete(job)
         return operation
@@ -596,6 +652,7 @@ def return_operation(operation, returned_date):
         job = _reload_job_with_types(job.id)
         job.status = derive_job_status(job)
         advance_part_condition(job)
+        _alert_operation_done(operation, job)
         db.session.commit()
         _notify_after_complete(job)
         return operation

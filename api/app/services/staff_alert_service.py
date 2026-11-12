@@ -84,14 +84,27 @@ def unread_count(user_id) -> int:
     return _mine(user_id).filter(StaffAlert.read_at.is_(None)).count()
 
 
-def list_alerts(user_id, limit: int = LIST_LIMIT) -> dict:
+def list_alerts(user_id, limit: int = LIST_LIMIT, offset: int = 0, unread_only: bool = False) -> dict:
+    """Newest first. The bell asks for the latest page; the Notifications page
+    pages through everything (``offset``) or only the unread ones."""
+    limit = max(1, min(int(limit or LIST_LIMIT), 200))
+    offset = max(0, int(offset or 0))
+    query = _mine(user_id)
+    if unread_only:
+        query = query.filter(StaffAlert.read_at.is_(None))
+    total = query.count()
     items = (
-        _mine(user_id)
-        .order_by(StaffAlert.created_at.desc(), StaffAlert.id.desc())
+        query.order_by(StaffAlert.created_at.desc(), StaffAlert.id.desc())
+        .offset(offset)
         .limit(limit)
         .all()
     )
-    return {"items": [a.to_dict() for a in items], "unreadCount": unread_count(user_id)}
+    return {
+        "items": [a.to_dict() for a in items],
+        "unreadCount": unread_count(user_id),
+        "total": total,
+        "hasMore": offset + len(items) < total,
+    }
 
 
 def mark_read(user_id, alert_id) -> dict:

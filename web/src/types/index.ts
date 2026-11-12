@@ -578,6 +578,8 @@ export type StaffAlertKind =
   | 'WORK_ON_DOWN_UNIT'
   | 'REPAIR_DATE_PASSED'
   | 'LOW_STOCK'
+  | 'OPERATION_DONE'
+  | 'JOB_DONE'
   | (string & {});
 
 /** One entry in the header bell. */
