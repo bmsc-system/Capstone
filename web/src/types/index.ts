@@ -1806,8 +1806,6 @@ export interface AnalyticsInventory {
     month: string;
     consumableUseQty: number;
     consumableUseValue: number;
-    materialReceivedValue: number;
-    materialConsumedValue: number;
   }[];
   consumables: {
     useQty: number;
@@ -1822,30 +1820,28 @@ export interface AnalyticsInventory {
       value: number;
     }[];
   };
-  materials: {
-    onHandLines: number;
-    onHandValue: number;
-    incomingLines: number;
-    incomingValue: number;
-    incomingOverdueLines: number;
-    receivedValue: number;
-    consumedValue: number;
-    avgDaysInStock: number | null;
-    daysInStockSamples: number;
-    ageBuckets: { key: string; label: string; lines: number; value: number }[];
-    oldestOnHand: {
+  rawMaterials: {
+    boughtLines: number;
+    boughtJobs: number;
+    boughtValue: number;
+    mostUsed: { material: string; jobs: number; lines: number; quantity: string }[];
+    avgDeliveryDays: number | null;
+    deliveries: number;
+    onTimePct: number | null;
+    deliveryByMaterial: { material: string; avgDays: number; deliveries: number; late: number }[];
+    waitingJobs: number;
+    waitingLate: number;
+    waiting: {
       id: string;
-      materialName: string;
-      gradeOrSpec: string | null;
+      material: string;
       sizeSpec: string | null;
       quantity: number;
       unit: string;
-      value: number;
-      dateReceived: string;
-      daysInStock: number;
-      jobOrderId: string | null;
-      jobNumber: string | null;
-      jobStatus: string | null;
+      supplierName: string | null;
+      expectedDate: string | null;
+      daysLate: number;
+      jobOrderId: string;
+      jobNumber: string;
     }[];
   };
 }

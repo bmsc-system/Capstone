@@ -193,7 +193,7 @@ export default function RawMaterialsPanel() {
         { key: 'received', header: 'DateReceived', value: (r) => r.dateReceived },
         { key: 'expected', header: 'Expected', value: (r) => r.currentExpectedDate },
         { key: 'consumed', header: 'ConsumedAt', value: (r) => r.consumedAt },
-        { key: 'days', header: 'DaysInStock', value: (r) => daysInStock(r.dateReceived) ?? '' },
+        { key: 'days', header: 'DaysWaiting', value: (r) => daysInStock(r.dateReceived) ?? '' },
       ]
     );
 
@@ -284,7 +284,7 @@ export default function RawMaterialsPanel() {
             render: (v: string | null) => (v ? formatShop(v, 'MMM D, YYYY') : '—'),
           },
           {
-            title: 'Days in stock',
+            title: 'Days waiting',
             key: 'days',
             width: 120,
             sorter: (a: MaterialPurchase, b: MaterialPurchase) =>
@@ -442,7 +442,7 @@ export default function RawMaterialsPanel() {
               <Descriptions.Item label="Received">
                 {detail.dateReceived ? formatShop(detail.dateReceived, 'MMM D, YYYY') : '—'}
               </Descriptions.Item>
-              <Descriptions.Item label="Days in stock">
+              <Descriptions.Item label="Days waiting">
                 {daysInStock(detail.dateReceived) ?? '—'}
               </Descriptions.Item>
               <Descriptions.Item label="Consumed">

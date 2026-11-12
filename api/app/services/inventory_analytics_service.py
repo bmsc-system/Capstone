@@ -1,9 +1,9 @@
 """Inventory analytics for the Analytics → Inventory tab (objective 4.1).
 
 Consumables: what was used in the period (QR scans), by month and by item.
-Job materials (raw materials bought for job orders): what is in stock now and
-how long it has sat there, what is still coming, and how stock moved
-(received in, used up when the job started) month by month.
+Raw materials (bought for each job order, rarely kept in stock): which
+materials the jobs use most, how long they take to arrive, how often they came
+by the promised date, and which jobs are still waiting for theirs.
 
 Values are quantity × unit cost: the PO line's unit cost for job materials,
 the consumable's current unit cost for scans.
@@ -23,17 +23,10 @@ from app.extensions import db
 from app.models.material_purchase import MaterialPurchase
 from app.models.tool import Tool
 from app.models.tool_event import ToolEvent, ToolEventType
-from app.services.schedule_calendar import shop_now, utc_to_shop
+from app.services.schedule_calendar import shop_now
 
-# Days a received material has waited for its job to start.
-AGE_BUCKETS = (
-    ("0-7", "0–7 days", 0, 7),
-    ("8-14", "8–14 days", 8, 14),
-    ("15-30", "15–30 days", 15, 30),
-    ("31+", "Over 30 days", 31, None),
-)
 TOP_N = 8
-OLDEST_N = 5
+WAITING_N = 8
 
 
 def _f(v, places=2):
@@ -113,52 +106,7 @@ def inventory_summary(from_s=None, to_s=None) -> dict:
     # Consumables used (scans).
     use_by_month, use_by_item, use_qty, use_value = _consumable_use(start_utc, end_utc)
 
-    # Job materials moving through stock in the period.
-    received = defaultdict(Decimal)
-    consumed = defaultdict(Decimal)
-    dwell_days: list[int] = []
-    for ln in _job_material_lines().filter(
-        db.or_(
-            MaterialPurchase.date_received.between(period_from, period_to),
-            MaterialPurchase.consumed_at.between(start_utc, end_utc),
-        )
-    ):
-        if ln.date_received and period_from <= ln.date_received <= period_to:
-            received[ln.date_received.strftime("%Y-%m")] += _value(ln)
-        if ln.consumed_at:
-            used_on = utc_to_shop(ln.consumed_at).date()
-            if period_from <= used_on <= period_to:
-                consumed[used_on.strftime("%Y-%m")] += _value(ln)
-                if ln.date_received:
-                    dwell_days.append(max((used_on - ln.date_received).days, 0))
-
-    # Job materials in stock now, and on order.
-    on_hand = (
-        _job_material_lines()
-        .filter(MaterialPurchase.date_received.isnot(None), MaterialPurchase.consumed_at.is_(None))
-        .all()
-    )
-    incoming = (
-        _job_material_lines()
-        .filter(MaterialPurchase.date_ordered.isnot(None), MaterialPurchase.date_received.is_(None))
-        .all()
-    )
-    incoming = [ln for ln in incoming if not ln.is_draft]
-
-    buckets = {key: {"key": key, "label": label, "lines": 0, "value": Decimal("0")}
-               for key, label, _lo, _hi in AGE_BUCKETS}
-    aged = []
-    for ln in on_hand:
-        days = max((today - ln.date_received).days, 0)
-        for key, _label, lo, hi in AGE_BUCKETS:
-            if days >= lo and (hi is None or days <= hi):
-                buckets[key]["lines"] += 1
-                buckets[key]["value"] += _value(ln)
-                break
-        aged.append((days, ln))
-    aged.sort(key=lambda t: (-t[0], -float(_value(t[1]))))
-
-    overdue = [ln for ln in incoming if ln.days_overdue(today) > 0]
+    raw = _raw_materials(period_from, period_to, today)
 
     return {
         "from": period_from.isoformat(),
@@ -169,8 +117,6 @@ def inventory_summary(from_s=None, to_s=None) -> dict:
                 "month": m,
                 "consumableUseQty": _f(use_by_month.get(m, (0, 0))[0], 1),
                 "consumableUseValue": _f(use_by_month.get(m, (0, 0))[1]),
-                "materialReceivedValue": _f(received.get(m)),
-                "materialConsumedValue": _f(consumed.get(m)),
             }
             for m in months
         ],
@@ -190,35 +136,138 @@ def inventory_summary(from_s=None, to_s=None) -> dict:
                 for tid, name, size, unit, q, v in use_by_item[:TOP_N]
             ],
         },
-        "materials": {
-            "onHandLines": len(on_hand),
-            "onHandValue": _f(sum((_value(ln) for ln in on_hand), Decimal("0"))),
-            "incomingLines": len(incoming),
-            "incomingValue": _f(sum((_value(ln) for ln in incoming), Decimal("0"))),
-            "incomingOverdueLines": len(overdue),
-            "receivedValue": _f(sum(received.values(), Decimal("0"))),
-            "consumedValue": _f(sum(consumed.values(), Decimal("0"))),
-            "avgDaysInStock": round(sum(dwell_days) / len(dwell_days), 1) if dwell_days else None,
-            "daysInStockSamples": len(dwell_days),
-            "ageBuckets": [
-                {**b, "value": _f(b["value"])} for b in buckets.values()
-            ],
-            "oldestOnHand": [
-                {
-                    "id": ln.id,
-                    "materialName": ln.material_name,
-                    "gradeOrSpec": ln.grade_or_spec,
-                    "sizeSpec": ln.size_spec,
-                    "quantity": _f(ln.quantity),
-                    "unit": ln.unit,
-                    "value": _f(_value(ln)),
-                    "dateReceived": ln.date_received.isoformat(),
-                    "daysInStock": days,
-                    "jobOrderId": ln.job_order_id,
-                    "jobNumber": ln.job_order.job_number if ln.job_order else None,
-                    "jobStatus": ln.job_order.status.value if ln.job_order else None,
-                }
-                for days, ln in aged[:OLDEST_N]
-            ],
-        },
+        "rawMaterials": raw,
+    }
+
+
+def _material_label(ln: MaterialPurchase) -> str:
+    name = " ".join((ln.material_name or "").split())
+    # A catalog name that is only a grade number ("5052") reads better with its
+    # family in front ("Aluminium 5052").
+    catalog = getattr(ln, "material_catalog", None)
+    if name.replace(" ", "").isdigit() and catalog is not None and catalog.category:
+        name = f"{catalog.category} {name}"
+    grade = " ".join((ln.grade_or_spec or "").split())
+    return f"{name} · {grade}" if grade else name
+
+
+def _material_key(ln: MaterialPurchase) -> str:
+    """The same material typed in different case or spacing counts once."""
+    return _material_label(ln).casefold()
+
+
+def _raw_materials(period_from: date, period_to: date, today: date) -> dict:
+    """Raw materials bought for job orders: most used, delivery time, and the
+    jobs still waiting. Draft and cancelled lines are left out."""
+    bought = [
+        ln
+        for ln in _job_material_lines()
+        .options(joinedload(MaterialPurchase.supplier))
+        .filter(MaterialPurchase.date_ordered.between(period_from, period_to))
+        .all()
+        if ln.counts_as_ordered
+    ]
+
+    # Most used: how many jobs needed each material, and how much of it.
+    labels: dict[str, str] = {}
+    for ln in bought:
+        labels.setdefault(_material_key(ln), _material_label(ln))
+    used = defaultdict(lambda: {"jobs": set(), "lines": 0, "qty": defaultdict(float)})
+    for ln in bought:
+        row = used[_material_key(ln)]
+        row["jobs"].add(ln.job_order_id)
+        row["lines"] += 1
+        row["qty"][ln.unit or "pcs"] += float(ln.quantity or 0)
+    most_used = sorted(used.items(), key=lambda kv: (-len(kv[1]["jobs"]), -kv[1]["lines"], kv[0]))
+
+    # Delivery time: days from order to receipt, for lines received in the period.
+    arrived = [
+        ln
+        for ln in _job_material_lines()
+        .options(joinedload(MaterialPurchase.supplier))
+        .filter(
+            MaterialPurchase.date_received.between(period_from, period_to),
+            MaterialPurchase.date_ordered.isnot(None),
+        )
+        .all()
+        if ln.counts_as_ordered
+    ]
+    for ln in arrived:
+        labels.setdefault(_material_key(ln), _material_label(ln))
+    delivery = defaultdict(lambda: {"days": [], "late": 0})
+    all_days, judged, on_time = [], 0, 0
+    for ln in arrived:
+        days = max((ln.date_received - ln.date_ordered).days, 0)
+        all_days.append(days)
+        row = delivery[_material_key(ln)]
+        row["days"].append(days)
+        promised = ln.promised_date
+        if promised is not None:
+            judged += 1
+            if ln.date_received <= promised:
+                on_time += 1
+            else:
+                row["late"] += 1
+    slowest = sorted(
+        delivery.items(),
+        key=lambda kv: (-(sum(kv[1]["days"]) / len(kv[1]["days"])), kv[0]),
+    )
+
+    # Jobs still waiting: ordered, not yet received, job not finished.
+    open_statuses = ("DRAFT", "SCHEDULED", "IN_PROGRESS")
+    waiting = [
+        ln
+        for ln in _job_material_lines()
+        .options(joinedload(MaterialPurchase.supplier))
+        .filter(MaterialPurchase.date_ordered.isnot(None), MaterialPurchase.date_received.is_(None))
+        .all()
+        if ln.counts_as_ordered and ln.job_order is not None and ln.job_order.status.value in open_statuses
+    ]
+    waiting.sort(key=lambda ln: (-ln.days_overdue(today), ln.current_expected_date or date.max))
+
+    def qty_text(qty: dict) -> str:
+        return ", ".join(f"{_f(q, 2):g} {unit}" for unit, q in sorted(qty.items()))
+
+    return {
+        "boughtLines": len(bought),
+        "boughtJobs": len({ln.job_order_id for ln in bought}),
+        "boughtValue": _f(sum((_value(ln) for ln in bought), Decimal("0"))),
+        "mostUsed": [
+            {
+                "material": labels[key],
+                "jobs": len(row["jobs"]),
+                "lines": row["lines"],
+                "quantity": qty_text(row["qty"]),
+            }
+            for key, row in most_used[:TOP_N]
+        ],
+        "avgDeliveryDays": round(sum(all_days) / len(all_days), 1) if all_days else None,
+        "deliveries": len(all_days),
+        "onTimePct": round(on_time / judged * 100) if judged else None,
+        "deliveryByMaterial": [
+            {
+                "material": labels[key],
+                "avgDays": round(sum(row["days"]) / len(row["days"]), 1),
+                "deliveries": len(row["days"]),
+                "late": row["late"],
+            }
+            for key, row in slowest[:TOP_N]
+        ],
+        "waitingJobs": len({ln.job_order_id for ln in waiting}),
+        "waitingLate": sum(1 for ln in waiting if ln.days_overdue(today) > 0),
+        "waiting": [
+            {
+                "id": ln.id,
+                "material": _material_label(ln),
+                "sizeSpec": ln.size_spec,
+                "quantity": _f(ln.quantity),
+                "unit": ln.unit,
+                "supplierName": ln.supplier.name if ln.supplier else None,
+                "expectedDate": ln.current_expected_date.isoformat() if ln.current_expected_date else None,
+                "daysLate": ln.days_overdue(today),
+                "jobOrderId": ln.job_order_id,
+                "jobNumber": ln.job_order.job_number,
+            }
+            for ln in waiting[:WAITING_N]
+        ],
     }

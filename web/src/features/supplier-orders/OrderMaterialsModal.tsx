@@ -411,7 +411,7 @@ export default function OrderMaterialsModal({
             }}
           >
             <div style={{ fontWeight: 700, fontSize: 13 }}>
-              {jobId ? 'Materials for this job' : 'Job materials'}
+              {jobId ? 'Raw materials for this job' : 'Raw materials'}
             </div>
             <Button size="small" icon={<PlusOutlined />} onClick={addLine} disabled={!jobs.length}>
               Add line

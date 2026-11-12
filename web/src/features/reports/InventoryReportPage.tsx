@@ -322,7 +322,7 @@ export default function InventoryReportPage() {
 
             <ReportHeading n={5}>Materials Awaiting Delivery</ReportHeading>
             <FormalTable
-              caption="Table 5. Job materials ordered from suppliers and not yet received"
+              caption="Table 5. Raw materials ordered from suppliers and not yet received"
               numbered
               rows={awaiting}
               rowKey={(r) => r.id}

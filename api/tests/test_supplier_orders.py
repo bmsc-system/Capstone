@@ -567,25 +567,33 @@ def test_same_material_for_two_jobs_on_one_po_is_stocked_per_job(client, shop):
     assert stock("CONSUMED") == {shop["job_a"].id: 4}
 
 
-def test_inventory_analytics_counts_job_material_stock(client, shop):
-    """Analytics → Inventory: received job materials are on hand until their job
-    starts; the move into stock is counted in the month it was received."""
+def test_inventory_analytics_raw_materials(client, shop):
+    """Analytics → Inventory → Raw materials: what the jobs bought, how long it
+    took to arrive, and which jobs are still waiting."""
     order = _both_jobs_draft(client, shop)
-    _issue(client, shop, order["id"], when="2031-03-02")
-    assert _receive(client, shop, order["id"], "2031-03-09").status_code == 200
 
-    res = client.get(
-        "/api/v1/analytics/inventory?from=2031-03-01&to=2031-03-31",
-        headers=_headers(shop["office"]),
-    )
-    assert res.status_code == 200, res.get_json()
-    body = res.get_json()
-    mats = body["materials"]
-    assert mats["onHandLines"] == 2
-    assert mats["onHandValue"] == 2500.0  # (4 + 6) x 250
-    assert mats["incomingLines"] == 0
-    assert sum(b["lines"] for b in mats["ageBuckets"]) == 2
-    march = next(m for m in body["months"] if m["month"] == "2031-03")
-    assert march["materialReceivedValue"] == 2500.0
-    assert march["materialConsumedValue"] == 0
+    def raw():
+        res = client.get(
+            "/api/v1/analytics/inventory?from=2031-03-01&to=2031-03-31",
+            headers=_headers(shop["office"]),
+        )
+        assert res.status_code == 200, res.get_json()
+        return res.get_json()
+
+    # A draft PO is not bought yet.
+    assert raw()["rawMaterials"]["boughtLines"] == 0
+
+    _issue(client, shop, order["id"], when="2031-03-02")
+    waiting = raw()["rawMaterials"]
+    assert waiting["boughtLines"] == 2 and waiting["boughtJobs"] == 2
+    assert waiting["waitingJobs"] == 2 and len(waiting["waiting"]) == 2
+
+    assert _receive(client, shop, order["id"], "2031-03-09").status_code == 200
+    body = raw()
+    mats = body["rawMaterials"]
+    assert mats["waitingJobs"] == 0
+    assert mats["mostUsed"][0]["jobs"] == 2 and mats["mostUsed"][0]["lines"] == 2
+    assert mats["deliveries"] == 2 and mats["avgDeliveryDays"] == 7.0
+    assert len(mats["deliveryByMaterial"]) == 1  # "AISI 1045" and "aisi 1045" are one material
+    assert mats["deliveryByMaterial"][0]["avgDays"] == 7.0
     assert body["consumables"]["useQty"] == 0

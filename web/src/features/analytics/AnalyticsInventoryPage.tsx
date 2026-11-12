@@ -28,7 +28,6 @@ const NEXT_LIMIT = 10;
 
 const itemName = (name: string, size?: string | null) => (size ? `${name} · ${size}` : name);
 const statusColor = (status: string) => tones[RESTOCK_TONE[status] ?? 'grey'].solid;
-const lines = (n: number) => `${fmtNum(n)} line${n === 1 ? '' : 's'}`;
 const isDue = (i: ReplenishmentItem) => i.status === 'OVERDUE' || i.status === 'DUE_SOON';
 const nextLabel = (i: ReplenishmentItem) =>
   i.daysUntilNext == null
@@ -99,90 +98,84 @@ export default function AnalyticsInventoryPage() {
 
   if (!stock || !inv) return <PageSkeleton variant="cards" />;
 
-  const mats = inv.materials;
+  const raw = inv.rawMaterials;
   const due = counts.overdue + counts.dueSoon;
   const errors = items.map((i) => i.typicalErrorDays).filter((v): v is number => v != null);
   const typicalError = errors.length ? errors.reduce((s2, v) => s2 + v, 0) / errors.length : null;
-  const monthRows = inv.months.map((m) => ({
-    label: fmtMonth(m.month),
-    received: m.materialReceivedValue,
-    consumed: m.materialConsumedValue,
-  }));
   const spendRows = stock.summary.spendByMonth.map((m) => ({ label: fmtMonth(m.month), spent: m.amount }));
   const statusCounts = STATUS_ORDER.map((k) => ({ k, n: items.filter((i) => i.status === k).length }));
   const statusRows: BarRow[] = statusCounts
     .filter((r) => r.n > 0)
     .map((r) => ({ key: r.k, label: RESTOCK_LABEL[r.k], value: r.n, color: statusColor(r.k) }));
-  const ageRows: BarRow[] = mats.ageBuckets.map((b, idx) => ({
-    key: b.key,
-    label: b.label,
-    value: b.value,
-    display: fmtPesoCompact(b.value),
-    sub: `${b.lines} line${b.lines === 1 ? '' : 's'}`,
-    color: [PALETTE.good, PALETTE.primary, PALETTE.warn, PALETTE.bad][idx],
+  const usedRows: BarRow[] = raw.mostUsed.map((m) => ({
+    key: m.material,
+    label: m.material,
+    value: m.jobs,
+    display: `${fmtNum(m.jobs)} job${m.jobs === 1 ? '' : 's'}`,
+    sub: m.quantity,
+    color: PALETTE.primary,
   }));
-  const oldAge = mats.ageBuckets.filter((b) => b.key === '15-30' || b.key === '31+');
-  const oldLines = oldAge.reduce((s, b) => s + b.lines, 0);
-  const oldValue = oldAge.reduce((s, b) => s + b.value, 0);
+  const deliveryRows: BarRow[] = raw.deliveryByMaterial.map((m) => ({
+    key: m.material,
+    label: m.material,
+    value: m.avgDays,
+    display: `${fmtNum(m.avgDays, 1)} d`,
+    sub: `${m.deliveries} deliver${m.deliveries === 1 ? 'y' : 'ies'}${m.late ? ` · ${m.late} late` : ''}`,
+    color: m.late ? PALETTE.warn : PALETTE.second,
+  }));
 
   const materialsGrid = (
       <Grid>
         <Card
-          title="Stock movement"
-          span={7}
-          takeaway={`${fmtPesoCompact(mats.receivedValue)} received · ${fmtPesoCompact(mats.consumedValue)} used by jobs in this period`}
-          info={
-            <div style={{ maxWidth: 360 }}>
-              Received: job-material lines delivered in the month. Used: lines taken from stock
-              when their job's first operation started. Value = quantity × PO unit cost.
-            </div>
-          }
-        >
-          {mats.receivedValue || mats.consumedValue ? (
-            <LineTrend
-              rows={monthRows}
-              series={[
-                { key: 'received', label: 'Received (₱)', color: PALETTE.primary },
-                { key: 'consumed', label: 'Used by jobs (₱)', color: PALETTE.second },
-              ]}
-              yFormat={(v) => fmtPesoCompact(v)}
-              tipFormat={(_k, v) => fmtPeso(v)}
-              height={220}
-            />
-          ) : (
-            <ChartEmpty title="No material moved in this period" />
-          )}
-        </Card>
-
-        <Card
-          title="Time in stock"
-          span={5}
+          title="Most used raw materials"
+          span={6}
           takeaway={
-            mats.avgDaysInStock != null
-              ? `Materials waited ${fmtNum(mats.avgDaysInStock, 1)} days on average before their job started (${mats.daysInStockSamples} lines)`
-              : 'No material was used in this period'
+            raw.mostUsed.length
+              ? `${raw.mostUsed[0].material} was needed by the most jobs in this period`
+              : undefined
           }
-          takeawayTone={oldLines ? 'bad' : undefined}
           info={
             <div style={{ maxWidth: 340 }}>
-              Bars: what is in stock now, by days since it was received. Material waiting more than
-              two weeks ties up money and floor space; check whether its job can start.
+              How many job orders bought each raw material in the period, with the total quantity.
+              Materials needed often are worth keeping a little of, or asking the supplier for a better price.
             </div>
           }
         >
-          {mats.onHandLines ? (
-            <SortedBars rows={ageRows} sort={false} />
+          {usedRows.length ? (
+            <SortedBars rows={usedRows} sort={false} />
           ) : (
-            <ChartEmpty title="No job material in stock" />
+            <ChartEmpty title="No raw materials bought in this period" />
           )}
         </Card>
 
         <Card
-          title="Waiting longest"
+          title="Delivery time by raw material"
+          span={6}
+          takeaway={
+            raw.avgDeliveryDays != null
+              ? `Raw materials took ${fmtNum(raw.avgDeliveryDays, 1)} days on average from order to delivery`
+              : undefined
+          }
+          info={
+            <div style={{ maxWidth: 340 }}>
+              Days from the purchase order to delivery, slowest first. Order the slow ones as soon as
+              the job order comes in. Late means delivered after the date the supplier promised.
+            </div>
+          }
+        >
+          {deliveryRows.length ? (
+            <SortedBars rows={deliveryRows} sort={false} format={(v) => `${fmtNum(v, 1)} d`} />
+          ) : (
+            <ChartEmpty title="No raw materials delivered in this period" />
+          )}
+        </Card>
+
+        <Card
+          title="Jobs waiting for raw materials"
           span={12}
           takeaway={
-            mats.oldestOnHand.length
-              ? `${mats.onHandLines} line${mats.onHandLines === 1 ? '' : 's'} in stock · the ${mats.oldestOnHand.length} received longest ago`
+            raw.waitingJobs
+              ? `${fmtNum(raw.waitingJobs)} job${raw.waitingJobs === 1 ? '' : 's'} cannot start until these arrive`
               : undefined
           }
           controls={
@@ -191,49 +184,57 @@ export default function AnalyticsInventoryPage() {
             </Link>
           }
         >
-          {mats.oldestOnHand.length ? (
+          {raw.waiting.length ? (
             <div className="ana-table__wrap">
               <table className="ana-table">
                 <thead>
                   <tr>
-                    <th>Material</th>
+                    <th>Raw material</th>
                     <th>For job</th>
                     <th className="num">Qty</th>
-                    <th>Received</th>
-                    <th className="num">Days in stock</th>
-                    <th className="num">Value</th>
+                    <th>Supplier</th>
+                    <th>Expected</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {mats.oldestOnHand.map((r) => (
+                  {raw.waiting.map((r) => (
                     <tr key={r.id}>
                       <td className="strong">
-                        {r.materialName}
-                        {[r.gradeOrSpec, r.sizeSpec].filter(Boolean).length ? (
+                        {r.material}
+                        {r.sizeSpec ? (
                           <span className="ana-muted" style={{ fontWeight: 400 }}>
                             {' '}
-                            · {[...new Set([r.gradeOrSpec, r.sizeSpec].filter(Boolean))].join(' · ')}
+                            · {r.sizeSpec}
                           </span>
                         ) : null}
                       </td>
                       <td>
-                        {r.jobOrderId ? <Link to={`/job-orders/${r.jobOrderId}`}>{r.jobNumber}</Link> : '—'}
+                        <Link to={`/job-orders/${r.jobOrderId}`}>{r.jobNumber}</Link>
                       </td>
                       <td className="num">
                         {fmtNum(r.quantity)} <span className="ana-muted">{r.unit}</span>
                       </td>
-                      <td>{fmtDay(r.dateReceived)}</td>
-                      <td className="num" style={r.daysInStock > 14 ? { color: tones.red.fg, fontWeight: 600 } : undefined}>
-                        {fmtNum(r.daysInStock)}
+                      <td>{r.supplierName || '—'}</td>
+                      <td>{r.expectedDate ? fmtDay(r.expectedDate) : '—'}</td>
+                      <td>
+                        {r.daysLate > 0 ? (
+                          <StatusPill tone="red" compact>
+                            {fmtNum(r.daysLate)} day{r.daysLate === 1 ? '' : 's'} late
+                          </StatusPill>
+                        ) : (
+                          <StatusPill tone="blue" compact>
+                            On order
+                          </StatusPill>
+                        )}
                       </td>
-                      <td className="num">{fmtPeso(r.value)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <ChartEmpty title="No job material in stock" />
+            <ChartEmpty title="No job is waiting for raw materials" />
           )}
         </Card>
       </Grid>
@@ -246,13 +247,13 @@ export default function AnalyticsInventoryPage() {
         onChange={setView}
         items={[
           { value: 'consumables', label: 'Consumables', count: due || null, countTone: 'red' },
-          { value: 'materials', label: 'Job materials', count: mats.onHandLines || null },
+          { value: 'materials', label: 'Raw materials', count: raw.waitingJobs || null, countTone: raw.waitingLate ? 'red' : undefined },
         ]}
       />
       <span className="ana-inv__switch-sub">
         {view === 'consumables'
           ? `Forecast as of ${fmtDay(stock.asOf)} from what the shop bought · consumables are not counted`
-          : 'Raw materials bought for job orders: in stock from receipt until their job starts'}
+          : 'Bought for each job order: which are needed most, how long they take to arrive, and which jobs are still waiting'}
       </span>
     </div>
   );
@@ -263,30 +264,25 @@ export default function AnalyticsInventoryPage() {
         {switcher}
         <Kpis>
           <Kpi
-            label="Materials in stock"
-            value={fmtPesoCompact(mats.onHandValue)}
-            sub={`${lines(mats.onHandLines)} waiting for their jobs`}
+            label="Raw materials bought"
+            value={fmtNum(raw.boughtLines)}
+            sub={`for ${fmtNum(raw.boughtJobs)} job${raw.boughtJobs === 1 ? '' : 's'} · ${fmtPesoCompact(raw.boughtValue)}`}
           />
           <Kpi
-            label="Materials on order"
-            value={fmtPesoCompact(mats.incomingValue)}
-            valueTone={mats.incomingOverdueLines ? 'amber' : undefined}
-            sub={
-              mats.incomingOverdueLines
-                ? `${lines(mats.incomingLines)} · ${fmtNum(mats.incomingOverdueLines)} overdue`
-                : lines(mats.incomingLines)
-            }
+            label="Most used"
+            value={raw.mostUsed[0]?.material ?? '—'}
+            sub={raw.mostUsed[0] ? `needed by ${fmtNum(raw.mostUsed[0].jobs)} job${raw.mostUsed[0].jobs === 1 ? '' : 's'}` : 'Nothing bought in this period'}
           />
           <Kpi
-            label="Received in this period"
-            value={fmtPesoCompact(mats.receivedValue)}
-            sub={`${fmtPesoCompact(mats.consumedValue)} used by jobs`}
+            label="Delivery time"
+            value={raw.avgDeliveryDays != null ? `${fmtNum(raw.avgDeliveryDays, 1)} days` : '—'}
+            sub={raw.onTimePct != null ? `${fmtNum(raw.onTimePct)}% came by the promised date` : 'No deliveries in this period'}
           />
           <Kpi
-            label="In stock over 2 weeks"
-            value={fmtPesoCompact(oldValue)}
-            valueTone={oldLines ? 'amber' : 'green'}
-            sub={`${lines(oldLines)} of ${lines(mats.onHandLines)} in stock`}
+            label="Jobs waiting for raw materials"
+            value={fmtNum(raw.waitingJobs)}
+            valueTone={raw.waitingLate ? 'red' : undefined}
+            sub={raw.waitingLate ? `${fmtNum(raw.waitingLate)} deliver${raw.waitingLate === 1 ? 'y' : 'ies'} late` : 'None late'}
           />
         </Kpis>
         {materialsGrid}
