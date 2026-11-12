@@ -96,7 +96,7 @@ def suggest_level(
     if lead_ops < MIN_LEAD_OPS:
         if lead_ops == 0 and helper_ops >= HELPER_ONLY_MIN:
             return 1, f"Has only helped on this machine ({helper_ops} operations)"
-        return None, f"Not enough history: {lead_ops} operation{'s' if lead_ops != 1 else ''} as lead (needs {MIN_LEAD_OPS})"
+        return None, f"Not enough history: has led {lead_ops} of the {MIN_LEAD_OPS} operations needed"
 
     ceiling = next(level for need, level in CEILINGS if lead_ops >= need)
     if redo_pct is not None and redo_pct > REDO_CAP_PCT:
@@ -108,9 +108,14 @@ def suggest_level(
         level = max(2, ceiling - 1)
     else:
         level = 2
-    reason = f"{lead_ops} operations as lead"
+    reason = f"Led {lead_ops} operations"
     if speed_pct is not None:
-        reason += f", {speed_pct:.0f}% of peers' speed"
+        if speed_pct >= 110:
+            reason += ", faster than others"
+        elif speed_pct <= 90:
+            reason += ", slower than others"
+        else:
+            reason += ", same pace as others"
     return level, reason
 
 

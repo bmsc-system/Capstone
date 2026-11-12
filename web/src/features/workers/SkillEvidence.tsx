@@ -35,35 +35,63 @@ export function LevelGuide() {
   );
 }
 
-function pct(v: number | null) {
-  return v == null ? '—' : `${Math.round(v)}%`;
+function plural(n: number, word: string) {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
-/** Last 12 months on this machine, in two short lines. */
+/** Pace against peers in words; the exact figure is in the tooltip. */
+function paceText(pct: number | null) {
+  if (pct == null) return null;
+  if (pct >= 110) return 'Faster than average';
+  if (pct <= 90) return 'Slower than average';
+  return 'Average pace';
+}
+
+/** Last 12 months on this machine, in two short lines of plain words. */
 export function SkillRecord({ ev }: { ev?: SkillEvidenceRow }) {
   if (!ev || (!ev.leadOps && !ev.helperOps)) {
-    return <span className="ui-muted-note">No operations in 12 months</span>;
+    return <span className="ui-muted-note">Not used in the last 12 months</span>;
   }
-  const last = ev.lastDoneAt ? formatShop(ev.lastDoneAt, 'MMM D, YYYY') : null;
+  const lastYear = ev.lastDoneAt ? formatShop(ev.lastDoneAt, 'YYYY') : null;
+  const last = ev.lastDoneAt
+    ? formatShop(ev.lastDoneAt, lastYear === formatShop(new Date().toISOString(), 'YYYY') ? 'MMM D' : 'MMM D, YYYY')
+    : null;
+  const done = ev.leadOps
+    ? `Led ${plural(ev.leadOps, 'time')}${ev.helperOps ? `, helped ${ev.helperOps}` : ''}`
+    : `Helped ${plural(ev.helperOps, 'time')}`;
+  const pace = paceText(ev.speedVsPeersPct);
+  const redoBad = Boolean(ev.operatorRedoPct && ev.operatorRedoPct > 10);
   return (
     <div className="ws-record">
       <div>
-        {ev.leadOps} as lead · {ev.helperOps} helped{last ? ` · last ${last}` : ''}
+        {done}
+        {last ? ` · last ${last}` : ''}
       </div>
       {ev.leadOps ? (
         <div className="ws-record__sub">
-          <Tooltip title="How long his operations took compared with how long his peers usually take for the same operation types. 100% is the same pace; above is faster.">
-            <span className="ws-record__k">{pct(ev.speedVsPeersPct)} of peers&apos; speed</span>
-          </Tooltip>
-          {' · '}
-          <Tooltip title="Finished within 10% of the target hours, or faster.">
-            <span className="ws-record__k">{pct(ev.onTargetPct)} on target</span>
-          </Tooltip>
-          {' · '}
-          <Tooltip title="Sent back for operator error, out-of-tolerance dimensions, or surface finish. Machine faults and wrong material are not counted.">
-            <span className={`ws-record__k${ev.operatorRedoPct && ev.operatorRedoPct > 10 ? ' is-bad' : ''}`}>
-              {ev.operatorRedos} redo{ev.operatorRedos === 1 ? '' : 's'}
-              {ev.operatorRedos ? ` (${pct(ev.operatorRedoPct)})` : ''}
+          {pace ? (
+            <>
+              <Tooltip
+                title={`His operations took about ${Math.round(
+                  10000 / Math.max(ev.speedVsPeersPct || 100, 1)
+                )}% of the time his peers usually take for the same work.`}
+              >
+                <span className="ws-record__k">{pace}</span>
+              </Tooltip>
+              {' · '}
+            </>
+          ) : null}
+          {ev.onTargetPct != null ? (
+            <>
+              <Tooltip title="Share of his operations finished within 10% of the target hours, or faster.">
+                <span className="ws-record__k">{Math.round(ev.onTargetPct)}% on target</span>
+              </Tooltip>
+              {' · '}
+            </>
+          ) : null}
+          <Tooltip title="Work sent back because of his own error. Machine faults and wrong material are not counted.">
+            <span className={`ws-record__k${redoBad ? ' is-bad' : ''}`}>
+              {ev.operatorRedos ? `Redone ${ev.operatorRedos}×` : 'No redos'}
             </span>
           </Tooltip>
         </div>
