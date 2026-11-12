@@ -59,7 +59,7 @@ export function RecommendationWeights({ weights }: { weights?: RecommendationWei
       <div className="rw__note">
         Each candidate gets a 0–1 score per factor and the weighted sum ranks them. Past performance is target ÷ hours
         worked (capped at 1.5) on this operation type, or on all types when he has fewer than {weights.minimumSamples}{' '}
-        finished. Workload favours fewer hours booked this week. A machine lead is a worker and a specific unit; units
+        finished. Workload is the share of his own working hours this week that is still free. A machine lead is a worker and a specific unit; units
         with no assigned operator are open to anyone with the skill. Availability is a filter, not a weight: next free
         is the earliest time both the worker and the unit are free.
       </div>

@@ -39,10 +39,12 @@ from app.services.scoring_service import (
     MACHINE_LEAD_WEIGHTS,
     NO_MACHINE_WEIGHTS,
     combine_score,
+    current_week_bounds,
     fetch_efficiency_pairs,
     log_weights_used,
     score_efficiency,
     score_workload,
+    worker_week_hours,
     worker_week_load_hours,
 )
 from app.services.worker_availability import _parse_dt, _windows_overlap, get_busy_workers
@@ -173,11 +175,16 @@ def _performance_and_load(workers, operation_type_id, exclude_operation_id):
         w.id: worker_week_load_hours(w.id, exclude_operation_id=exclude_operation_id)
         for w in workers
     }
-    peers = list(load.values())
+    week_start, week_end = current_week_bounds()
+    schedules = load_worker_schedule_maps_many([w.id for w in workers])
+    exceptions = load_calendar_exceptions(
+        utc_to_shop(week_start).date(), utc_to_shop(week_end).date()
+    )
     out = {}
     for w in workers:
         eff, eff_reason, _ = score_efficiency(fetch_efficiency_pairs(w.id, operation_type_id))
-        work, work_reason, _ = score_workload(load[w.id], peers)
+        week = worker_week_hours(schedules.get(w.id) or {}, exceptions)
+        work, work_reason, _ = score_workload(load[w.id], week)
         out[w.id] = (eff, eff_reason, work, work_reason)
     return out
 

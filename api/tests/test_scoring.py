@@ -9,6 +9,7 @@ from app.services.scoring_service import (
     HELPER_WEIGHTS,
     MACHINE_LEAD_WEIGHTS,
     NO_MACHINE_WEIGHTS,
+    combine_score,
     score_availability,
     score_efficiency,
     score_skill,
@@ -125,20 +126,30 @@ def test_availability_multi_day_placement_not_penalized():
     assert used_default is False
 
 
-def test_workload_equal_peers_get_one():
-    score, reason, used_default = score_workload(8.0, [8.0, 8.0, 8.0])
-    assert score == 1.0
-    assert "equal" in reason
-    assert used_default is False
+def test_workload_is_the_free_share_of_the_week():
+    idle, reason, used_default = score_workload(0.0, 48.0)
+    assert idle == 1.0 and used_default is False and "light" in reason
+    some, _, _ = score_workload(12.0, 48.0)
+    assert abs(some - 0.75) < 1e-9
+    full, reason, _ = score_workload(60.0, 48.0)
+    assert full == 0.0 and "heavy" in reason
 
 
-def test_workload_minmax_linear():
-    light, _, _ = score_workload(2.0, [2.0, 5.0, 8.0])
-    mid, _, _ = score_workload(5.0, [2.0, 5.0, 8.0])
-    heavy, _, _ = score_workload(8.0, [2.0, 5.0, 8.0])
-    assert light == 1.0
-    assert heavy == 0.0
-    assert abs(mid - 0.5) < 1e-9
+def test_an_empty_week_does_not_beat_a_proven_worker_with_a_few_hours():
+    new_idle = combine_score(
+        NO_MACHINE_WEIGHTS,
+        {"efficiency": score_efficiency([])[0], "workload": score_workload(0.0, 48.0)[0]},
+    )
+    on_target = combine_score(
+        NO_MACHINE_WEIGHTS,
+        {"efficiency": score_efficiency([(4.0, 4.0)] * 5)[0], "workload": score_workload(4.5, 48.0)[0]},
+    )
+    assert on_target > new_idle
+
+
+def test_workload_without_working_hours():
+    assert score_workload(0.0, 0.0)[0] == 1.0
+    assert score_workload(3.0, 0.0)[0] == 0.0
 
 
 def test_efficiency_cold_start_neutral():

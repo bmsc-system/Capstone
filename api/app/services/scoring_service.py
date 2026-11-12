@@ -15,7 +15,7 @@ from datetime import datetime, time, timedelta, timezone
 
 from app.models.operation import JobOperation, OperationStatus
 from app.models.worker_skill import WorkCalendarException, WorkerSchedule
-from app.services.schedule_calendar import effective_hours_for_date
+from app.services.schedule_calendar import build_worker_working_windows, effective_hours_for_date
 from app.services.worker_availability import _parse_dt, _windows_overlap, list_worker_operations
 
 logger = logging.getLogger(__name__)
@@ -238,30 +238,36 @@ def worker_week_load_hours(worker_id, now=None, exclude_operation_id=None, opera
     return total
 
 
-def score_workload(worker_hours, peer_hours_list):
+def worker_week_hours(schedule_by_dow, exceptions_by_date, now=None) -> float:
+    """The worker's own working hours this week, with holidays and overtime days."""
+    week_start, week_end = current_week_bounds(now)
+    windows = build_worker_working_windows(schedule_by_dow, exceptions_by_date, week_start, week_end)
+    return sum((end - start).total_seconds() for start, end in windows) / 3600
+
+
+def score_workload(worker_hours, week_hours):
     """
-    Min-max among peers: lightest → 1.0, heaviest → 0.0.
-    All equal → 1.0.
+    Share of the worker's working hours this week that is still free:
+    nothing booked → 1.0, a full week → 0.0.
+
+    Booked hours are compared with the worker's own week, not with the busiest
+    peer, so a worker with an empty week gains only what his free time is
+    worth instead of the full weight over people with a few hours booked.
     Returns (score, reason fragment, used_default).
     """
-    peers = list(peer_hours_list)
-    if not peers:
-        return 1.0, "no peer workload to compare (neutral)", True
+    booked = max(0.0, float(worker_hours or 0))
+    week = float(week_hours or 0)
+    if week <= 0:
+        return (1.0 if booked == 0 else 0.0), f"no working hours this week ({booked:.1f}h booked)", True
 
-    lo = min(peers)
-    hi = max(peers)
-    if abs(hi - lo) < 1e-9:
-        return 1.0, "equal load with peers this week", False
-
-    score = (hi - float(worker_hours)) / (hi - lo)
-    score = max(0.0, min(1.0, score))
+    score = max(0.0, min(1.0, 1 - booked / week))
     if score >= 0.75:
         label = "light load this week"
     elif score <= 0.25:
         label = "heavy load this week"
     else:
         label = "moderate load this week"
-    return score, f"{label} ({worker_hours:.1f}h)", False
+    return score, f"{label} ({booked:.1f}h of {week:.0f}h)", False
 
 
 def score_efficiency(completed_pairs):
