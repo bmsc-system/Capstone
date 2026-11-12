@@ -127,9 +127,9 @@ REASON_LABELS = {
     "PASSWORD_RESET": "Password reset link",
 }
 
-# Never shown, even as a changed field: ids repeat the record, and these are
-# bookkeeping.
-_SKIP_FIELDS = {"id", "created_at", "createdAt", "updated_at", "updatedAt"}
+# Never shown, even as a changed field: ids repeat the record, these are
+# bookkeeping, and a job's priority is a stored default that nothing uses.
+_SKIP_FIELDS = {"id", "created_at", "createdAt", "updated_at", "updatedAt", "priority"}
 _FIELD_LABELS = {
     "assigned_worker_id": "Lead worker",
     "default_operator_id": "Default operator",
