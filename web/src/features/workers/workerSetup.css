@@ -439,23 +439,34 @@ a.wh-jobno:hover {
 }
 
 .ws-record {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
   font-size: 12.5px;
   line-height: 1.4;
   color: var(--c-text);
+  cursor: help;
+}
+
+.ws-record__flag {
+  margin-left: 6px;
+  color: var(--tone-red-fg);
+}
+
+/* Every machine row the same height, whatever its record or level control. */
+.ws-skills .ant-table-tbody > tr > td {
+  height: 52px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .ws-record__sub {
   color: var(--c-text-muted);
 }
 
-.ws-record__k {
-  cursor: help;
-}
-
-.ws-record__k.is-bad {
-  color: var(--tone-red-fg);
-  font-weight: 600;
-}
 
 .ws-suggest {
   display: inline-flex;

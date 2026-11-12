@@ -928,7 +928,6 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
           >
             <Tooltip title="View">
               <Button
-                type="text"
                 className="jo-list-iconbtn"
                 icon={VIEW_OPTIONS.find((o) => o.key === viewMode)?.icon}
                 aria-label="Change view"
@@ -937,8 +936,9 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
           </Dropdown>
           <Tooltip title={selectMode ? 'Done selecting' : 'Select multiple'}>
             <Button
-              type="text"
-              className={`jo-list-iconbtn${selectMode ? ' is-on' : ''}`}
+              type={selectMode ? 'primary' : 'default'}
+              ghost={selectMode}
+              className="jo-list-iconbtn"
               icon={<SelectMultipleIcon />}
               onClick={toggleSelectMode}
               aria-pressed={selectMode}
@@ -948,7 +948,6 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
           {!archivedOnly ? (
             <Tooltip title={`Archived job orders${archivedCount ? ` (${archivedCount})` : ''}`}>
               <Button
-                type="text"
                 className="jo-list-iconbtn"
                 icon={<InboxOutlined />}
                 onClick={() => navigate('/job-orders/archived')}

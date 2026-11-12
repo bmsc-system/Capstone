@@ -47,56 +47,43 @@ function paceText(pct: number | null) {
   return 'Average pace';
 }
 
-/** Last 12 months on this machine, in two short lines of plain words. */
+/** Last 12 months on this machine in one short line; the details are in the tooltip. */
 export function SkillRecord({ ev }: { ev?: SkillEvidenceRow }) {
   if (!ev || (!ev.leadOps && !ev.helperOps)) {
-    return <span className="ui-muted-note">Not used in the last 12 months</span>;
+    return <span className="ws-record ui-muted-note">Not used in 12 months</span>;
   }
   const lastYear = ev.lastDoneAt ? formatShop(ev.lastDoneAt, 'YYYY') : null;
   const last = ev.lastDoneAt
     ? formatShop(ev.lastDoneAt, lastYear === formatShop(new Date().toISOString(), 'YYYY') ? 'MMM D' : 'MMM D, YYYY')
     : null;
-  const done = ev.leadOps
-    ? `Led ${plural(ev.leadOps, 'time')}${ev.helperOps ? `, helped ${ev.helperOps}` : ''}`
-    : `Helped ${plural(ev.helperOps, 'time')}`;
+  const line = ev.leadOps ? `Led ${ev.leadOps}` : `Helped ${ev.helperOps}`;
   const pace = paceText(ev.speedVsPeersPct);
   const redoBad = Boolean(ev.operatorRedoPct && ev.operatorRedoPct > 10);
+  const details = [
+    ev.leadOps
+      ? `Led ${plural(ev.leadOps, 'operation')}${ev.helperOps ? `, helped on ${ev.helperOps}` : ''}`
+      : `Helped on ${plural(ev.helperOps, 'operation')}`,
+    ev.lastDoneAt ? `Last used ${formatShop(ev.lastDoneAt, 'MMM D, YYYY')}` : null,
+    ev.leadOps && pace ? `Pace: ${pace === 'Average pace' ? 'average' : pace.toLowerCase()}` : null,
+    ev.leadOps && ev.onTargetPct != null ? `On target: ${Math.round(ev.onTargetPct)}%` : null,
+    ev.leadOps ? `Redone for his own error: ${ev.operatorRedos ? `${ev.operatorRedos}×` : 'none'}` : null,
+  ].filter(Boolean);
   return (
-    <div className="ws-record">
-      <div>
-        {done}
-        {last ? ` · last ${last}` : ''}
-      </div>
-      {ev.leadOps ? (
-        <div className="ws-record__sub">
-          {pace ? (
-            <>
-              <Tooltip
-                title={`His operations took about ${Math.round(
-                  10000 / Math.max(ev.speedVsPeersPct || 100, 1)
-                )}% of the time his peers usually take for the same work.`}
-              >
-                <span className="ws-record__k">{pace}</span>
-              </Tooltip>
-              {' · '}
-            </>
-          ) : null}
-          {ev.onTargetPct != null ? (
-            <>
-              <Tooltip title="Share of his operations finished within 10% of the target hours, or faster.">
-                <span className="ws-record__k">{Math.round(ev.onTargetPct)}% on target</span>
-              </Tooltip>
-              {' · '}
-            </>
-          ) : null}
-          <Tooltip title="Work sent back because of his own error. Machine faults and wrong material are not counted.">
-            <span className={`ws-record__k${redoBad ? ' is-bad' : ''}`}>
-              {ev.operatorRedos ? `Redone ${ev.operatorRedos}×` : 'No redos'}
-            </span>
-          </Tooltip>
+    <Tooltip
+      title={
+        <div>
+          {details.map((d) => (
+            <div key={d}>{d}</div>
+          ))}
         </div>
-      ) : null}
-    </div>
+      }
+    >
+      <span className="ws-record">
+        {line}
+        {last ? <span className="ws-record__sub"> · last {last}</span> : null}
+        {redoBad ? <ExclamationCircleOutlined className="ws-record__flag" aria-label="Many redos" /> : null}
+      </span>
+    </Tooltip>
   );
 }
 

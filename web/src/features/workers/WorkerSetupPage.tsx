@@ -597,14 +597,16 @@ export default function WorkerSetupPage() {
                       })}
                     </div>
                   ) : (
-                    <ResponsiveTable
-                      card={{ title: 'target', badge: 'enabled' }}
-                      size="small"
-                      rowKey="key"
-                      pagination={false}
-                      columns={skillColumns}
-                      dataSource={skillRows}
-                    />
+                    <div className="ws-skills">
+                      <ResponsiveTable
+                        card={{ title: 'target', badge: 'enabled' }}
+                        size="small"
+                        rowKey="key"
+                        pagination={false}
+                        columns={skillColumns}
+                        dataSource={skillRows}
+                      />
+                    </div>
                   )}
                 </div>
               ) : null}

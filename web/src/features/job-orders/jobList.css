@@ -1,20 +1,15 @@
-/* Icon-only actions beside the job order filters: no box, a larger icon. */
+/* View, select and archive beside the job order filters: a snug box around a
+   larger icon, so there is little empty space inside the button. */
 .jo-list-actions .jo-list-iconbtn.ant-btn {
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
   padding: 0;
-  color: var(--c-text-2, #475569);
 }
 
 .jo-list-actions .jo-list-iconbtn.ant-btn .anticon,
 .jo-list-actions .jo-list-iconbtn.ant-btn svg {
-  font-size: 22px;
-  width: 22px;
-  height: 22px;
-}
-
-.jo-list-actions .jo-list-iconbtn.ant-btn.is-on {
-  color: var(--ant-color-primary, #2563eb);
-  background: var(--ant-color-primary-bg, #eff6ff);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
 }
