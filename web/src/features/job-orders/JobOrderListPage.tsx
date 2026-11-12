@@ -28,6 +28,7 @@ import { EllipsisText, IdChip, TabBar, rowOpenProps } from '../../components/ui'
 import { JOB_STATUS } from '../../theme/statuses';
 import { DELAY_LABEL } from '../../components/MaterialDelayTag';
 import SelectMultipleIcon from '../../components/SelectMultipleIcon';
+import './jobList.css';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverdueCheck } from '../../hooks/useOverdueCheck';
 import { useIsPhone } from '../../hooks/useIsPhone';
@@ -927,6 +928,8 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
           >
             <Tooltip title="View">
               <Button
+                type="text"
+                className="jo-list-iconbtn"
                 icon={VIEW_OPTIONS.find((o) => o.key === viewMode)?.icon}
                 aria-label="Change view"
               />
@@ -934,17 +937,24 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
           </Dropdown>
           <Tooltip title={selectMode ? 'Done selecting' : 'Select multiple'}>
             <Button
+              type="text"
+              className={`jo-list-iconbtn${selectMode ? ' is-on' : ''}`}
               icon={<SelectMultipleIcon />}
-              type={selectMode ? 'primary' : 'default'}
-              ghost={selectMode}
               onClick={toggleSelectMode}
+              aria-pressed={selectMode}
               aria-label={selectMode ? 'Done selecting' : 'Select multiple'}
             />
           </Tooltip>
           {!archivedOnly ? (
-            <Button type="link" onClick={() => navigate('/job-orders/archived')}>
-              Archived{archivedCount ? ` (${archivedCount})` : ''}
-            </Button>
+            <Tooltip title={`Archived job orders${archivedCount ? ` (${archivedCount})` : ''}`}>
+              <Button
+                type="text"
+                className="jo-list-iconbtn"
+                icon={<InboxOutlined />}
+                onClick={() => navigate('/job-orders/archived')}
+                aria-label="Archived job orders"
+              />
+            </Tooltip>
           ) : (
             <Button type="link" onClick={() => navigate('/job-orders')}>
               Back to job orders
