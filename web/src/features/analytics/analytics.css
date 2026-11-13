@@ -17,7 +17,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+}
+
+/* Pushes the period to the right end of the tab row. When the row is too
+   narrow, the period wraps to its own line and starts under the tabs instead
+   of sitting alone at the right. The negative margin cancels the row gap. */
+.ana-toolbar__spacer {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: -16px;
+}
+
+/* The date inputs only need room for "Sep 30, 2026"; at the default width the
+   period dropped below the tabs on 1280-1366px laptops. */
+.ana-toolbar__right .ant-picker-range {
+  width: 264px;
 }
 
 /* ---------- Grid ---------- */
@@ -698,6 +712,10 @@ a.ana-list__row:hover .ana-list__title { color: var(--c-primary); text-decoratio
   .app-shell--m .ana-toolbar__right {
     margin-left: 0;
     width: 100%;
+  }
+
+  .app-shell--m .ana-toolbar__spacer {
+    display: none;
   }
 
   .app-shell--m .ana-toolbar__right .ant-picker {

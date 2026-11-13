@@ -138,6 +138,7 @@ export default function AnalyticsLayout() {
             </div>
           )}
           {!noPeriod && phone && periodValue === CUSTOM ? <div className="ana-period__custom">{rangePicker}</div> : null}
+          {!noPeriod && !phone && <div className="ana-toolbar__spacer" aria-hidden />}
           {!noPeriod && !phone && (
             <div className="ana-toolbar__right">
               {rangePicker}
