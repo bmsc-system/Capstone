@@ -105,6 +105,13 @@ HOLIDAYS = (
     (date(2026, 6, 12), "Independence Day"),
     (date(2026, 8, 21), "Ninoy Aquino Day"),
     (date(2026, 8, 31), "National Heroes Day"),
+    (date(2026, 11, 1), "All Saints' Day"),
+    (date(2026, 11, 30), "Bonifacio Day"),
+    (date(2026, 12, 8), "Feast of the Immaculate Conception"),
+    (date(2026, 12, 24), "Christmas Eve"),
+    (date(2026, 12, 25), "Christmas Day"),
+    (date(2026, 12, 30), "Rizal Day"),
+    (date(2026, 12, 31), "Last Day of the Year"),
 )
 
 # Late share and extra calendar days, tuned so the reliability score lands
@@ -137,6 +144,44 @@ PARTS = (
     ("Hub", "Turned hub, bore and face."),
     ("Base plate", "Milled base, holes drilled and tapped."),
 )
+
+# Repairs and modifications, worded the way clients write them on their POs
+# (e.g. "Modification of Cyclodrive Base", "Rethreading of ring blower port").
+REPAIR_JOBS = (
+    ("Rethreading of ring blower port", "Rethreaded the damaged port to its original thread."),
+    ("Modification of cyclodrive base", "Re-drilled and slotted the base to fit the new drive."),
+    ("Repair of pump shaft", "Built up the worn journal and re-machined it to size."),
+    ("Reconditioning of hydraulic cylinder rod", "Turned and polished the rod; new seal grooves."),
+    ("Re-boring of bearing housing", "Bored the housing oversize and fitted a sleeve."),
+    ("Repair of impeller hub", "Re-bored the hub and cut a new keyway."),
+    ("Re-machining of roller journal", "Turned the worn journal and pressed on a sleeve."),
+    ("Repair of gear coupling", "Re-cut the damaged teeth and re-bored to fit."),
+    ("Resurfacing of mixer blade", "Ground the worn edges back to the template."),
+    ("Repair of conveyor sprocket", "Built up and re-cut the worn teeth."),
+)
+
+# Bar and plate prices per kg and density (g/cm3) by material, as the shop's
+# suppliers quoted them in 2026: 1045 round bar 320mm dia x 170mmL at
+# PHP 15,685 is about PHP 146 a kilo. Matched on words in the catalog name.
+STOCK_PRICES = (
+    (("stainless", "sus", "304", "316"), 285, 7.9),
+    (("4140", "alloy"), 195, 7.85),
+    (("skd", "d2", "tool"), 480, 7.7),
+    (("1045", "s45c", "carbon"), 142, 7.85),
+    (("a36", "ms", "mild", "iron", "plate", "steel"), 82, 7.85),
+    (("6061", "5052", "alum"), 390, 2.7),
+    (("brass",), 620, 8.5),
+    (("bronze", "magnolia"), 720, 8.8),
+    (("copper",), 760, 8.9),
+    (("teflon", "ptfe"), 1500, 2.2),
+    (("acetal", "delrin", "pom"), 520, 1.41),
+    (("uhmw",), 380, 0.94),
+    (("nylon",), 420, 1.15),
+    (("bakelite", "phenolic"), 600, 1.36),
+)
+DEFAULT_STOCK_PRICE = (150, 7.85)
+# Parts cut from plate rather than round bar.
+PLATE_PARTS = ("plate", "bracket", "flange", "cover", "rail", "cam", "key")
 
 # Pause time is wall-clock and stays on the same shift. Machine downtime is
 # planted as its own records so it can carry shop hours without stretching
@@ -789,7 +834,8 @@ def _plan_jobs(rng, shop, start, end):
             client = shop.clients[_weighted(rng, shop.client_weights)]
             kind = _job_type(rng)
             needs = _needs_material(rng, kind)
-            part, blurb = PARTS[rng.randrange(len(PARTS))]
+            part_i = rng.randrange(len(PARTS))
+            part, blurb = PARTS[part_i]
             size = f"{rng.choice((20, 35, 50, 80, 120))} mm"
             month_i_job = min(span, max(0, (po.year - start.year) * 12 + (po.month - start.month)))
             sale_season = {
@@ -799,9 +845,19 @@ def _plan_jobs(rng, shop, start, end):
             # Most jobs are small; a few large ones (log-uniform), so monthly
             # sales land around PHP 3.5-5 million.
             raw = math.exp(rng.uniform(math.log(20000), math.log(210000)))
+            # Bigger parts cost more; a repair or rethreading job is a fraction
+            # of a new part (the client PO's rethreading was PHP 1,344 a piece).
+            raw *= (
+                0.3
+                if kind == JobType.REPAIR
+                else {"20": 0.45, "35": 0.7, "50": 1.0, "80": 1.4, "120": 1.9}.get(size.split()[0], 1.0)
+            )
             amount = min(
                 400000.0,
-                max(6000.0, raw * (1 + 0.006 * month_i_job) * sale_season * rng.uniform(0.94, 1.06)),
+                max(
+                    1500.0 if kind == JobType.REPAIR else 6000.0,
+                    raw * (1 + 0.006 * month_i_job) * sale_season * rng.uniform(0.94, 1.06),
+                ),
             )
             due = shop.next_working(po + timedelta(days=rng.randint(7, 21)))
             plans.append(
@@ -812,9 +868,17 @@ def _plan_jobs(rng, shop, start, end):
                     "client": client,
                     "kind": kind,
                     "needs": needs,
-                    "title": _job_title(kind, part, size),
-                    "description": f"{blurb} Size {size}.",
-                    "qty": rng.randint(1, 12),
+                    "title": (
+                        REPAIR_JOBS[part_i % len(REPAIR_JOBS)][0]
+                        if kind == JobType.REPAIR
+                        else _job_title(kind, part, size)
+                    ),
+                    "description": (
+                        REPAIR_JOBS[part_i % len(REPAIR_JOBS)][1]
+                        if kind == JobType.REPAIR
+                        else f"{blurb} Size {size}."
+                    ),
+                    "qty": rng.randint(1, 12) if kind != JobType.REPAIR else max(1, rng.randint(1, 12) // 5),
                     "amount": round(amount, 2),
                     "priority": _priority(rng),
                     "fate": "run",
@@ -881,14 +945,16 @@ def _one_job(rng, shop, ledger, plan, counters, admin, office):
     catalog = None
     if plan["needs"] and fate != "cancelled":
         catalog = shop.catalog[rng.randrange(len(shop.catalog))]
+        stock = _stock_line(catalog, plan["title"], plan["qty"], plan["amount"])
+        plan["stock"] = stock
         raw_materials = [
             {
                 "id": _new_id(rng),
                 "materialCatalogId": catalog.id,
                 "name": catalog.name,
-                "sizeSpec": _stock_size(plan["title"]),
-                "quantity": float(plan["qty"]),
-                "unit": catalog.default_unit,
+                "sizeSpec": stock["size"],
+                "quantity": float(stock["quantity"]),
+                "unit": stock["unit"],
             }
         ]
 
@@ -1096,10 +1162,10 @@ def _purchase_for_job(rng, shop, ledger, plan, job, catalog, office, counters):
         material_catalog_id=catalog.id,
         planned_material_id=(job.raw_materials or [{}])[0].get("id"),
         material_name=catalog.name,
-        size_spec=_stock_size(plan["title"]),
-        quantity=Decimal(str(max(plan["qty"], 1))),
-        unit=catalog.default_unit or "pcs",
-        unit_cost=Decimal(str(rng.randrange(80, 1800))),
+        size_spec=plan["stock"]["size"],
+        quantity=Decimal(str(plan["stock"]["quantity"])),
+        unit=plan["stock"]["unit"],
+        unit_cost=_quoted(plan["stock"]["unit_cost"], rng.uniform(0.96, 1.08)),
         supplier_id=supplier.id,
         supplier_order_id=order.id,
         date_ordered=issue,
@@ -1112,15 +1178,16 @@ def _purchase_for_job(rng, shop, ledger, plan, job, catalog, office, counters):
         other = shop.catalog[rng.randrange(len(shop.catalog))]
         if other.id == catalog.id:
             other = shop.catalog[(shop.catalog.index(catalog) + 1) % len(shop.catalog)]
+        extra = _stock_line(other, plan["title"], max(1, plan["qty"] // 2), plan["amount"] / 3)
         extra_line = MaterialPurchase(
             id=_new_id(rng),
             job_order_id=job.id,
             material_catalog_id=other.id,
             material_name=other.name,
-            size_spec=_stock_size(plan["title"]),
-            quantity=Decimal(str(max(1, plan["qty"] // 2))),
-            unit=other.default_unit or "pcs",
-            unit_cost=Decimal(str(rng.randrange(80, 1800))),
+            size_spec=extra["size"],
+            quantity=Decimal(str(extra["quantity"])),
+            unit=extra["unit"],
+            unit_cost=_quoted(extra["unit_cost"], rng.uniform(0.96, 1.08)),
             supplier_id=supplier.id,
             supplier_order_id=order.id,
             date_ordered=issue,
@@ -2572,14 +2639,71 @@ def _pick_rework(rng):
 
 
 def _stock_size(title):
-    """Bar stock for a part, written the way the shop writes it on a PO:
-    "Drive shaft, 50 mm" needs a 60mm dia x 150mmL piece."""
-    raw = title.split(", ", 1)[-1].replace("mm", "").strip()
+    """Stock for a part, written the way the shop writes it on a PO:
+    "Drive shaft, 50 mm" needs a 60mm dia x 150mmL bar; "Base plate, 50 mm"
+    a 12mm x 150mm x 200mm plate."""
+    name, _, raw = title.rpartition(", ")
+    raw = raw.replace("mm", "").strip()
     try:
         part = int(float(raw))
     except ValueError:
         return None
+    if any(word in name.lower() for word in PLATE_PARTS):
+        return f"{max(6, part // 4)}mm x {part * 2 + 50}mm x {part * 3 + 50}mm"
     return f"{part + 10}mm dia x {part * 3}mmL"
+
+
+def _price_of(name):
+    """(PHP per kg, density g/cm3) for a catalog material name."""
+    import re
+
+    text = (name or "").lower()
+    words = set(re.findall(r"[a-z0-9]+", text))
+    for keys, price, density in STOCK_PRICES:
+        if any(k in words or (len(k) > 3 and k in text) for k in keys):
+            return price, density
+    return DEFAULT_STOCK_PRICE
+
+
+def _stock_kg(size, density):
+    """Weight of one piece: "60mm dia x 150mmL" bar or "12mm x 150mm x 200mm" plate."""
+    import re
+
+    nums = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", size or "")]
+    if "dia" in (size or "") and len(nums) >= 2:
+        d, length = nums[0], nums[1]
+        return math.pi / 4 * d * d * length * density / 1e6
+    if len(nums) >= 3:
+        return nums[0] * nums[1] * nums[2] * density / 1e6
+    return 2.0
+
+
+def _stock_line(catalog, title, parts, job_amount):
+    """Size, quantity, unit and unit price of the stock bought for a job.
+
+    One bar or plate per part, fewer when that would cost more than about
+    40 percent of the job (several parts are cut from one length). Priced by
+    weight; per kilo when the catalog item is bought by the kilo."""
+    unit = (catalog.default_unit or "pcs").strip() or "pcs"
+    price, density = _price_of(f"{catalog.name} {catalog.category or ''}")
+    if unit.lower() == "sheet":
+        size = "3mm x 1220mm x 2440mm"
+    else:
+        size = _stock_size(title) or "50mm dia x 150mmL"
+    kg = max(0.2, _stock_kg(size, density))
+    pieces = max(1, int(parts or 1))
+    while pieces > 1 and kg * price * pieces > 0.4 * float(job_amount or 0):
+        pieces = math.ceil(pieces / 2)
+    if unit.lower() in ("kg", "kgs", "kilo", "kilos"):
+        return {"size": size, "quantity": round(max(1.0, kg * pieces), 1), "unit": unit,
+                "unit_cost": float(price)}
+    per_piece = max(50.0, round(kg * price / 5) * 5)
+    return {"size": size, "quantity": pieces, "unit": unit, "unit_cost": per_piece}
+
+
+def _quoted(unit_cost, factor):
+    """A supplier's price: the list price give or take a few percent, to the peso."""
+    return Decimal(str(max(1, round(float(unit_cost) * factor))))
 
 
 def _usage_rate(name):
