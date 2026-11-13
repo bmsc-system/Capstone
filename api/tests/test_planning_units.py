@@ -360,3 +360,29 @@ def test_later_steps_leave_room_before_the_date(client, shop):
     tight = _gate_suggest(client, shop, job, hoursAfter=40)["suggestions"]
     assert any(s["meetsDate"] for s in loose)
     assert not any(s["meetsDate"] for s in tight)
+
+
+def test_a_step_starts_after_where_the_earlier_steps_really_land(client, shop):
+    """The earlier step's unit is busy for days: the later step's free-from
+    follows the earlier step's real place on the calendar, not its target hours."""
+    _busy_days(shop, shop["gio"], shop["gios"], 3)
+    job = _due(_job(shop), shop_now().date() + timedelta(days=30))
+    earlier = [{**_op(shop, shop["gio"], shop["gios"]), "operationTypeId": None}]
+    by_hours = _gate_suggest(client, shop, job, hoursBefore=2)["suggestions"]
+    placed = _gate_suggest(client, shop, job, hoursBefore=2, stepsBefore=earlier)["suggestions"]
+
+    def ben_start(rows):
+        return min(_parse(s["nextFreeStart"]) for s in rows if s["fullName"] == "Ben Cruz")
+
+    busy_until = _at(shop_now().date() + timedelta(days=2), 23)
+    assert ben_start(by_hours) < busy_until
+    assert ben_start(placed) >= busy_until
+
+
+def test_earlier_steps_without_a_crew_fall_back_to_their_target_hours(client, shop):
+    job = _due(_job(shop), shop_now().date() + timedelta(days=30))
+    earlier = [{"sequenceNo": 1, "operationName": "Facing", "estimatedHours": 2,
+                "machineTypeId": shop["lathe"].id}]
+    by_hours = _gate_suggest(client, shop, job, hoursBefore=2)["suggestions"]
+    unplaced = _gate_suggest(client, shop, job, hoursBefore=2, stepsBefore=earlier)["suggestions"]
+    assert [s["nextFreeStart"] for s in by_hours] == [s["nextFreeStart"] for s in unplaced]

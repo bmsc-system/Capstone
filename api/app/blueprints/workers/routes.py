@@ -77,6 +77,7 @@ def suggest():
         estimated_hours=data.get("estimatedHours"),
         hours_before=data.get("hoursBefore"),
         hours_after=data.get("hoursAfter"),
+        steps_before=data.get("stepsBefore") if isinstance(data.get("stepsBefore"), list) else None,
     )
     result["recommendationWeights"] = recommendation_weights()
     return jsonify(result)

@@ -180,6 +180,8 @@ export const workersApi = {
       /** Target hours of the steps before and after this one (date-required gate). */
       hoursBefore?: number;
       hoursAfter?: number;
+      /** The earlier steps with their crew and unit, placed the way the proposed schedule would. */
+      stepsBefore?: Record<string, unknown>[];
     }
   ) =>
     apiClient.post<{

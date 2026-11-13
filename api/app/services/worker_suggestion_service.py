@@ -318,10 +318,54 @@ def _move_working_hours(start, hours, *, backward=False):
     return start + span
 
 
-def job_step_window(job_id, hours_before=0, hours_after=0):
+def _earlier_steps_end(job, steps_before, earliest, material_floor):
+    """When the earlier steps would really end, placed the way the proposed
+    schedule places them (their crew's and unit's free time, working hours).
+
+    Only the leading steps that already have a crew can be placed; the target
+    hours of the rest are added after them. None when nothing can be placed.
+    """
+    from app.services.schedule_service import _outsourced_type, propose_schedule
+
+    placeable, rest_hours, stopped = [], 0.0, False
+    for i, step in enumerate(steps_before or []):
+        if not isinstance(step, dict):
+            continue
+        outsourced, _days = _outsourced_type(step.get("operationTypeId"))
+        if stopped or (not outsourced and not step.get("assignedWorkerId")):
+            stopped = True
+            if not outsourced:
+                rest_hours += float(step.get("estimatedHours") or 0)
+            continue
+        placeable.append({**step, "sequenceNo": i + 1})
+    if not placeable:
+        return None
+    proposal = propose_schedule(
+        placeable,
+        job.due_date,
+        exclude_job_id=job.id,
+        anchor_utc=earliest,
+        honor_machine_pins=True,
+        material_not_before_utc=material_floor,
+        suggest_faster_units=False,
+    )
+    ends = []
+    for row in proposal.get("operations") or []:
+        if not row.get("scheduled") or not row.get("scheduledEnd"):
+            return None
+        ends.append(_parse_dt(row["scheduledEnd"]))
+    if not ends:
+        return None
+    return _move_working_hours(max(ends), rest_hours)
+
+
+def job_step_window(job_id, hours_before=0, hours_after=0, steps_before=None):
     """(earliest start, latest finish) for one step of a job being planned:
-    after the material is in and the earlier steps' target hours, and early
-    enough to leave the later steps' target hours before the date required.
+    after the material is in and the earlier steps, and early enough to leave
+    the later steps' target hours before the date required. With
+    ``steps_before`` (the earlier steps with their crew and unit) those steps
+    are placed on the calendar the way the proposed schedule would place them;
+    otherwise only their target hours (``hours_before``) are counted.
     (None, None) when the job is unknown."""
     from datetime import timezone
 
@@ -336,26 +380,42 @@ def job_step_window(job_id, hours_before=0, hours_after=0):
         return None, None
     now = shop_now().astimezone(timezone.utc)
     earliest = now
+    floor = None
     try:
         ready_date, _reason = mp_service.scheduling_material_floor(job)
         floor = resolve_material_not_before_utc(job.material_status, None, ready_date)
         if floor is not None:
-            earliest = max(earliest, ensure_utc(floor))
+            floor = ensure_utc(floor)
+            earliest = max(earliest, floor)
     except Exception:  # material date unknown: planning shows that separately
-        pass
-    earliest = _move_working_hours(earliest, hours_before)
+        floor = None
+    placed_end = None
+    if steps_before:
+        try:
+            from app.services.job_order_service import _next_quarter_hour
+
+            # Same anchor as "View proposed schedule", so the times match it.
+            placed_end = _earlier_steps_end(job, steps_before, _next_quarter_hour(), floor)
+        except Exception:  # fall back to the target-hours estimate
+            placed_end = None
+    if placed_end is not None:
+        earliest = max(earliest, ensure_utc(placed_end))
+    else:
+        earliest = _move_working_hours(earliest, hours_before)
     due_end = shop_local_to_utc(job.due_date + timedelta(days=1), time(0, 0))
     latest = _move_working_hours(due_end, hours_after, backward=True)
     return earliest, latest
 
 
-def _apply_date_gate(suggestions, hours, exclude_job_id, needs_unit, hours_before, hours_after):
+def _apply_date_gate(
+    suggestions, hours, exclude_job_id, needs_unit, hours_before, hours_after, steps_before=None
+):
     """Mark each row meetsDate (can do this step in time) and its earliest
     start/finish from the step's earliest start. Rows that cannot are not
     removed: they go after every row that can (closest finish first)."""
     from app.services.schedule_service import next_free_for_pairs
 
-    earliest, latest = job_step_window(exclude_job_id, hours_before, hours_after)
+    earliest, latest = job_step_window(exclude_job_id, hours_before, hours_after, steps_before)
     if earliest is None:
         return False
     keys = [(s["workerId"], s.get("machineUnitId")) for s in suggestions]
@@ -420,6 +480,7 @@ def suggest_workers(
     estimated_hours=None,
     hours_before=None,
     hours_after=None,
+    steps_before=None,
 ):
     """Suggestions for the lead, or for helpers when ``lead_id`` is given.
 
@@ -492,6 +553,7 @@ def suggest_workers(
             machine is not None,
             hours_before,
             hours_after,
+            steps_before,
         )
     if gated:
         suggestions.sort(key=_gate_sort_key)

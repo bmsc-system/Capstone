@@ -14,8 +14,6 @@ import {
   UpOutlined,
   UserAddOutlined,
   WarningOutlined,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
   CheckCircleFilled,
 } from '@ant-design/icons';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -225,6 +223,9 @@ export default function JobOrderPlanningPage() {
   const [job, setJob] = useState<JobOrder | null>(null);
   const [wizardStep, setWizardStep] = useState<JobFlowStepId>(2);
   const [operations, setOperations] = useState<OpFormRow[]>([]);
+  // Latest rows for async work (suggestion fetches outlive the render they began in).
+  const operationsRef = useRef<OpFormRow[]>([]);
+  operationsRef.current = operations;
   const [rowWorkers, setRowWorkers] = useState<Record<number, User[]>>({});
   const [machines, setMachines] = useState<MachineInfo[]>(MACHINE_OPTIONS);
   const [operationTypes, setOperationTypes] = useState<OperationType[]>([]);
@@ -399,9 +400,10 @@ export default function JobOrderPlanningPage() {
   const loadSuggestions = async (
     rowIndex: number,
     op: OpFormRow,
-    options?: { autoAssign?: boolean; preserveExisting?: boolean }
+    options?: { autoAssign?: boolean; preserveExisting?: boolean; allRows?: OpFormRow[] }
   ) => {
     const { autoAssign = true, preserveExisting = false } = options || {};
+    const allRows = options?.allRows || operationsRef.current;
     const seq = (suggestionFetchSeq.current[rowIndex] || 0) + 1;
     suggestionFetchSeq.current[rowIndex] = seq;
     const ot = operationTypes.find((t) => t.id === op.operationTypeId);
@@ -428,8 +430,11 @@ export default function JobOrderPlanningPage() {
         operationName: op.operationName,
         pairs: Boolean(op.machineTypeId),
         estimatedHours: op.estimatedHours,
-        hoursBefore: hoursOf(operations.slice(0, rowIndex)),
-        hoursAfter: hoursOf(operations.slice(rowIndex + 1)),
+        hoursBefore: hoursOf(allRows.slice(0, rowIndex)),
+        hoursAfter: hoursOf(allRows.slice(rowIndex + 1)),
+        // The earlier steps with their crew: their real place on the calendar
+        // sets when this step can start (same as the proposed schedule).
+        stepsBefore: stepPayload(allRows.slice(0, rowIndex)),
       });
       if (suggestionFetchSeq.current[rowIndex] !== seq) return;
       const suggestions = data.suggestions || [];
@@ -481,6 +486,38 @@ export default function JobOrderPlanningPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [helperQueryKey, operationTypes]);
+
+  // When a step's crew, unit or hours change, the later steps' "free from"
+  // times are worked out again from where the earlier steps now land.
+  const crewSigs = operations.map(
+    (o) =>
+      `${o.key}|${o.operationTypeId || ''}|${o.machineUnitId || ''}|${o.assignedWorkerId || ''}|${(o.helperIds || []).join(',')}|${o.estimatedHours ?? ''}|${o.turnaroundDays ?? ''}`
+  );
+  const crewSigKey = crewSigs.join('~');
+  const crewSigRef = useRef<string[] | null>(null);
+  const crewRefreshFrom = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = crewSigRef.current;
+    crewSigRef.current = crewSigs;
+    if (prev === null || !operations.length) return;
+    let first = crewSigs.findIndex((sig, i) => sig !== prev[i]);
+    if (first === -1 && prev.length !== crewSigs.length) first = Math.min(prev.length, crewSigs.length);
+    if (first === -1) return;
+    crewRefreshFrom.current = Math.min(crewRefreshFrom.current ?? first, first);
+    const timer = window.setTimeout(() => {
+      const from = crewRefreshFrom.current ?? first;
+      crewRefreshFrom.current = null;
+      const rows = operationsRef.current;
+      rows.forEach((row, index) => {
+        if (index <= from) return;
+        const ot = operationTypes.find((t) => t.id === row.operationTypeId);
+        if (!row.operationTypeId || isOutsourcedType(ot)) return;
+        void loadSuggestions(index, row, { preserveExisting: true });
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crewSigKey]);
 
   useEffect(() => {
     workersApi
@@ -631,7 +668,7 @@ export default function JobOrderPlanningPage() {
         rows.forEach((row, index) => {
           if (isOutsourcedType(types.find((t) => t.id === row.operationTypeId))) return;
           void loadRowWorkers(index, row.machineTypeId, false, row.operationTypeId);
-          void loadSuggestions(index, row, { preserveExisting: true });
+          void loadSuggestions(index, row, { preserveExisting: true, allRows: rows });
         });
       } catch (err) {
         if (!cancelled) setError(getErrorMessage(err));
@@ -758,8 +795,8 @@ export default function JobOrderPlanningPage() {
     });
   };
 
-  const buildOperationsPayload = () =>
-    operations.map((op, i) => {
+  const stepPayload = (rows: OpFormRow[]) =>
+    rows.map((op, i) => {
       const ot = operationTypes.find((t) => t.id === op.operationTypeId);
       const outsourced = isOutsourcedType(ot);
       const mt = outsourced
@@ -785,6 +822,8 @@ export default function JobOrderPlanningPage() {
         notes: op.notes?.trim() || null,
       };
     });
+
+  const buildOperationsPayload = () => stepPayload(operations);
 
   const buildConfirmPayload = () =>
     buildOperationsPayload().map((op, i) => {
@@ -998,27 +1037,6 @@ export default function JobOrderPlanningPage() {
     } finally {
       setConfirming(false);
     }
-  };
-
-  /** A move that would put an operation after Finishing is not allowed. */
-  const canMoveRow = (index: number, dir: -1 | 1) => {
-    const target = index + dir;
-    if (target < 0 || target >= operations.length) return false;
-    const upper = dir === 1 ? index : target;
-    return isFinalRow(operations[upper]) || !isFinalRow(operations[upper + 1]);
-  };
-
-  const moveRow = (index: number, dir: -1 | 1) => {
-    if (!canMoveRow(index, dir)) return;
-    const target = index + dir;
-    setOperations((prev) => {
-      const next = [...prev];
-      const tmp = next[index];
-      next[index] = next[target];
-      next[target] = tmp;
-      return next;
-    });
-    remapRowState((i) => (i === index ? target : i === target ? index : i));
   };
 
   const addOperation = () => {
@@ -1519,32 +1537,6 @@ export default function JobOrderPlanningPage() {
             </div>
             <div className="jo-op__tools">
               {renderNoteButton(record, index)}
-              {!readOnly ? (
-                <span className="jo-op__order">
-                  <Tooltip title={canMoveRow(index, -1) ? 'Move earlier' : undefined}>
-                    <Button
-                      type="text"
-                      size="small"
-                      className="jo-op__icon-btn"
-                      icon={<ArrowUpOutlined />}
-                      aria-label={`Move step ${index + 1} earlier`}
-                      disabled={!canMoveRow(index, -1)}
-                      onClick={() => moveRow(index, -1)}
-                    />
-                  </Tooltip>
-                  <Tooltip title={canMoveRow(index, 1) ? 'Move later' : undefined}>
-                    <Button
-                      type="text"
-                      size="small"
-                      className="jo-op__icon-btn"
-                      icon={<ArrowDownOutlined />}
-                      aria-label={`Move step ${index + 1} later`}
-                      disabled={!canMoveRow(index, 1)}
-                      onClick={() => moveRow(index, 1)}
-                    />
-                  </Tooltip>
-                </span>
-              ) : null}
               {!readOnly ? (
                 <Tooltip title={operations.length > 1 ? 'Remove step' : undefined}>
                   <Button
