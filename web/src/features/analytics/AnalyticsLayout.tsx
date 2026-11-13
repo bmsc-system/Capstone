@@ -133,7 +133,7 @@ export default function AnalyticsLayout() {
                 }}
               />
               <Tooltip title="Print this tab">
-                <Button icon={<PrinterOutlined />} aria-label="Print this tab" onClick={() => window.print()} />
+                <Button className="ui-iconbtn" icon={<PrinterOutlined />} aria-label="Print this tab" onClick={() => window.print()} />
               </Tooltip>
             </div>
           )}
@@ -143,7 +143,7 @@ export default function AnalyticsLayout() {
             <div className="ana-toolbar__right">
               {rangePicker}
               <Tooltip title="Print this tab">
-                <Button icon={<PrinterOutlined />} aria-label="Print this tab" onClick={() => window.print()} />
+                <Button className="ui-iconbtn" icon={<PrinterOutlined />} aria-label="Print this tab" onClick={() => window.print()} />
               </Tooltip>
             </div>
           )}

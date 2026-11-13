@@ -385,7 +385,7 @@ export default function AttendancePage() {
         />
         {view === 'day' ? (
           <div className="att-toolbar" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Button icon={<LeftOutlined />} onClick={() => setDay(day.subtract(1, 'day'))} aria-label="Previous day" />
+            <Button className="ui-iconbtn" icon={<LeftOutlined />} onClick={() => setDay(day.subtract(1, 'day'))} aria-label="Previous day" />
             <DatePicker
               value={day}
               allowClear={false}
@@ -394,6 +394,7 @@ export default function AttendancePage() {
               onChange={(d) => d && setDay(d)}
             />
             <Button
+              className="ui-iconbtn"
               icon={<RightOutlined />}
               disabled={isToday}
               onClick={() => setDay(day.add(1, 'day'))}

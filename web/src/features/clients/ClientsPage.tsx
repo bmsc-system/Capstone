@@ -221,6 +221,7 @@ export default function ClientsPage() {
         <div className="std-list-actions">
           <Tooltip title={selectMode ? 'Done selecting' : 'Select multiple'}>
             <Button
+              className="ui-iconbtn"
               icon={<SelectMultipleIcon />}
               type={selectMode ? 'primary' : 'default'}
               ghost={selectMode}

@@ -28,7 +28,6 @@ import { EllipsisText, IdChip, TabBar, rowOpenProps } from '../../components/ui'
 import { JOB_STATUS } from '../../theme/statuses';
 import { DELAY_LABEL } from '../../components/MaterialDelayTag';
 import SelectMultipleIcon from '../../components/SelectMultipleIcon';
-import './jobList.css';
 import { useAuth } from '../../hooks/useAuth';
 import { useOverdueCheck } from '../../hooks/useOverdueCheck';
 import { useIsPhone } from '../../hooks/useIsPhone';
@@ -928,7 +927,7 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
           >
             <Tooltip title="View">
               <Button
-                className="jo-list-iconbtn"
+                className="ui-iconbtn"
                 icon={VIEW_OPTIONS.find((o) => o.key === viewMode)?.icon}
                 aria-label="Change view"
               />
@@ -938,7 +937,7 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
             <Button
               type={selectMode ? 'primary' : 'default'}
               ghost={selectMode}
-              className="jo-list-iconbtn"
+              className="ui-iconbtn"
               icon={<SelectMultipleIcon />}
               onClick={toggleSelectMode}
               aria-pressed={selectMode}
@@ -948,7 +947,7 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
           {!archivedOnly ? (
             <Tooltip title={`Archived job orders${archivedCount ? ` (${archivedCount})` : ''}`}>
               <Button
-                className="jo-list-iconbtn"
+                className="ui-iconbtn"
                 icon={<InboxOutlined />}
                 onClick={() => navigate('/job-orders/archived')}
                 aria-label="Archived job orders"
