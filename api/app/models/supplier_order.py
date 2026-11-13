@@ -190,4 +190,27 @@ class SupplierOrder(db.Model):
         }
         if include_lines:
             data["lines"] = [ln.to_dict() for ln in self.lines or []]
+            if self.status == SupplierOrderStatus.DRAFT:
+                data.update(self.next_po_number_preview())
         return data
+
+    def next_po_number_preview(self, year=None) -> dict:
+        """The PO number a draft would get if issued now (the supplier's next
+        number this year). Office Staff may change it when issuing."""
+        from app.services.schedule_calendar import shop_now
+
+        s = self.supplier
+        year = int(year or shop_now().year)
+        current = (
+            db.session.query(db.func.max(SupplierOrder.po_seq))
+            .filter(SupplierOrder.supplier_id == self.supplier_id, SupplierOrder.po_year == year)
+            .scalar()
+        )
+        seq = int(current or 0) + 1
+        code = s.code if s else None
+        return {
+            "supplierCode": code,
+            "nextPoYear": year,
+            "nextPoSeq": seq,
+            "nextPoNumber": format_po_number(code, year, seq) if code else None,
+        }

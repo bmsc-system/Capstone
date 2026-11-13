@@ -63,6 +63,76 @@ function askDate(title: string, intro: string, okText: string, onOk: (d: string)
   });
 }
 
+/** PO number as printed: supplier code + 2-digit year + 6-digit number. */
+const poNumberOf = (code: string, year: number, seq: number) =>
+  `${code}${String(year % 100).padStart(2, '0')}${String(seq).padStart(6, '0')}`;
+
+/** Date issued and the PO number (prefilled with the next one; the shop's
+ *  paper POs came first, so the first one can carry on from the last paper number). */
+function IssueFields({
+  intro,
+  code,
+  year,
+  nextSeq,
+  onDate,
+  onSeq,
+}: {
+  intro: string;
+  code: string | null | undefined;
+  year: number;
+  nextSeq: number;
+  onDate: (d: Dayjs) => void;
+  onSeq: (n: number) => void;
+}) {
+  const [seq, setSeq] = useState<number>(nextSeq);
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ marginBottom: 8, fontSize: 13, color: '#475569' }}>{intro}</div>
+      <DatePicker
+        style={{ width: '100%' }}
+        defaultValue={shopToday()}
+        format="MMM D, YYYY"
+        allowClear={false}
+        disabledDate={isFutureShopDay}
+        onChange={(d) => {
+          if (d) onDate(d);
+        }}
+      />
+      {code ? (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>PO number</div>
+          <Space.Compact style={{ width: '100%' }}>
+            <Input
+              disabled
+              value={`${code}${String(year % 100).padStart(2, '0')}`}
+              style={{ width: 96, textAlign: 'right' }}
+              aria-label="Supplier code and year"
+            />
+            <InputNumber
+              min={1}
+              max={999999}
+              precision={0}
+              value={seq}
+              style={{ flex: 1 }}
+              aria-label="PO number"
+              onChange={(v) => {
+                const n = typeof v === 'number' ? v : nextSeq;
+                setSeq(n);
+                onSeq(n);
+              }}
+            />
+          </Space.Compact>
+          <div style={{ marginTop: 6, fontSize: 12, color: '#64748b' }}>
+            Prints as <strong>{poNumberOf(code, year, seq || nextSeq)}</strong>. The next one is{' '}
+            {poNumberOf(code, year, nextSeq)}; type another number to carry on from your paper POs.
+            Later POs to this supplier continue from the highest number used.
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function SupplierOrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -198,15 +268,42 @@ export default function SupplierOrderDetailPage() {
   const draftDirty =
     editableDraft && ((order.notes || '') !== notes || (order.vatRate ?? null) !== vatRate);
 
-  const issue = () =>
-    askDate(
-      `Issue ${order.supplierName} order?`,
-      `This assigns the PO number, sets the expected delivery date from the supplier's ${
-        order.supplierLeadTimeDays ?? '—'
-      }-day lead time, and locks the lines. Date issued:`,
-      'Issue order',
-      (d) => run(() => supplierOrdersApi.issue(order.id, d), 'Order issued')
-    );
+  const issue = () => {
+    let picked: Dayjs = shopToday();
+    const nextSeq = order.nextPoSeq ?? 1;
+    let seq = nextSeq;
+    confirmAction({
+      wide: true,
+      title: `Issue ${order.supplierName} order?`,
+      content: (
+        <IssueFields
+          intro={`This assigns the PO number, sets the expected delivery date from the supplier's ${
+            order.supplierLeadTimeDays ?? '—'
+          }-day lead time, and locks the lines. Date issued:`}
+          code={order.supplierCode}
+          year={order.nextPoYear ?? shopToday().year()}
+          nextSeq={nextSeq}
+          onDate={(d) => {
+            picked = d;
+          }}
+          onSeq={(n) => {
+            seq = n;
+          }}
+        />
+      ),
+      okText: 'Issue order',
+      onOk: () =>
+        run(
+          () =>
+            supplierOrdersApi.issue(
+              order.id,
+              picked.format('YYYY-MM-DD'),
+              order.supplierCode && seq !== nextSeq ? seq : undefined
+            ),
+          'Order issued'
+        ),
+    });
+  };
 
   const openDateChange = () => {
     setNewDate(order.expectedDeliveryDate ? dayjs(order.expectedDeliveryDate) : null);

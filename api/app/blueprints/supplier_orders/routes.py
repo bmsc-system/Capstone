@@ -92,7 +92,12 @@ def update_order(order_id):
 @require_roles(UserRole.OFFICE_STAFF)
 def issue(order_id):
     data = request.get_json() or {}
-    order = svc.issue_order(svc.get_order(order_id), get_current_user_id(), data.get("dateIssued"))
+    order = svc.issue_order(
+        svc.get_order(order_id),
+        get_current_user_id(),
+        data.get("dateIssued"),
+        po_seq=data.get("poSeq"),
+    )
     return jsonify(order.to_dict(include_lines=True))
 
 

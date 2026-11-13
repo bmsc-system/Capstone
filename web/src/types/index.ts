@@ -301,6 +301,11 @@ export interface MaterialRescheduleOutcome {
 export interface SupplierOrder {
   id: string;
   poNumber: string | null;
+  /** Drafts: the number it would get if issued now; Office Staff may change it. */
+  supplierCode?: string | null;
+  nextPoYear?: number;
+  nextPoSeq?: number;
+  nextPoNumber?: string | null;
   supplierId: string;
   supplierName?: string | null;
   supplierLeadTimeDays?: number | null;

@@ -597,3 +597,39 @@ def test_inventory_analytics_raw_materials(client, shop):
     assert len(mats["deliveryByMaterial"]) == 1  # "AISI 1045" and "aisi 1045" are one material
     assert mats["deliveryByMaterial"][0]["avgDays"] == 7.0
     assert body["consumables"]["useQty"] == 0
+
+
+def test_the_first_po_can_carry_on_from_the_paper_numbers(client, shop):
+    """The shop already issued paper POs: the first one in the system takes
+    the number they type, and later ones continue from it."""
+    first = _add_lines(client, shop, [_line(shop["job_a"], "Bolts", 1, 5)], supplier=shop["steel"])
+    draft = client.get(f"/api/v1/supplier-orders/{first.get_json()['id']}", headers=_headers(shop["office"]))
+    assert draft.get_json()["nextPoSeq"] == 1
+    res = client.post(
+        f"/api/v1/supplier-orders/{first.get_json()['id']}/issue",
+        json={"dateIssued": "2031-03-02", "poSeq": 21},
+        headers=_headers(shop["office"]),
+    )
+    assert res.status_code == 200, res.get_json()
+    assert res.get_json()["poNumber"] == "PSL31000021"
+    second = _add_lines(client, shop, [_line(shop["job_a"], "Nuts", 1, 5)], supplier=shop["steel"])
+    assert _issue(client, shop, second.get_json()["id"], when="2031-03-03").get_json()["poNumber"] == "PSL31000022"
+
+
+def test_a_po_number_already_used_is_refused(client, shop):
+    first = _add_lines(client, shop, [_line(shop["job_a"], "Bolts", 1, 5)], supplier=shop["steel"])
+    _issue(client, shop, first.get_json()["id"], when="2031-03-02")
+    second = _add_lines(client, shop, [_line(shop["job_a"], "Nuts", 1, 5)], supplier=shop["steel"])
+    res = client.post(
+        f"/api/v1/supplier-orders/{second.get_json()['id']}/issue",
+        json={"dateIssued": "2031-03-03", "poSeq": 1},
+        headers=_headers(shop["office"]),
+    )
+    assert res.status_code == 409
+    assert res.get_json()["error"]["code"] == "PO_NUMBER_TAKEN"
+    bad = client.post(
+        f"/api/v1/supplier-orders/{second.get_json()['id']}/issue",
+        json={"dateIssued": "2031-03-03", "poSeq": 0},
+        headers=_headers(shop["office"]),
+    )
+    assert bad.status_code == 400

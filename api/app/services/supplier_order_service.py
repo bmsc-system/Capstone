@@ -432,9 +432,37 @@ def _next_po_seq(supplier_id: str, year: int) -> int:
     return int(current or 0) + 1
 
 
-def issue_order(order: SupplierOrder, actor_id: str, date_issued=None) -> SupplierOrder:
+PO_SEQ_MAX = 999_999
+
+
+def _chosen_po_seq(value):
+    """The number typed when issuing (the last digits of the PO number), or
+    None to take the next one. The shop already has paper POs, so the first
+    PO in the system can carry on from the last paper number."""
+    if value is None or value == "":
+        return None
+    try:
+        seq = int(str(value).strip())
+    except (TypeError, ValueError):
+        seq = 0
+    if seq < 1 or seq > PO_SEQ_MAX:
+        raise AppError(
+            f"The PO number must be a whole number from 1 to {PO_SEQ_MAX}.",
+            "VALIDATION_ERROR",
+            400,
+        )
+    return seq
+
+
+def issue_order(
+    order: SupplierOrder, actor_id: str, date_issued=None, po_seq=None
+) -> SupplierOrder:
     """Office Staff issue the PO: number, date, expected delivery; lines lock.
-    The issuer is the one who prepared it; "Approved by" is signed on paper."""
+    The issuer is the one who prepared it; "Approved by" is signed on paper.
+
+    ``po_seq``: a number of their own for this PO (any unused one for the
+    supplier and year). Later POs carry on from the highest number used."""
+    chosen = _chosen_po_seq(po_seq)
     _require_draft(order)
     if not order.active_lines:
         raise AppError("Add at least one line before issuing.", "VALIDATION_ERROR", 400)
@@ -464,6 +492,29 @@ def issue_order(order: SupplierOrder, actor_id: str, date_issued=None) -> Suppli
     issued = _parse_date(date_issued, "dateIssued") or shop_now().date()
     try:
         seq = _next_po_seq(order.supplier_id, issued.year)
+        if chosen is not None and chosen != seq:
+            taken = (
+                SupplierOrder.query.filter(
+                    SupplierOrder.supplier_id == order.supplier_id,
+                    SupplierOrder.po_year == issued.year,
+                    SupplierOrder.po_seq == chosen,
+                    SupplierOrder.id != order.id,
+                ).first()
+                or SupplierOrder.query.filter(
+                    SupplierOrder.po_number
+                    == format_po_number(order.supplier.code, issued.year, chosen),
+                    SupplierOrder.id != order.id,
+                ).first()
+            )
+            if taken is not None:
+                raise AppError(
+                    f"{format_po_number(order.supplier.code, issued.year, chosen)} is already "
+                    f"used. The next free number is "
+                    f"{format_po_number(order.supplier.code, issued.year, seq)}.",
+                    "PO_NUMBER_TAKEN",
+                    409,
+                )
+            seq = chosen
         order.po_seq = seq
         order.po_year = issued.year
         order.po_number = format_po_number(order.supplier.code, issued.year, seq)

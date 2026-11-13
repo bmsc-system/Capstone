@@ -31,8 +31,9 @@ export const supplierOrdersApi = {
       deliveryMode?: DeliveryMode;
     }
   ) => apiClient.patch<SupplierOrder>(`/supplier-orders/${id}`, data),
-  issue: (id: string, dateIssued?: string) =>
-    apiClient.post<SupplierOrder>(`/supplier-orders/${id}/issue`, { dateIssued }),
+  /** poSeq: the PO number's last digits, when Office Staff set their own. */
+  issue: (id: string, dateIssued?: string, poSeq?: number) =>
+    apiClient.post<SupplierOrder>(`/supplier-orders/${id}/issue`, { dateIssued, poSeq }),
   changeExpectedDelivery: (id: string, expectedDeliveryDate: string, note: string) =>
     apiClient.patch<SupplierOrder>(`/supplier-orders/${id}/expected-delivery`, {
       expectedDeliveryDate,
