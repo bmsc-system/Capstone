@@ -20,6 +20,11 @@
   color: #333;
 }
 
+/* Two-row header (Schedule over Start / End). */
+.jo-print-ops th {
+  vertical-align: middle;
+}
+
 .jo-print-stamp {
   margin-top: 0.25in;
   font-size: 8pt;

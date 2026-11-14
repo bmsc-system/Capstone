@@ -1002,6 +1002,8 @@ export interface JobMaterialLine {
   supplierName?: string | null;
   expectedDate: string | null;
   dateReceived: string | null;
+  /** The planned material this line buys, when it was ordered from the plan. */
+  plannedMaterialId?: string | null;
 }
 
 export interface PlannedMaterialSummary {

@@ -473,6 +473,7 @@ class JobOrder(db.Model):
                     p.current_expected_date.isoformat() if p.current_expected_date else None
                 ),
                 "dateReceived": p.date_received.isoformat() if p.date_received else None,
+                "plannedMaterialId": p.planned_material_id,
             }
             for p in self.material_purchases or []
             if p.cancelled_at is None

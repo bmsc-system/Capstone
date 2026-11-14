@@ -8,7 +8,7 @@ import { clientsApi, jobOrdersApi } from '../../api/jobOrders.api';
 import { getErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useShopDetails } from '../../hooks/useShopDetails';
-import type { Client, JobMaterialLine, JobOrder, Operation } from '../../types';
+import type { Client, JobOrder, Operation } from '../../types';
 import { PrintDocument, SignatureBlock } from './PrintTemplate';
 import { jobOrderPrintBlockers } from './jobOrderPrintReadiness';
 import './jobOrderPrint.css';
@@ -17,13 +17,6 @@ const JOB_TYPE_LABEL: Record<string, string> = {
   FABRICATION: 'Fabrication',
   MACHINING: 'Machining',
   REPAIR: 'Repair',
-};
-
-const MATERIAL_STATUS_LABEL: Record<string, string> = {
-  DRAFT: 'On draft PO',
-  ORDERED: 'Ordered',
-  RECEIVED: 'Received',
-  CONSUMED: 'Consumed',
 };
 
 const ROLE_TITLE: Record<string, string> = {
@@ -40,13 +33,9 @@ function fmtDateTime(v?: string | null) {
   return v ? formatShop(v, 'MMM D, YYYY h:mm A') : '—';
 }
 
-/** "Mar 18 · 9:53 AM – 1:36 PM", or both dates when it runs past the day. */
-function fmtSchedule(start?: string | null, end?: string | null) {
-  if (!start || !end) return '—';
-  const sameDay = formatShop(start, 'YYYY-MM-DD') === formatShop(end, 'YYYY-MM-DD');
-  return sameDay
-    ? `${formatShop(start, 'MMM D')} · ${formatShop(start, 'h:mm A')} – ${formatShop(end, 'h:mm A')}`
-    : `${formatShop(start, 'MMM D h:mm A')} – ${formatShop(end, 'MMM D h:mm A')}`;
+/** "Nov 20, 8:00 AM" for the schedule's Start and End columns. */
+function fmtStamp(v?: string | null) {
+  return v ? formatShop(v, 'MMM D, h:mm A') : '—';
 }
 
 const PART_STAGE_LABEL: Record<string, string> = {
@@ -73,9 +62,40 @@ function crewLines(op: Operation) {
   return [op.assignedWorkerName || '—'];
 }
 
-function materialStatus(line: JobMaterialLine) {
-  if (line.dateReceived && line.status !== 'CONSUMED') return 'Received';
-  return MATERIAL_STATUS_LABEL[line.status] || line.status;
+type MaterialRow = { key: string; name: string; spec: string; qty: number | null; unit: string };
+
+function qtyText(qty: number | null, unit: string) {
+  return qty != null ? `${qty}${unit ? ` ${unit}` : ''}` : '—';
+}
+
+/** What the job needs, one row per material: each planned material at its
+    planned quantity (however it is being bought), plus lines bought without a
+    plan. A line for the same material, size and unit as another row is the
+    same need, so it counts once, at the larger quantity. */
+function jobMaterialRows(job: JobOrder): MaterialRow[] {
+  const rows = new Map<string, MaterialRow>();
+  const add = (key: string, name: string, specParts: (string | null | undefined)[], qty: number | null, unit?: string | null) => {
+    const spec = specParts.filter(Boolean).join(' · ');
+    const u = unit || '';
+    const same = `${name.trim().toLowerCase()}|${spec.trim().toLowerCase()}|${u.toLowerCase()}`;
+    const prev = rows.get(same);
+    if (prev) {
+      if (qty != null && (prev.qty == null || qty > prev.qty)) prev.qty = qty;
+      return;
+    }
+    rows.set(same, { key, name: name || '—', spec, qty, unit: u });
+  };
+  const planned = job.plannedMaterials || [];
+  for (const p of planned) {
+    const bought = (p.purchasedQuantity || 0) + (p.draftQuantity || 0);
+    add(`plan-${p.id}`, p.name || '', [p.gradeOrSpec, p.sizeSpec], p.plannedQuantity ?? (bought > 0 ? bought : null), p.unit);
+  }
+  const plannedIds = new Set(planned.map((p) => p.id));
+  for (const m of job.materialLines || []) {
+    if (m.plannedMaterialId && plannedIds.has(m.plannedMaterialId)) continue;
+    add(m.id, m.materialName || '', [m.gradeOrSpec, m.sizeSpec], m.quantity, m.unit);
+  }
+  return [...rows.values()];
 }
 
 export default function JobOrderPrintPage() {
@@ -131,16 +151,11 @@ export default function JobOrderPrintPage() {
     return <div style={{ padding: 24 }}>Job order not found.</div>;
   }
 
-  const materials = job.materialLines || [];
-  // Materials needed that are not on a supplier order yet.
-  const toOrder = (job.plannedMaterials || []).filter(
-    (p) => (p.status === 'TO_ORDER' || p.status === 'PARTLY_ORDERED') && (p.remainingQuantity ?? 1) > 0,
-  );
+  const materialRows = jobMaterialRows(job);
   const quantity =
     job.quantity != null ? `${job.quantity}${job.unitOfMeasure ? ` ${job.unitOfMeasure}` : ''}` : '—';
   const blockers = jobOrderPrintBlockers(job);
   const canPrint = blockers.length === 0;
-  const targetTotal = ops.reduce((sum, op) => sum + (op.estimatedHours ?? 0), 0);
   const plannedFinish = ops.reduce<string | null>(
     (latest, op) => (op.scheduledEnd && (!latest || op.scheduledEnd > latest) ? op.scheduledEnd : latest),
     null,
@@ -238,23 +253,28 @@ export default function JobOrderPrintPage() {
       </div>
 
       <div className="shop-print-section">Operations</div>
-      <table className="shop-print-table shop-print-table--compact">
+      <table className="shop-print-table shop-print-table--compact jo-print-ops">
         <colgroup>
           <col style={{ width: '5%' }} />
-          <col style={{ width: '20%' }} />
-          <col style={{ width: '15%' }} />
-          <col style={{ width: '24%' }} />
-          <col style={{ width: '27%' }} />
-          <col style={{ width: '9%' }} />
+          <col style={{ width: '19%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '21%' }} />
+          <col style={{ width: '16%' }} />
+          <col style={{ width: '16%' }} />
+          <col style={{ width: '10%' }} />
         </colgroup>
         <thead>
           <tr>
-            <th>#</th>
-            <th>Operation</th>
-            <th>Machine unit</th>
-            <th>Crew</th>
-            <th>Schedule</th>
-            <th>Target hrs</th>
+            <th rowSpan={2}>#</th>
+            <th rowSpan={2}>Operation</th>
+            <th rowSpan={2}>Machine unit</th>
+            <th rowSpan={2}>Crew</th>
+            <th colSpan={2}>Schedule</th>
+            <th rowSpan={2}>Target hrs</th>
+          </tr>
+          <tr>
+            <th>Start</th>
+            <th>End</th>
           </tr>
         </thead>
         <tbody>
@@ -268,75 +288,37 @@ export default function JobOrderPrintPage() {
                   <div key={name}>{name}</div>
                 ))}
               </td>
-              <td>{fmtSchedule(op.scheduledStart, op.scheduledEnd)}</td>
+              <td>{fmtStamp(op.scheduledStart)}</td>
+              <td>{fmtStamp(op.scheduledEnd)}</td>
               <td className="num">{op.estimatedHours != null ? op.estimatedHours.toFixed(2) : '—'}</td>
             </tr>
           ))}
-          {ops.length > 1 ? (
-            <tr className="total">
-              <td colSpan={5} className="num">
-                Total target hours
-              </td>
-              <td className="num">{targetTotal.toFixed(2)}</td>
-            </tr>
-          ) : null}
         </tbody>
       </table>
 
       <div className="shop-print-section">Materials</div>
-      {materials.length === 0 && toOrder.length === 0 ? (
-        <div>{job.materialStatus === 'NOT_REQUIRED' ? 'Not required.' : 'Not ordered yet.'}</div>
+      {materialRows.length === 0 ? (
+        <div>{job.materialStatus === 'NOT_REQUIRED' ? 'Not required.' : 'None listed yet.'}</div>
       ) : (
         <table className="shop-print-table shop-print-table--compact">
           <colgroup>
-            <col style={{ width: '34%' }} />
-            <col style={{ width: '12%' }} />
-            <col style={{ width: '24%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: '14%' }} />
+            <col style={{ width: '75%' }} />
+            <col style={{ width: '25%' }} />
           </colgroup>
           <thead>
             <tr>
               <th>Material</th>
               <th>Quantity</th>
-              <th>Supplier</th>
-              <th>Supplier PO #</th>
-              <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {materials.map((m) => (
-              <tr key={m.id}>
+            {materialRows.map((m) => (
+              <tr key={m.key}>
                 <td>
-                  {orDash(m.materialName)}
-                  {m.gradeOrSpec || m.sizeSpec ? (
-                    <div className="jo-print-sub">{[m.gradeOrSpec, m.sizeSpec].filter(Boolean).join(' · ')}</div>
-                  ) : null}
+                  {m.name}
+                  {m.spec ? <div className="jo-print-sub">{m.spec}</div> : null}
                 </td>
-                <td className="num">
-                  {m.quantity != null ? `${m.quantity}${m.unit ? ` ${m.unit}` : ''}` : '—'}
-                </td>
-                <td>{orDash(m.supplierName)}</td>
-                <td>{m.poNumber || (m.status === 'DRAFT' ? 'Not issued' : '—')}</td>
-                <td>{materialStatus(m)}</td>
-              </tr>
-            ))}
-            {toOrder.map((p) => (
-              <tr key={`plan-${p.id}`}>
-                <td>
-                  {orDash(p.name)}
-                  {p.gradeOrSpec || p.sizeSpec ? (
-                    <div className="jo-print-sub">{[p.gradeOrSpec, p.sizeSpec].filter(Boolean).join(' · ')}</div>
-                  ) : null}
-                </td>
-                <td className="num">
-                  {(p.remainingQuantity ?? p.plannedQuantity) != null
-                    ? `${p.remainingQuantity ?? p.plannedQuantity}${p.unit ? ` ${p.unit}` : ''}`
-                    : '—'}
-                </td>
-                <td>—</td>
-                <td>Not issued</td>
-                <td>To order</td>
+                <td className="num">{qtyText(m.qty, m.unit)}</td>
               </tr>
             ))}
           </tbody>
