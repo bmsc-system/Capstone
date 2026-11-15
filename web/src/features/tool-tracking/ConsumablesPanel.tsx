@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Dayjs } from 'dayjs';
 import { Button, DatePicker, Drawer, Form, Input, InputNumber, Select, Space, message } from 'antd';
 import type { TableColumnsType } from 'antd';
@@ -792,18 +792,20 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
                     opacity: u.undoneAt ? 0.55 : 1,
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <strong>{u.workerName ?? 'Worker'}</strong>
-                    <span>
-                      {num(u.quantity)} {u.unit}
-                      {u.undoneAt ? ' · undone' : ''}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>
-                    {u.operationName ? `${u.operationName}${u.jobNumber ? ` (${u.jobNumber})` : ''}` : 'Not for a particular operation'}
-                    {u.issuedAt ? ` · ${formatShop(u.issuedAt, 'MMM D, h:mm A')}` : ''}
-                    {u.issuedByName ? ` · by ${u.issuedByName}` : ''}
-                  </div>
+                  <RecordLine
+                    title={u.workerName ?? 'Worker'}
+                    detail={[
+                      u.operationName
+                        ? `${u.operationName}${u.jobNumber ? ` (${u.jobNumber})` : ''}`
+                        : 'Not for a particular operation',
+                      u.issuedAt ? formatShop(u.issuedAt, 'MMM D, h:mm A') : null,
+                      u.issuedByName ? `by ${u.issuedByName}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                    amount={`${num(u.quantity)} ${u.unit}`}
+                    amountNote={u.undoneAt ? 'undone' : null}
+                  />
                   {canEdit && !u.undoneAt ? (
                     <div>
                       <Button size="small" type="link" style={{ paddingInline: 0 }} onClick={() => undoHandOut(u)}>
@@ -825,23 +827,21 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
                   key={`${p.source}-${p.id}`}
                   style={{ border: '1px solid var(--c-border)', borderRadius: 8, padding: '10px 12px', display: 'grid', gap: 2 }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <strong>{day(p.purchasedOn)}</strong>
-                    <span>
-                      {num(p.quantity)} {p.unit}
-                      {p.amount != null ? ` · ${peso(p.amount)}` : ''}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>
-                    {[
-                      p.boughtFrom,
-                      p.poNumber ? `PO ${p.poNumber}` : null,
-                      p.recordedBy ? `recorded by ${p.recordedBy}` : null,
-                      p.note,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ') || '—'}
-                  </div>
+                  <RecordLine
+                    title={day(p.purchasedOn)}
+                    detail={
+                      [
+                        p.boughtFrom,
+                        p.poNumber ? `PO ${p.poNumber}` : null,
+                        p.recordedBy ? `recorded by ${p.recordedBy}` : null,
+                        p.note,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || '—'
+                    }
+                    amount={`${num(p.quantity)} ${p.unit}`}
+                    amountNote={p.amount != null ? peso(p.amount) : null}
+                  />
                   {canEdit && p.source === 'RECORDED' ? (
                     <div>
                       <Button type="link" size="small" danger style={{ padding: 0 }} onClick={() => removePurchase(p)}>
@@ -859,3 +859,29 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   );
 }
 
+/** One hand-out or purchase in the history drawer: what and where on the
+ *  left, quantity and amount stacked on the right with room between them. */
+function RecordLine({
+  title,
+  detail,
+  amount,
+  amountNote,
+}: {
+  title: ReactNode;
+  detail: ReactNode;
+  amount: ReactNode;
+  amountNote?: ReactNode | null;
+}) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', columnGap: 24, alignItems: 'start' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 700 }}>{title}</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{detail}</div>
+      </div>
+      <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+        <div style={{ fontWeight: 600 }}>{amount}</div>
+        {amountNote ? <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{amountNote}</div> : null}
+      </div>
+    </div>
+  );
+}
