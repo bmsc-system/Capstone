@@ -259,9 +259,9 @@ export function restockLine(i: ReplenishmentItem) {
     const rate =
       d <= 0
         ? 'not used lately'
-        : d >= 1
-          ? `uses ~${fmtNum(d, 0)} ${i.unit} a day`
-          : `uses ~1 ${i.unit} every ${Math.max(1, Math.round(1 / d))} days`;
+        : d >= 1 || Math.round(1 / d) <= 1
+          ? `uses ~${fmtNum(Math.max(1, Math.round(d)), 0)} ${i.unit} a day`
+          : `uses ~1 ${i.unit} every ${Math.round(1 / d)} days`;
     parts.push(`${fmtNum(i.onHand ?? 0, 0)} ${i.unit} on hand, ${rate}`);
     if (i.status === 'OVERDUE') parts.push('at the reorder point');
     else if (i.nextPurchaseOn) parts.push(`reorder by ${fmtDay(i.nextPurchaseOn)}`);

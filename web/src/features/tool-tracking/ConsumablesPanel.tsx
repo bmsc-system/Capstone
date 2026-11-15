@@ -44,7 +44,8 @@ const peso = (v?: number | null) =>
 function rateText(i: ReplenishmentItem) {
   const d = i.dailyUse ?? 0;
   if (d <= 0) return 'not used lately';
-  return d >= 1 ? `uses ~${num(d)} ${i.unit} a day` : `uses ~1 ${i.unit} every ${Math.max(1, Math.round(1 / d))} days`;
+  const every = Math.round(1 / d);
+  return d >= 1 || every <= 1 ? `uses ~${num(Math.max(1, Math.round(d)))} ${i.unit} a day` : `uses ~1 ${i.unit} every ${every} days`;
 }
 
 function whenNext(i: ReplenishmentItem) {
@@ -389,11 +390,11 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   };
 
   const columns: TableColumnsType<ReplenishmentItem> = [
-    { title: 'Consumable', key: 'name', width: 210, render: (_: unknown, i) => itemCell(i), sorter: (a, b) => a.name.localeCompare(b.name) },
+    { title: 'Consumable', key: 'name', width: 180, render: (_: unknown, i) => itemCell(i), sorter: (a, b) => a.name.localeCompare(b.name) },
     {
       title: 'On hand',
       key: 'onHand',
-      width: 96,
+      width: 90,
       sorter: (a, b) => (a.onHand ?? 0) - (b.onHand ?? 0),
       render: (_: unknown, i) => (
         <span style={{ fontWeight: 700, color: (i.onHand ?? 0) > 0 ? undefined : '#b91c1c' }}>
@@ -404,7 +405,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     {
       title: 'Last bought',
       key: 'last',
-      width: 124,
+      width: 118,
       render: (_: unknown, i) =>
         i.lastBoughtOn ? (
           <TwoLineCell primary={day(i.lastBoughtOn)} secondary={`${num(i.lastQuantity)} ${i.unit}`} />
@@ -415,7 +416,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     {
       title: 'Usage',
       key: 'every',
-      width: 190,
+      width: 196,
       render: (_: unknown, i) =>
         i.basis === 'USAGE' && i.dailyUse != null ? (
           <TwoLineCell
@@ -435,7 +436,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     {
       title: 'Reorder by',
       key: 'next',
-      width: 128,
+      width: 124,
       sorter: (a, b) => (a.daysUntilNext ?? 1e6) - (b.daysUntilNext ?? 1e6),
       render: (_: unknown, i) =>
         i.nextPurchaseOn ? (
@@ -447,13 +448,13 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
           '—'
         ),
     },
-    { title: 'Status', key: 'status', width: 118, render: (_: unknown, i) => statusCell(i) },
+    { title: 'Status', key: 'status', width: 112, render: (_: unknown, i) => statusCell(i) },
     ...(canEdit
       ? [
           {
             title: '',
             key: 'actions',
-            width: 118,
+            width: 112,
             render: (_: unknown, i: ReplenishmentItem) => (
               <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
                 <Button
@@ -565,7 +566,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
         card={{ title: 'name', badge: 'status', actions: 'none' }}
         onRow={(i) => rowOpenProps(() => setHistoryFor(i))}
         pagination={{ pageSize: 25, hideOnSinglePage: true }}
-        scroll={narrow ? undefined : { x: 1010 }}
+        scroll={narrow ? undefined : { x: 940 }}
         locale={{
           emptyText: items.length
             ? 'No consumable matches.'
