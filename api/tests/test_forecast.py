@@ -54,10 +54,10 @@ def test_forecast_range_accepts_one_three_or_six_months_only():
     assert [fs.horizon_months(v) for v in ("1", "3", "6", 6)] == [1, 3, 6, 6]
     for bad in (None, "", "12", "abc", 0):
         assert fs.horizon_months(bad) == fs.FORECAST_HORIZON_MONTHS
-    dated = [(date(2031, m, 5), 100) for m in range(1, 7)]
-    out = fs.monthly_forecast(dated, today=date(2031, 7, 15), horizon=6)
+    dated = [(date(2030, m, 5), 100 + (m * 37) % 50) for m in range(1, 13)]
+    out = fs.monthly_forecast(dated, today=date(2031, 1, 15), horizon=6)
     assert [h["month"] for h in out["horizon"]] == [
-        "2031-07", "2031-08", "2031-09", "2031-10", "2031-11", "2031-12",
+        "2031-01", "2031-02", "2031-03", "2031-04", "2031-05", "2031-06",
     ]
 
 
