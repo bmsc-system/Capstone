@@ -41,7 +41,7 @@ const peso = (v?: number | null) =>
   v == null ? '—' : `₱${Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** "uses ~2 pcs a day", or for slow items "uses ~1 can every 30 days". */
-function useRate(i: ReplenishmentItem) {
+function rateText(i: ReplenishmentItem) {
   const d = i.dailyUse ?? 0;
   if (d <= 0) return 'not used lately';
   return d >= 1 ? `uses ~${num(d)} ${i.unit} a day` : `uses ~1 ${i.unit} every ${Math.max(1, Math.round(1 / d))} days`;
@@ -419,7 +419,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
       render: (_: unknown, i) =>
         i.basis === 'USAGE' && i.dailyUse != null ? (
           <TwoLineCell
-            primary={useRate(i)}
+            primary={rateText(i)}
             secondary={
               (i.onHand ?? 0) <= 0 ? 'none left' : i.runOutOn ? `runs out ${day(i.runOutOn)}` : null
             }
@@ -726,7 +726,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
                 {num(historyFor.onHand ?? 0)} {historyFor.unit} on hand.
               </strong>{' '}
               {historyFor.basis === 'USAGE' && historyFor.dailyUse != null
-                ? `It ${useRate(historyFor)}, so it runs out around ${day(historyFor.runOutOn)}. Reorder point: ${num(historyFor.reorderPoint)} ${historyFor.unit} (${num(historyFor.leadDays)} days for delivery plus ${num(historyFor.safetyDays)} safety days). Reorder ${(historyFor.daysUntilNext ?? 0) < 0 ? 'now' : `by ${day(historyFor.nextPurchaseOn)}`}; suggested order ${num(historyFor.usualQuantity)} ${historyFor.unit}.`
+                ? `It ${rateText(historyFor)}, so it runs out around ${day(historyFor.runOutOn)}. Reorder point: ${num(historyFor.reorderPoint)} ${historyFor.unit} (${num(historyFor.leadDays)} days for delivery plus ${num(historyFor.safetyDays)} safety days). Reorder ${(historyFor.daysUntilNext ?? 0) < 0 ? 'now' : `by ${day(historyFor.nextPurchaseOn)}`}; suggested order ${num(historyFor.usualQuantity)} ${historyFor.unit}.`
                 : historyFor.everyDays != null
                   ? `Not enough hand-outs yet, so this goes by purchases: usually bought every ~${Math.round(historyFor.everyDays)} days, about ${num(historyFor.usualQuantity)} ${historyFor.unit} at a time. Next: ${day(historyFor.nextPurchaseOn)} (${whenNext(historyFor)}).`
                   : `A forecast appears after ${data?.method.minPurchases ?? 3} days with hand-outs, or ${data?.method.minPurchases ?? 3} purchases.`}
