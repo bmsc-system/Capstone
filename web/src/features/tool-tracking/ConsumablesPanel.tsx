@@ -2,27 +2,36 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dayjs } from 'dayjs';
 import { Button, DatePicker, Drawer, Form, Input, InputNumber, Select, message } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { DownloadOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { DownloadOutlined, ExportOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { BellRing, CalendarClock, CircleAlert, Package, Wallet } from 'lucide-react';
 import { analyticsApi } from '../../api/analytics.api';
 import { consumablesApi } from '../../api/consumables.api';
+import { toolsApi } from '../../api/tools.api';
 import { getErrorMessage } from '../../api/client';
 import StatusPill from '../../components/StatusPill';
 import { FilterBar, FormModal, TwoLineCell, rowOpenProps } from '../../components/ui';
 import ResponsiveTable from '../../components/ui/ResponsiveTable';
 import { MOBILE_SHELL_QUERY, NARROW_QUERY, useMediaQuery } from '../../hooks/useViewport';
-import type { ConsumablePurchase, ConsumableReplenishment, ConsumableReport, ReplenishmentItem } from '../../types';
+import type {
+  ConsumableIssue,
+  ConsumableIssueOptions,
+  ConsumableIssueWorker,
+  ConsumablePurchase,
+  ConsumableReplenishment,
+  ConsumableReport,
+  ReplenishmentItem,
+} from '../../types';
 import { confirmAction } from '../../utils/confirmAction';
 import { exportCsv } from '../../utils/csvExport';
 import { formatShop, isFutureShopDay, shopToday } from '../../utils/shopTime';
 import { CategoryTile, InventorySummaryCards, type InventorySummaryCard } from './inventoryLook';
 
 const STATUS: Record<ReplenishmentItem['status'], { label: string; color: 'red' | 'amber' | 'green' | 'gray' }> = {
-  OVERDUE: { label: 'Overdue', color: 'red' },
-  DUE_SOON: { label: 'Due soon', color: 'amber' },
+  OVERDUE: { label: 'Reorder now', color: 'red' },
+  DUE_SOON: { label: 'Reorder soon', color: 'amber' },
   OK: { label: 'OK', color: 'green' },
-  LEARNING: { label: 'Too few purchases', color: 'gray' },
-  NO_HISTORY: { label: 'Not bought yet', color: 'gray' },
+  LEARNING: { label: 'Too little history', color: 'gray' },
+  NO_HISTORY: { label: 'No history yet', color: 'gray' },
 };
 
 const day = (iso?: string | null) => (iso ? formatShop(iso, 'MMM D, YYYY') : '—');
@@ -47,10 +56,15 @@ type RecordValues = {
   note?: string;
 };
 
+type IssueValues = { toolId: string; workerId: string; operationId?: string; quantity: number };
+
+const NO_OPERATION = '__none__';
+
 /**
- * Consumables are not counted or scanned. The Office Staff record what the shop
- * buys (most of it without a purchase order), and the replenishment forecast
- * says when each item is usually bought next.
+ * The Office Staff keep the consumables. They record what the shop buys (which
+ * adds to the stock on hand) and hand items to workers for the operation they
+ * are on (which takes from it). The replenishment forecast reads the stock on
+ * hand and how fast each item is handed out.
  */
 export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   const [data, setData] = useState<ConsumableReplenishment | null>(null);
@@ -64,6 +78,13 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   const [historyFor, setHistoryFor] = useState<ReplenishmentItem | null>(null);
   const [history, setHistory] = useState<ConsumablePurchase[] | null>(null);
   const [form] = Form.useForm<RecordValues>();
+  // Hand a consumable to a worker.
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issueForm] = Form.useForm<IssueValues>();
+  const [workers, setWorkers] = useState<ConsumableIssueWorker[]>([]);
+  const [options, setOptions] = useState<ConsumableIssueOptions | null>(null);
+  const [issuing, setIssuing] = useState(false);
+  const [handOuts, setHandOuts] = useState<ConsumableIssue[] | null>(null);
   const compact = useMediaQuery(MOBILE_SHELL_QUERY);
   const narrow = useMediaQuery(NARROW_QUERY);
 
@@ -89,14 +110,124 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
 
   const loadHistory = useCallback(async (item: ReplenishmentItem) => {
     setHistory(null);
+    setHandOuts(null);
     try {
-      const { data: rows } = await consumablesApi.purchases(item.toolId);
+      const [{ data: rows }, { data: given }] = await Promise.all([
+        consumablesApi.purchases(item.toolId),
+        consumablesApi.issues({ toolId: item.toolId, limit: 50 }),
+      ]);
       setHistory(rows);
+      setHandOuts(given);
     } catch (err) {
       message.error(getErrorMessage(err));
       setHistory([]);
+      setHandOuts([]);
     }
   }, []);
+
+  const openIssue = (target?: ReplenishmentItem) => {
+    issueForm.resetFields();
+    issueForm.setFieldsValue({ toolId: target?.toolId, quantity: 1 } as Partial<IssueValues>);
+    setOptions(null);
+    setIssueOpen(true);
+    consumablesApi
+      .issueWorkers()
+      .then(({ data: rows }) => setWorkers(rows))
+      .catch((err) => message.error(getErrorMessage(err)));
+  };
+
+  /** The worker's open operations; the one they are on now is picked for them. */
+  const pickWorker = async (workerId: string) => {
+    setOptions(null);
+    issueForm.setFieldsValue({ operationId: undefined });
+    try {
+      const { data: o } = await consumablesApi.issueOptions(workerId);
+      setOptions(o);
+      issueForm.setFieldsValue({ operationId: o.currentOperationId ?? o.operations[0]?.operationId ?? NO_OPERATION });
+    } catch (err) {
+      message.error(getErrorMessage(err));
+    }
+  };
+
+  const onIssue = async (values: IssueValues) => {
+    setIssuing(true);
+    try {
+      const { data: row } = await consumablesApi.issue({
+        toolId: values.toolId,
+        workerId: values.workerId,
+        quantity: values.quantity,
+        operationId: values.operationId && values.operationId !== NO_OPERATION ? values.operationId : null,
+      });
+      message.success(
+        `Handed ${row.quantity} ${row.unit ?? ''} of ${row.name} to ${row.workerName}. ${row.onHandAfter ?? 0} left.`
+      );
+      setIssueOpen(false);
+      await load();
+      if (historyFor && historyFor.toolId === values.toolId) void loadHistory(historyFor);
+    } catch (err) {
+      message.error(getErrorMessage(err));
+    } finally {
+      setIssuing(false);
+    }
+  };
+
+  /** Set the stock on hand to what is actually on the shelf (first count, or a recount). */
+  const setCount = (item: ReplenishmentItem) => {
+    let count: number | null = item.onHand ?? 0;
+    confirmAction({
+      title: `Count of ${item.name}`,
+      content: (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>
+            How many are on the shelf now? The stock on hand is set to this number.
+          </div>
+          <InputNumber
+            min={0}
+            defaultValue={count ?? 0}
+            style={{ width: '100%' }}
+            addonAfter={item.unit}
+            onChange={(v) => {
+              count = typeof v === 'number' ? v : null;
+            }}
+          />
+        </div>
+      ),
+      okText: 'Save count',
+      onOk: async () => {
+        if (count == null) {
+          message.warning('Enter the count.');
+          throw new Error('count required');
+        }
+        try {
+          await toolsApi.correct(item.toolId, { actualCount: count, reason: 'Stock count' });
+          message.success('Count saved');
+          setHistoryFor((prev) => (prev && prev.toolId === item.toolId ? { ...prev, onHand: count ?? 0 } : prev));
+          await load();
+        } catch (err) {
+          message.error(getErrorMessage(err));
+          throw err;
+        }
+      },
+    });
+  };
+
+  const undoHandOut = (u: ConsumableIssue) =>
+    confirmAction({
+      title: 'Undo this hand-out?',
+      content: `${num(u.quantity)} ${u.unit ?? ''} to ${u.workerName ?? 'the worker'} goes back to the stock on hand. Use this only for an entry made by mistake.`,
+      okText: 'Undo',
+      danger: true,
+      onOk: async () => {
+        try {
+          await consumablesApi.undoIssue(u.id);
+          message.success('Hand-out undone');
+          await load();
+          if (historyFor) void loadHistory(historyFor);
+        } catch (err) {
+          message.error(getErrorMessage(err));
+        }
+      },
+    });
 
   useEffect(() => {
     if (historyFor) void loadHistory(historyFor);
@@ -108,6 +239,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     return items.filter((i) => {
       if (q && !`${i.name} ${i.shopTerm || ''} ${i.sizeSpec || ''}`.toLowerCase().includes(q)) return false;
       if (summaryKey === 'reported' && !reports[i.toolId]) return false;
+      if (summaryKey === 'out' && (i.onHand ?? 0) > 0) return false;
       if (summaryKey === 'overdue' && i.status !== 'OVERDUE') return false;
       if (summaryKey === 'due_soon' && i.status !== 'DUE_SOON') return false;
       if (summaryKey === 'ok' && i.status !== 'OK') return false;
@@ -119,9 +251,12 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     const s = data?.summary;
     const reported = Object.keys(reports).length;
     return [
-      { key: 'reported', label: 'Reported low', shortLabel: 'Reported', value: reported, icon: BellRing, tone: reported ? 'red' : 'slate', caption: 'By workers on the shop floor' },
-      { key: 'overdue', label: 'Overdue to buy', shortLabel: 'Overdue', value: s?.overdue ?? 0, icon: CircleAlert, tone: 'red', caption: 'Past the usual purchase date' },
-      { key: 'due_soon', label: 'Due soon', value: s?.dueSoon ?? 0, icon: CalendarClock, tone: 'amber', caption: `Within ${data?.method.dueSoonDays ?? 7} days` },
+      // Older reports from the shop floor still open (workers no longer report).
+      ...(reported
+        ? [{ key: 'reported', label: 'Reported low', shortLabel: 'Reported', value: reported, icon: BellRing, tone: 'red' as const, caption: 'Earlier reports still open' }]
+        : [{ key: 'out', label: 'None on hand', shortLabel: 'None left', value: items.filter((i) => (i.onHand ?? 0) <= 0).length, icon: BellRing, tone: 'slate' as const, caption: 'Nothing left to hand out' }]),
+      { key: 'overdue', label: 'Reorder now', shortLabel: 'Reorder', value: s?.overdue ?? 0, icon: CircleAlert, tone: 'red', caption: 'At or below the reorder point' },
+      { key: 'due_soon', label: 'Reorder soon', shortLabel: 'Soon', value: s?.dueSoon ?? 0, icon: CalendarClock, tone: 'amber', caption: `Within ${data?.method.dueSoonDays ?? 7} days` },
       { key: 'ok', label: 'OK', value: items.filter((i) => i.status === 'OK').length, icon: Package, tone: 'green', caption: `${s?.forecast ?? 0} items with a forecast` },
       { key: 'spent', label: 'Bought · last 30 days', shortLabel: 'Bought (30 d)', value: s?.purchasesLast30Days ?? 0, icon: Wallet, tone: 'slate', caption: `Purchases worth ${peso(s?.spentLast30Days ?? 0)}` },
     ];
@@ -196,6 +331,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
 
   const selected = recordFor && recordFor !== 'any' ? recordFor : null;
   const pickedId = Form.useWatch('toolId', form);
+  const issueToolId = Form.useWatch('toolId', issueForm);
   const picked = items.find((i) => i.toolId === pickedId) ?? selected;
 
   const itemCell = (i: ReplenishmentItem) => (
@@ -246,9 +382,20 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   const columns: TableColumnsType<ReplenishmentItem> = [
     { title: 'Consumable', key: 'name', render: (_: unknown, i) => itemCell(i), sorter: (a, b) => a.name.localeCompare(b.name) },
     {
+      title: 'On hand',
+      key: 'onHand',
+      width: 110,
+      sorter: (a, b) => (a.onHand ?? 0) - (b.onHand ?? 0),
+      render: (_: unknown, i) => (
+        <span style={{ fontWeight: 700, color: (i.onHand ?? 0) > 0 ? undefined : '#b91c1c' }}>
+          {num(i.onHand ?? 0)} {i.unit}
+        </span>
+      ),
+    },
+    {
       title: 'Last bought',
       key: 'last',
-      width: 160,
+      width: 150,
       render: (_: unknown, i) =>
         i.lastBoughtOn ? (
           <TwoLineCell primary={day(i.lastBoughtOn)} secondary={`${num(i.lastQuantity)} ${i.unit}`} />
@@ -257,12 +404,17 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
         ),
     },
     {
-      title: 'Usually',
+      title: 'Usage',
       key: 'every',
-      width: 170,
+      width: 180,
       render: (_: unknown, i) =>
-        i.everyDays != null ? (
-          <TwoLineCell primary={`every ~${Math.round(i.everyDays)} days`} secondary={`about ${num(i.usualQuantity)} ${i.unit}`} />
+        i.basis === 'USAGE' && i.dailyUse != null ? (
+          <TwoLineCell
+            primary={`uses ~${num(i.dailyUse)} ${i.unit} a day`}
+            secondary={i.runOutOn ? `runs out ${day(i.runOutOn)}` : null}
+          />
+        ) : i.everyDays != null ? (
+          <TwoLineCell primary={`bought every ~${Math.round(i.everyDays)} days`} secondary={`about ${num(i.usualQuantity)} ${i.unit}`} />
         ) : (
           <span style={{ color: '#94a3b8' }}>
             {i.purchases ? `${i.purchases} of ${data?.method.minPurchases ?? 3} purchases` : 'No purchases yet'}
@@ -270,9 +422,9 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
         ),
     },
     {
-      title: 'Next purchase',
+      title: 'Reorder by',
       key: 'next',
-      width: 170,
+      width: 150,
       sorter: (a, b) => (a.daysUntilNext ?? 1e6) - (b.daysUntilNext ?? 1e6),
       render: (_: unknown, i) =>
         i.nextPurchaseOn ? <TwoLineCell primary={day(i.nextPurchaseOn)} secondary={whenNext(i)} /> : '—',
@@ -283,9 +435,21 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
           {
             title: '',
             key: 'actions',
-            width: 120,
+            width: 130,
             render: (_: unknown, i: ReplenishmentItem) => (
-              <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+              <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                <Button
+                  size="small"
+                  type="primary"
+                  icon={<ExportOutlined />}
+                  disabled={(i.onHand ?? 0) <= 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openIssue(i);
+                  }}
+                >
+                  Hand out
+                </Button>
                 <Button
                   size="small"
                   icon={<ShoppingCartOutlined />}
@@ -318,7 +482,8 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
 
   const cardColumns: TableColumnsType<ReplenishmentItem> = [
     { title: 'Consumable', key: 'name', render: (_: unknown, i) => itemCell(i) },
-    { title: 'Next purchase', key: 'next', render: (_: unknown, i) => (i.nextPurchaseOn ? `${day(i.nextPurchaseOn)} (${whenNext(i)})` : '—') },
+    { title: 'On hand', key: 'onHand', render: (_: unknown, i) => `${num(i.onHand ?? 0)} ${i.unit}` },
+    { title: 'Reorder by', key: 'next', render: (_: unknown, i) => (i.nextPurchaseOn ? `${day(i.nextPurchaseOn)} (${whenNext(i)})` : '—') },
     { title: 'Last bought', key: 'last', render: (_: unknown, i) => (i.lastBoughtOn ? `${day(i.lastBoughtOn)} · ${num(i.lastQuantity)} ${i.unit}` : '—') },
     { title: 'Status', key: 'status', render: (_: unknown, i) => statusCell(i) },
   ];
@@ -328,11 +493,14 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
       { key: 'n', header: 'Consumable', value: (r) => r.name },
       { key: 's', header: 'Size', value: (r) => r.sizeSpec ?? '' },
       { key: 'u', header: 'Unit', value: (r) => r.unit },
+      { key: 'oh', header: 'On hand', value: (r) => r.onHand ?? 0 },
+      { key: 'du', header: 'Use per day', value: (r) => r.dailyUse ?? '' },
+      { key: 'ro', header: 'Runs out', value: (r) => r.runOutOn ?? '' },
       { key: 'p', header: 'Purchases', value: (r) => r.purchases },
       { key: 'l', header: 'Last bought', value: (r) => r.lastBoughtOn ?? '' },
       { key: 'e', header: 'Every (days)', value: (r) => r.everyDays ?? '' },
-      { key: 'q', header: 'Usual quantity', value: (r) => r.usualQuantity ?? '' },
-      { key: 'x', header: 'Next purchase', value: (r) => r.nextPurchaseOn ?? '' },
+      { key: 'q', header: 'Suggested quantity', value: (r) => r.usualQuantity ?? '' },
+      { key: 'x', header: 'Reorder by', value: (r) => r.nextPurchaseOn ?? '' },
       { key: 'st', header: 'Status', value: (r) => STATUS[r.status].label },
       {
         key: 'rp',
@@ -356,8 +524,13 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
               {compact ? null : 'Export CSV'}
             </Button>
             {canEdit ? (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => openRecord('any')} style={{ fontWeight: 700 }}>
+              <Button icon={<PlusOutlined />} onClick={() => openRecord('any')}>
                 {compact ? 'Record' : 'Record purchase'}
+              </Button>
+            ) : null}
+            {canEdit ? (
+              <Button type="primary" icon={<ExportOutlined />} onClick={() => openIssue()} style={{ fontWeight: 700 }}>
+                {compact ? 'Hand out' : 'Hand out to worker'}
               </Button>
             ) : null}
           </>
@@ -374,7 +547,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
         card={{ title: 'name', badge: 'status', actions: 'none' }}
         onRow={(i) => rowOpenProps(() => setHistoryFor(i))}
         pagination={{ pageSize: 25, hideOnSinglePage: true }}
-        scroll={narrow ? undefined : { x: 880 }}
+        scroll={narrow ? undefined : { x: 1010 }}
         locale={{
           emptyText: items.length
             ? 'No consumable matches.'
@@ -441,6 +614,75 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
         </Form>
       </FormModal>
 
+      <FormModal
+        open={issueOpen}
+        icon={<ExportOutlined />}
+        title="Hand out a consumable"
+        subtitle="To a worker, for the operation they are on"
+        size="sm"
+        onCancel={() => setIssueOpen(false)}
+        onOk={() => issueForm.submit()}
+        okText="Hand out"
+        confirmLoading={issuing}
+        forceRender
+      >
+        <Form form={issueForm} layout="vertical" onFinish={onIssue} requiredMark="optional" scrollToFirstError={{ block: 'center' }}>
+          <Form.Item name="toolId" label="Consumable" rules={[{ required: true, message: 'Pick the consumable' }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Pick a consumable"
+              options={items.map((i) => ({
+                value: i.toolId,
+                disabled: (i.onHand ?? 0) <= 0,
+                label: `${[i.name, i.sizeSpec].filter(Boolean).join(' · ')} — ${num(i.onHand ?? 0)} ${i.unit} on hand`,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item name="workerId" label="Worker" rules={[{ required: true, message: 'Pick the worker' }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Who is it for?"
+              onChange={(id: string) => void pickWorker(id)}
+              options={workers.map((w) => ({
+                value: w.workerId,
+                label: w.currentOperation ? `${w.name} — on ${w.currentOperation}` : w.name,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item
+            name="operationId"
+            label="Operation"
+            extra={
+              options && !options.currentOperationId
+                ? 'This worker has no operation running right now. Pick the one it is for.'
+                : undefined
+            }
+            rules={[{ required: true, message: 'Pick the operation it is for' }]}
+          >
+            <Select
+              placeholder={options ? 'Pick the operation' : 'Pick the worker first'}
+              disabled={!options}
+              options={[
+                ...(options?.operations ?? []).map((o) => ({
+                  value: o.operationId,
+                  label: `${o.operationName ?? 'Operation'} (${o.jobNumber ?? 'job'})${o.running ? ' — working on it now' : ''}`,
+                })),
+                { value: NO_OPERATION, label: 'Not for a particular operation' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="quantity" label="Quantity" rules={[{ required: true, message: 'Enter the quantity' }]} style={{ marginBottom: 4 }}>
+            <InputNumber
+              min={0.01}
+              style={{ width: '100%' }}
+              addonAfter={items.find((i) => i.toolId === issueToolId)?.unit ?? 'pcs'}
+            />
+          </Form.Item>
+        </Form>
+      </FormModal>
+
       <Drawer
         open={historyFor !== null}
         onClose={() => setHistoryFor(null)}
@@ -448,19 +690,70 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
         width={compact ? '100%' : 480}
         extra={
           canEdit && historyFor ? (
-            <Button type="primary" size="small" icon={<ShoppingCartOutlined />} onClick={() => openRecord(historyFor)}>
-              Record purchase
-            </Button>
+            <span style={{ display: 'inline-flex', gap: 8 }}>
+              <Button size="small" onClick={() => setCount(historyFor)}>
+                Set count
+              </Button>
+              <Button type="primary" size="small" icon={<ShoppingCartOutlined />} onClick={() => openRecord(historyFor)}>
+                Record purchase
+              </Button>
+            </span>
           ) : null
         }
       >
         {historyFor ? (
           <div style={{ display: 'grid', gap: 12 }}>
             <div style={{ fontSize: 13, color: '#475569' }}>
-              {historyFor.everyDays != null
-                ? `Usually bought every ~${Math.round(historyFor.everyDays)} days, about ${num(historyFor.usualQuantity)} ${historyFor.unit} at a time. Next: ${day(historyFor.nextPurchaseOn)} (${whenNext(historyFor)}).`
-                : `A forecast appears after ${data?.method.minPurchases ?? 3} purchases.`}
+              <strong>
+                {num(historyFor.onHand ?? 0)} {historyFor.unit} on hand.
+              </strong>{' '}
+              {historyFor.basis === 'USAGE' && historyFor.dailyUse != null
+                ? `Handed out at about ${num(historyFor.dailyUse)} ${historyFor.unit} a day, so it runs out around ${day(historyFor.runOutOn)}. Reorder point: ${num(historyFor.reorderPoint)} ${historyFor.unit} (${num(historyFor.leadDays)} days for delivery plus ${num(historyFor.safetyDays)} safety days). Reorder by ${day(historyFor.nextPurchaseOn)} (${whenNext(historyFor)}); suggested order ${num(historyFor.usualQuantity)} ${historyFor.unit}.`
+                : historyFor.everyDays != null
+                  ? `Not enough hand-outs yet, so this goes by purchases: usually bought every ~${Math.round(historyFor.everyDays)} days, about ${num(historyFor.usualQuantity)} ${historyFor.unit} at a time. Next: ${day(historyFor.nextPurchaseOn)} (${whenNext(historyFor)}).`
+                  : `A forecast appears after ${data?.method.minPurchases ?? 3} days with hand-outs, or ${data?.method.minPurchases ?? 3} purchases.`}
             </div>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Handed out</div>
+            {handOuts == null ? (
+              <div style={{ color: '#94a3b8' }}>Loading…</div>
+            ) : handOuts.length === 0 ? (
+              <div style={{ color: '#94a3b8' }}>Nothing handed out yet.</div>
+            ) : (
+              handOuts.map((u) => (
+                <div
+                  key={u.id}
+                  style={{
+                    border: '1px solid var(--c-border)',
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    display: 'grid',
+                    gap: 2,
+                    opacity: u.undoneAt ? 0.55 : 1,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <strong>{u.workerName ?? 'Worker'}</strong>
+                    <span>
+                      {num(u.quantity)} {u.unit}
+                      {u.undoneAt ? ' · undone' : ''}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    {u.operationName ? `${u.operationName}${u.jobNumber ? ` (${u.jobNumber})` : ''}` : 'Not for a particular operation'}
+                    {u.issuedAt ? ` · ${formatShop(u.issuedAt, 'MMM D, h:mm A')}` : ''}
+                    {u.issuedByName ? ` · by ${u.issuedByName}` : ''}
+                  </div>
+                  {canEdit && !u.undoneAt ? (
+                    <div>
+                      <Button size="small" type="link" style={{ paddingInline: 0 }} onClick={() => undoHandOut(u)}>
+                        Undo
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ))
+            )}
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Purchases</div>
             {history == null ? (
               <div style={{ color: '#94a3b8' }}>Loading…</div>
             ) : history.length === 0 ? (

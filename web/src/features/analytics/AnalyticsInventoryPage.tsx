@@ -60,7 +60,7 @@ export default function AnalyticsInventoryPage() {
   const counts = restockCounts(stock);
   const items = useMemo(() => stock?.items ?? [], [stock]);
 
-  // Coming purchases, soonest first; overdue ones are in the To buy table.
+  // Coming reorders, soonest first; items already at their reorder point are in the To buy table.
   const nextRows: BarRow[] = useMemo(
     () =>
       items
@@ -73,7 +73,10 @@ export default function AnalyticsInventoryPage() {
           value: Math.max(i.daysUntilNext ?? 0, 0),
           display: nextLabel(i),
           color: statusColor(i.status),
-          title: `${RESTOCK_LABEL[i.status]} · bought every ~${fmtNum(i.everyDays)} days`,
+          title:
+            i.basis === 'USAGE'
+              ? `${RESTOCK_LABEL[i.status]} · ${fmtNum(i.onHand ?? 0)} ${i.unit} on hand, uses ~${fmtNum(i.dailyUse, 1)} a day`
+              : `${RESTOCK_LABEL[i.status]} · bought every ~${fmtNum(i.everyDays)} days`,
         })),
     [items],
   );
@@ -298,7 +301,7 @@ export default function AnalyticsInventoryPage() {
           label="Consumables to buy"
           value={fmtNum(due)}
           valueTone={counts.overdue ? 'red' : due ? 'amber' : 'green'}
-          sub={`${fmtNum(counts.overdue)} overdue · ${fmtNum(counts.dueSoon)} due within ${stock.method.dueSoonDays} days`}
+          sub={`${fmtNum(counts.overdue)} to reorder now · ${fmtNum(counts.dueSoon)} within ${stock.method.dueSoonDays} days`}
         />
         <Kpi
           label="Spent · last 30 days"
@@ -308,28 +311,31 @@ export default function AnalyticsInventoryPage() {
         <Kpi
           label="Items with a forecast"
           value={`${fmtNum(stock.summary.forecast)} of ${fmtNum(items.length)}`}
-          sub={`Needs ${stock.method.minPurchases} purchases`}
+          sub={`Needs ${stock.method.minPurchases} days of hand-outs, or ${stock.method.minPurchases} purchases`}
         />
         <Kpi
           label="Typical forecast error"
           value={typicalError == null ? '—' : `± ${fmtNum(typicalError, 1)} d`}
-          sub="Predicted vs actual days between purchases"
+          sub="Predicted vs actual days between hand-outs or purchases"
         />
       </Kpis>
       <Grid>
         <Card
-          title="Coming purchases"
+          title="Coming reorders"
           span={7}
           takeaway={
             nextRows.length
-              ? `The ${nextRows.length} due to be bought next${counts.overdue ? ` · ${counts.overdue} overdue are in the To buy list` : ''}`
+              ? `The ${nextRows.length} to reorder next${counts.overdue ? ` · ${counts.overdue} to reorder now are in the To buy list` : ''}`
               : undefined
           }
           info={
             <div style={{ maxWidth: 380 }}>
-              Days until each item is usually bought again: the last purchase plus the smoothed
-              number of days between purchases ({stock.method.name}, smoothing{' '}
-              {fmtNum(stock.method.alpha, 1)}). Red: the date has passed.
+              Days until each item reaches its reorder point. The usual use per day comes from the
+              hand-outs to workers ({stock.method.name}, smoothing {fmtNum(stock.method.alpha, 1)}).
+              Reorder point = use per day × (delivery lead time + safety days); the day is when the
+              stock on hand falls to it. An item with too few hand-outs goes by its purchase history
+              instead: the last purchase plus the usual days between purchases. Red: the day has
+              passed.
             </div>
           }
         >
@@ -338,7 +344,7 @@ export default function AnalyticsInventoryPage() {
           ) : (
             <ChartEmpty
               title="No forecast yet"
-              text={`An item is forecast after ${stock.method.minPurchases} recorded purchases.`}
+              text={`An item is forecast after ${stock.method.minPurchases} days with hand-outs, or ${stock.method.minPurchases} recorded purchases.`}
             />
           )}
         </Card>
@@ -395,9 +401,12 @@ export default function AnalyticsInventoryPage() {
               { key: 'p', header: 'Purchases', value: (r) => r.purchases },
               { key: 'l', header: 'Last bought', value: (r) => r.lastBoughtOn ?? '' },
               { key: 'e', header: 'Every (days)', value: (r) => r.everyDays ?? '' },
-              { key: 'q', header: 'Usual quantity', value: (r) => r.usualQuantity ?? '' },
+              { key: 'oh', header: 'On hand', value: (r) => r.onHand ?? 0 },
+              { key: 'du', header: 'Use per day', value: (r) => r.dailyUse ?? '' },
+              { key: 'ro', header: 'Runs out', value: (r) => r.runOutOn ?? '' },
+              { key: 'q', header: 'Suggested quantity', value: (r) => r.usualQuantity ?? '' },
               { key: 'm', header: 'Monthly need', value: (r) => r.monthlyNeed ?? '' },
-              { key: 'x', header: 'Next purchase', value: (r) => r.nextPurchaseOn ?? '' },
+              { key: 'x', header: 'Reorder by', value: (r) => r.nextPurchaseOn ?? '' },
               { key: 'err', header: 'Typical error (days)', value: (r) => r.typicalErrorDays ?? '' },
               { key: 'st', header: 'Status', value: (r) => RESTOCK_LABEL[r.status] },
             ])
@@ -409,10 +418,10 @@ export default function AnalyticsInventoryPage() {
                 <thead>
                   <tr>
                     <th>Item</th>
-                    <th>Last bought</th>
-                    <th className="num">Every</th>
-                    <th className="num">Usual qty</th>
-                    <th>Next purchase</th>
+                    <th className="num">On hand</th>
+                    <th>Usage</th>
+                    <th className="num">Suggested qty</th>
+                    <th>Reorder by</th>
                     <th />
                   </tr>
                 </thead>
@@ -428,8 +437,14 @@ export default function AnalyticsInventoryPage() {
                           </span>
                         ) : null}
                       </td>
-                      <td>{fmtDay(i.lastBoughtOn)}</td>
-                      <td className="num">{fmtNum(i.everyDays)} d</td>
+                      <td className="num">
+                        {fmtNum(i.onHand ?? 0)} <span className="ana-muted">{i.unit}</span>
+                      </td>
+                      <td>
+                        {i.basis === 'USAGE'
+                          ? `~${fmtNum(i.dailyUse, 1)} a day · runs out ${fmtDay(i.runOutOn)}`
+                          : `bought every ~${fmtNum(i.everyDays)} d`}
+                      </td>
                       <td className="num">
                         {fmtNum(i.usualQuantity)} <span className="ana-muted">{i.unit}</span>
                       </td>

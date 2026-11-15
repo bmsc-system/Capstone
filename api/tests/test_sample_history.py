@@ -170,11 +170,23 @@ def test_apply_then_remove_restores_stock_and_deletes_holidays(app):
         ).count()
         == 1
     )
-    # Consumables are bought, not counted: purchases are made and stock is untouched.
+    # Consumables are bought and handed out to workers for their operations;
+    # stock on hand is what was bought less what was handed out.
     assert summary["consumablePurchases"] > 0
     assert ConsumablePurchase.query.count() > 0
+    assert summary["handOuts"] > 0
+    issued = ToolEvent.query.filter_by(type=ToolEventType.ISSUE, tool_id=disc.id).all()
+    bought = [p.quantity for p in ConsumablePurchase.query.filter_by(tool_id=disc.id)]
+    bought += [
+        ln.quantity
+        for ln in MaterialPurchase.query.filter_by(tool_id=disc.id)
+        if ln.date_received is not None
+    ]
     db.session.refresh(disc)
-    assert Decimal(str(disc.quantity_on_hand)) == opening
+    assert Decimal(str(disc.quantity_on_hand)) == sum(bought, Decimal("0")) - sum(
+        (e.quantity for e in issued), Decimal("0")
+    )
+    assert all(e.operation_id and e.recorded_by_id for e in issued)
     db.session.refresh(unit)
     assert unit.status == ToolUnitStatus.AVAILABLE
     assert unit.current_holder_id == held

@@ -19,7 +19,7 @@ import { useOffline } from '../../offline/OfflineProvider';
 import { formatShop } from '../../utils/shopTime';
 import type { Tone } from '../../theme/tokens';
 import type {
-  ConsumableReportLevel,
+  ConsumableIssue,
   ToolType,
   ToolUnit,
   ToolUnitStatus,
@@ -62,9 +62,8 @@ const NO_LINES: Record<string, string> = {
   TO_ORDER: 'Materials not ordered yet. The office will order them.',
 };
 
-const LEVEL_WORD: Record<ConsumableReportLevel, string> = { LOW: 'running low', OUT: 'out' };
-
-/** Worker inventory: materials for my jobs, tools, and consumables I can report as running low. */
+/** Worker inventory: materials for my jobs, tools, and the consumables the office keeps
+    (how much is available, and what was handed to me). */
 export default function InventoryPage() {
   const navigate = useNavigate();
   const { online } = useOffline();
@@ -88,7 +87,7 @@ export default function InventoryPage() {
 
   const [materials, setMaterials] = useState<WorkerJobMaterials[] | null>(null);
   const [consumables, setConsumables] = useState<WorkerConsumable[] | null>(null);
-  const [busyItem, setBusyItem] = useState<string | null>(null);
+  const [used, setUsed] = useState<ConsumableIssue[]>([]);
 
   const loadTools = useCallback(async () => {
     try {
@@ -113,9 +112,12 @@ export default function InventoryPage() {
 
   const loadConsumables = useCallback(async () => {
     try {
-      setConsumables((await consumablesApi.forWorker()).data);
+      const { data } = await consumablesApi.forWorker();
+      setConsumables(data.items);
+      setUsed(data.used);
     } catch (err) {
       setConsumables([]);
+      setUsed([]);
       message.error(getErrorMessage(err));
     }
   }, []);
@@ -144,34 +146,6 @@ export default function InventoryPage() {
       message.error(getErrorMessage(err));
     } finally {
       setReturning(null);
-    }
-  };
-
-  const report = async (item: WorkerConsumable, level: ConsumableReportLevel) => {
-    if (busyItem) return;
-    setBusyItem(item.toolId);
-    try {
-      await consumablesApi.report(item.toolId, level);
-      message.success(`Office told: ${item.name} is ${LEVEL_WORD[level]}`);
-      await loadConsumables();
-    } catch (err) {
-      message.error(getErrorMessage(err));
-    } finally {
-      setBusyItem(null);
-    }
-  };
-
-  const takeBack = async (item: WorkerConsumable) => {
-    if (busyItem || !item.report) return;
-    setBusyItem(item.toolId);
-    try {
-      await consumablesApi.withdrawReport(item.report.id);
-      message.success(`Report taken back: ${item.name}`);
-      await loadConsumables();
-    } catch (err) {
-      message.error(getErrorMessage(err));
-    } finally {
-      setBusyItem(null);
     }
   };
 
@@ -215,7 +189,6 @@ export default function InventoryPage() {
     [consumables, q]
   );
   const totalUnits = types.reduce((sum, t) => sum + (t.totalUnits || 0), 0);
-  const reportedCount = (consumables ?? []).filter((c) => c.report).length;
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -427,19 +400,65 @@ export default function InventoryPage() {
   const renderConsumables = () => {
     if (!online && consumables === null) return needConnection('the consumables');
     if (consumables === null) return <PageSkeleton variant="list" />;
-    if (filteredConsumables.length === 0)
-      return <EmptyState compact icon={<SearchOutlined />} title={q ? 'No consumables match your search' : 'No consumables yet'} />;
+    const usedShown = used.filter(
+      (u) => !q || `${u.name ?? ''} ${u.operationName ?? ''} ${u.jobNumber ?? ''}`.toLowerCase().includes(q)
+    );
     return (
       <>
         <div className="w-inv-hint">
-          Running out of something? Tap <b>Running low</b> or <b>Out</b> and the office is told to buy it.
+          The office keeps the consumables. Ask the Office Staff for what your operation needs; they hand it to you
+          and record it.
         </div>
-        <div className="w-card w-card--flush">
-          <div className="w-rows">
-            {filteredConsumables.map((c) => {
-              const r = c.report;
-              const busy = busyItem === c.toolId;
-              return (
+        <div className="w-section-title">Handed to you</div>
+        {usedShown.length === 0 ? (
+          <EmptyState
+            compact
+            icon={<InboxOutlined />}
+            title={q ? 'Nothing handed to you matches your search' : 'Nothing handed to you yet'}
+          />
+        ) : (
+          <div className="w-card w-card--flush">
+            <div className="w-rows">
+              {usedShown.map((u) => (
+                <div key={u.id} className="w-row w-inv-item" style={{ cursor: 'default' }}>
+                  <div className="w-inv-item__top">
+                    <span className="w-row__icon">
+                      <InboxOutlined />
+                    </span>
+                    <div className="w-row__main">
+                      <div className="w-row__title">
+                        {u.name}
+                        {u.sizeSpec ? ` · ${u.sizeSpec}` : ''}
+                      </div>
+                      <div className="w-row__sub">
+                        {[
+                          u.operationName
+                            ? `${u.operationName}${u.jobNumber ? ` (${u.jobNumber})` : ''}`
+                            : 'Not for a particular operation',
+                          u.issuedAt ? formatShop(u.issuedAt, 'MMM D, h:mm A') : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </div>
+                    </div>
+                    <StatusPill tone="blue" compact>
+                      {u.quantity} {u.unit}
+                    </StatusPill>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="w-section-title" style={{ marginTop: 16 }}>
+          Available in the office
+        </div>
+        {filteredConsumables.length === 0 ? (
+          <EmptyState compact icon={<SearchOutlined />} title={q ? 'No consumables match your search' : 'No consumables yet'} />
+        ) : (
+          <div className="w-card w-card--flush">
+            <div className="w-rows">
+              {filteredConsumables.map((c) => (
                 <div key={c.toolId} className="w-row w-inv-item" style={{ cursor: 'default' }}>
                   <div className="w-inv-item__top">
                     <span className="w-row__icon">
@@ -448,49 +467,18 @@ export default function InventoryPage() {
                     <div className="w-row__main">
                       <div className="w-row__title">{c.name}</div>
                       <div className="w-row__sub">
-                        {[c.sizeSpec, c.shopTerm ? `“${c.shopTerm}”` : null, c.unit].filter(Boolean).join(' · ')}
+                        {[c.sizeSpec, c.shopTerm ? `“${c.shopTerm}”` : null].filter(Boolean).join(' · ') || c.unit}
                       </div>
                     </div>
-                    {r ? (
-                      <StatusPill tone={r.level === 'OUT' ? 'red' : 'amber'} compact>
-                        {r.level === 'OUT' ? 'Out' : 'Running low'}
-                      </StatusPill>
-                    ) : null}
-                  </div>
-                  {r ? (
-                    <div className="w-inv-item__note">
-                      {r.mine ? 'You reported it' : `Reported by ${r.reportedByName ?? 'a worker'}`}
-                      {r.reportedAt ? ` · ${formatShop(r.reportedAt, 'MMM D, h:mm A')}` : ''}. The office has been told.
-                    </div>
-                  ) : null}
-                  <div className="w-inv-item__actions">
-                    {!r ? (
-                      <Button className="w-inv-btn" disabled={!online || busy} loading={busy} onClick={() => report(c, 'LOW')}>
-                        Running low
-                      </Button>
-                    ) : null}
-                    {!r || r.level === 'LOW' ? (
-                      <Button
-                        className="w-inv-btn"
-                        danger
-                        disabled={!online || busy}
-                        loading={busy && !!r}
-                        onClick={() => report(c, 'OUT')}
-                      >
-                        Out
-                      </Button>
-                    ) : null}
-                    {r?.mine ? (
-                      <Button className="w-inv-btn" disabled={!online || busy} onClick={() => takeBack(c)}>
-                        Take back
-                      </Button>
-                    ) : null}
+                    <StatusPill tone={c.onHand > 0 ? 'green' : 'red'} compact>
+                      {c.onHand > 0 ? `${c.onHand} ${c.unit}` : 'None left'}
+                    </StatusPill>
                   </div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </>
     );
   };
@@ -503,7 +491,7 @@ export default function InventoryPage() {
           ? `${materials.length} open job${materials.length === 1 ? '' : 's'}`
           : undefined
         : consumables
-          ? `${consumables.length} items${reportedCount ? ` · ${reportedCount} reported` : ''}`
+          ? `${consumables.length} items · ${used.length} handed to you`
           : undefined;
 
   const placeholder =

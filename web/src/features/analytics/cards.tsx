@@ -254,7 +254,8 @@ export function restockCounts(data: ConsumableReplenishment | null) {
 
 export function restockLine(i: ReplenishmentItem) {
   const parts = [];
-  if (i.everyDays != null) parts.push(`bought every ~${fmtNum(i.everyDays, 0)} days`);
+  if (i.basis === 'USAGE') parts.push(`${fmtNum(i.onHand ?? 0, 0)} ${i.unit} on hand, uses ~${fmtNum(i.dailyUse, 1)} a day`);
+  else if (i.everyDays != null) parts.push(`bought every ~${fmtNum(i.everyDays, 0)} days`);
   if (i.nextPurchaseOn) parts.push(`${i.status === 'OVERDUE' ? 'was due' : 'next'} ${fmtDay(i.nextPurchaseOn)}`);
   return parts.join(' · ') || '—';
 }

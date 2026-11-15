@@ -380,6 +380,10 @@ export interface DueConsumable {
   status: 'OVERDUE' | 'DUE_SOON';
   nextPurchaseOn: string;
   usualQuantity: number | null;
+  /** USAGE: from stock on hand and hand-outs. PURCHASES: from purchase history. */
+  basis?: 'USAGE' | 'PURCHASES' | null;
+  onHand?: number | null;
+  runOutOn?: string | null;
   /** Already on a draft or open supplier order, not yet received. */
   onOrderQuantity: number;
   remainingSuggestedQuantity: number;
@@ -1931,6 +1935,17 @@ export interface ReplenishmentItem {
   nextPurchaseOn: string | null;
   daysUntilNext: number | null;
   status: ReplenishmentStatus;
+  /** USAGE: from stock on hand and hand-outs. PURCHASES: from purchase history. */
+  basis?: 'USAGE' | 'PURCHASES';
+  onHand?: number;
+  /** Days with hand-outs recorded. */
+  handOuts?: number;
+  leadDays?: number | null;
+  dailyUse?: number | null;
+  safetyDays?: number | null;
+  reorderPoint?: number | null;
+  daysOfCover?: number | null;
+  runOutOn?: string | null;
 }
 
 export interface ConsumableReplenishment {
@@ -2221,14 +2236,62 @@ export interface ConsumableReport {
   mine: boolean;
 }
 
-/** The consumables list a Production Worker sees: no prices or history. */
+/** A consumable handed to a worker by the Office Staff. */
+export interface ConsumableIssue {
+  id: string;
+  toolId: string;
+  name: string | null;
+  sizeSpec: string | null;
+  unit: string | null;
+  quantity: number;
+  workerId: string;
+  workerName: string | null;
+  operationId: string | null;
+  operationName: string | null;
+  jobOrderId: string | null;
+  jobNumber: string | null;
+  issuedByName: string | null;
+  issuedAt: string | null;
+  undoneAt: string | null;
+  onHandAfter?: number;
+}
+
+export interface ConsumableIssueWorker {
+  workerId: string;
+  name: string;
+  /** "Blanking (JO-2026-07CF)" when the worker has the clock on an operation. */
+  currentOperation: string | null;
+}
+
+export interface ConsumableIssueOptions {
+  workerId: string;
+  operations: {
+    operationId: string;
+    operationName: string | null;
+    sequenceNo: number | null;
+    jobOrderId: string;
+    jobNumber: string | null;
+    jobTitle: string | null;
+    running: boolean;
+    status: string;
+    scheduledStart: string | null;
+  }[];
+  currentOperationId: string | null;
+}
+
+/** What a Production Worker sees: what is available and what they were given. */
 export interface WorkerConsumable {
   toolId: string;
   name: string;
   sizeSpec: string | null;
   shopTerm: string | null;
   unit: string;
-  report: ConsumableReport | null;
+  onHand: number;
+}
+
+export interface WorkerConsumables {
+  items: WorkerConsumable[];
+  used: ConsumableIssue[];
 }
 
 export interface WorkerMaterialLine {

@@ -74,6 +74,13 @@ def undo_issue(event_id):
     return jsonify(issues.undo_issue(event_id, get_current_user_id()))
 
 
+@consumables_bp.route("/issue-workers", methods=["GET"])
+@jwt_required()
+@require_roles(UserRole.OFFICE_STAFF)
+def issue_workers():
+    return jsonify(issues.issue_workers())
+
+
 @consumables_bp.route("/issue-options", methods=["GET"])
 @jwt_required()
 @require_roles(UserRole.OFFICE_STAFF)

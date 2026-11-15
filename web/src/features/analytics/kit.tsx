@@ -884,10 +884,10 @@ export const RESTOCK_TONE: Record<string, Tone> = {
 };
 
 export const RESTOCK_LABEL: Record<string, string> = {
-  OVERDUE: 'Overdue',
-  DUE_SOON: 'Due soon',
+  OVERDUE: 'Reorder now',
+  DUE_SOON: 'Reorder soon',
   OK: 'OK',
-  LEARNING: 'Too few purchases',
-  NO_HISTORY: 'Not bought yet',
+  LEARNING: 'Too little history',
+  NO_HISTORY: 'No history yet',
 };
 

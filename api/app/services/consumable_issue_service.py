@@ -112,6 +112,40 @@ def issue_options(worker_id: str) -> dict:
     }
 
 
+def issue_workers() -> list[dict]:
+    """Production workers a consumable can be handed to, with the operation
+    each has the clock on now (those working come first)."""
+    workers = (
+        User.query.filter(
+            User.role == UserRole.PRODUCTION_WORKER, User.status != UserStatus.DISABLED
+        )
+        .order_by(User.full_name.asc())
+        .all()
+    )
+    running = {}
+    ops = JobOperation.query.filter(JobOperation.status == OperationStatus.IN_PROGRESS).all()
+    for op in ops:
+        if not _is_running(op):
+            continue
+        for wid in op.crew_ids:
+            running.setdefault(wid, op)
+    rows = []
+    for w in workers:
+        op = running.get(w.id)
+        job = op.job_order if op else None
+        rows.append(
+            {
+                "workerId": w.id,
+                "name": w.full_name,
+                "currentOperation": (
+                    f"{op.operation_name or 'Operation'} ({job.job_number})" if op and job else None
+                ),
+            }
+        )
+    rows.sort(key=lambda r: (r["currentOperation"] is None, r["name"].lower()))
+    return rows
+
+
 def _decimal(value) -> Decimal:
     try:
         number = Decimal(str(value))

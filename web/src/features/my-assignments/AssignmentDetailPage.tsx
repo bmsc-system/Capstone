@@ -8,6 +8,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
 import { jobOrdersApi } from '../../api/jobOrders.api';
+import { consumablesApi } from '../../api/consumables.api';
 import { getErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useWorkerTheme, WorkerPageHeader } from '../../layouts/WorkerLayout';
@@ -18,7 +19,7 @@ import SyncChip from '../../offline/SyncChip';
 import { CrewChips } from '../../components/PersonAvatar';
 import { DOWNTIME_REASONS, type DowntimeCategory } from '../../constants/downtimeReasons';
 import { SHOP_TZ, formatShop, shopToday } from '../../utils/shopTime';
-import type { JobOrder, Operation, OperationPauseReason } from '../../types';
+import type { ConsumableIssue, JobOrder, Operation, OperationPauseReason } from '../../types';
 import { PageSkeleton } from '../../components/ui';
 import { isJobFinished } from '../job-orders/jobStage';
 import { useMyOperationsOptional } from './useMyOperations';
@@ -110,6 +111,8 @@ export default function AssignmentDetailPage() {
   const { online, userId, pending, version, record } = useOffline();
   const myOps = useMyOperationsOptional();
   const [loadedJob, setLoadedJob] = useState<JobOrder | null>(null);
+  // Consumables the office handed out for this job's operations.
+  const [issues, setIssues] = useState<ConsumableIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [pauseForOp, setPauseForOp] = useState<Operation | null>(null);
@@ -150,6 +153,22 @@ export default function AssignmentDetailPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!id || !online) return;
+    let live = true;
+    consumablesApi
+      .jobIssues(id)
+      .then(({ data }) => {
+        if (live) setIssues(data);
+      })
+      .catch(() => {
+        if (live) setIssues([]);
+      });
+    return () => {
+      live = false;
+    };
+  }, [id, online, version]);
 
   useEffect(() => {
     fetchJob();
@@ -307,6 +326,17 @@ export default function AssignmentDetailPage() {
           : colors.accent;
 
   const ops = job.operations || [];
+  const consumablesFor = (opId: string) => {
+    const totals = new Map<string, { name: string; unit: string; quantity: number }>();
+    for (const u of issues) {
+      if (u.operationId !== opId) continue;
+      const key = u.toolId;
+      const row = totals.get(key) || { name: u.name || 'Consumable', unit: u.unit || '', quantity: 0 };
+      row.quantity += u.quantity;
+      totals.set(key, row);
+    }
+    return [...totals.values()];
+  };
   // One running operation per worker: the one this worker has the clock on now.
   const runningElsewhere = (opId: string) =>
     (myOps?.operations || []).find(
@@ -666,6 +696,15 @@ export default function AssignmentDetailPage() {
                     )}
                   </div>
 
+                  {consumablesFor(op.id).length ? (
+                    <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 10, lineHeight: 1.5 }}>
+                      <span style={{ fontWeight: 700, color: colors.text }}>Consumables used</span>
+                      {': '}
+                      {consumablesFor(op.id)
+                        .map((c) => `${c.name} — ${c.quantity} ${c.unit}`.trim())
+                        .join(' · ')}
+                    </div>
+                  ) : null}
                   {op.notes?.trim() ? (
                     <div
                       style={{

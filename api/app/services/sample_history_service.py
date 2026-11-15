@@ -738,6 +738,7 @@ def format_summary(summary):
             f"({row['onTime']} on time, {row['late']} late, {row['open']} not yet due)"
         )
     lines.append(f"Consumable purchases: {summary['consumablePurchases']}")
+    lines.append(f"Consumable hand-outs to workers: {summary.get('handOuts', 0)}")
     lines.append(
         f"Tool borrows: {summary['toolBorrows']}, returns: {summary['toolReturns']}, "
         f"borrows with no return event: {summary['toolUnitsOpenBorrow']}"
@@ -1692,10 +1693,68 @@ def _sample_price(name):
     return Decimal(100)
 
 
+def _hand_outs(rng, shop, ledger, counters, tool, arrivals, every, office):
+    """The Office Staff hand most of each purchase to workers before the next
+    one arrives, for an operation running that day. Sets the stock on hand to
+    what is left (the earlier value is noted so removing the sample restores it)."""
+    stock = Decimal("0")
+    arrivals = sorted(arrivals)
+    working = [d for d in shop.working_days if d <= shop.end and shop.day_work.get(d)]
+    for index, (arrived, qty) in enumerate(arrivals):
+        stock += qty
+        last = index + 1 == len(arrivals)
+        until = arrivals[index + 1][0] if not last else shop.end + timedelta(days=1)
+        days = [d for d in working if arrived <= d < until]
+        if not days or stock < 1:
+            continue
+        # The newest purchase is only partly used by the last day of the history.
+        share = (
+            min(0.9, max(0.1, (shop.end - arrived).days / max(1, every)))
+            if last
+            else rng.uniform(0.78, 0.96)
+        )
+        to_give = int((stock * Decimal(str(share))).to_integral_value())
+        if to_give < 1:
+            continue
+        visits = max(1, min(to_give, len(days), 2 + to_give // 3, 8))
+        picked = sorted(rng.sample(days, visits))
+        base, extra = divmod(to_give, visits)
+        for n, day in enumerate(picked):
+            amount = Decimal(base + (1 if n < extra else 0))
+            worker_id, op_id, job_id = rng.choice(shop.day_work[day])
+            when = shop_local_to_utc(day, time(rng.randint(8, 15), rng.choice((5, 20, 35, 50))))
+            ledger.add(
+                ToolEvent(
+                    id=_new_id(rng),
+                    tool_id=tool.id,
+                    worker_id=worker_id,
+                    recorded_by_id=office.id,
+                    type=ToolEventType.ISSUE,
+                    quantity=amount,
+                    stock_delta=-amount,
+                    job_order_id=job_id,
+                    operation_id=op_id,
+                    created_at=when,
+                ),
+                when,
+            )
+            stock -= amount
+            counters["hand_outs"] += 1
+    ledger.note(
+        "tools",
+        tool.id,
+        shop.history_end,
+        {"role": "stock_snapshot", "quantityOnHand": str(tool.quantity_on_hand or 0)},
+    )
+    ledger.snapshots += 1
+    tool.quantity_on_hand = stock
+
+
 def _consumables(rng, shop, ledger, counters):
-    """Consumable purchases. Nothing is counted or scanned: most items are bought
-    in cash and recorded by the office, and about one in ten goes on a supplier
-    order. Each item has its own rhythm so the forecasts differ."""
+    """Consumable purchases and hand-outs. Most items are bought in cash and
+    recorded by the office, and about one in ten goes on a supplier order; the
+    office then hands them to workers for their operations. Each item has its
+    own rhythm so the forecasts differ."""
     office = shop.office or shop.admins[0]
     names = sorted(shop.consumables, key=lambda t: t.name.lower())
     days = [d for d in shop.working_days if d <= shop.end]
@@ -1710,6 +1769,7 @@ def _consumables(rng, shop, ledger, counters):
         amount = BUY_AMOUNT[rate] + (0 if rate == "bulk" else (index % 3) * 2)
         cost = tool.unit_cost if tool.unit_cost is not None else _sample_price(tool.name)
         day = shop.next_working(days[0] + timedelta(days=rng.randrange(max(1, every))))
+        arrivals = []
         while day <= shop.end:
             qty = Decimal(max(1, round(amount * rng.uniform(0.6, 1.4))))
             supplier = home[tool.id]
@@ -1718,7 +1778,10 @@ def _consumables(rng, shop, ledger, counters):
                     rng, shop, ledger, supplier, day, [(tool, qty)], office, counters
                 )
                 counters["consumable_purchases"] += 1 if received <= shop.end else 0
+                if received <= shop.end:
+                    arrivals.append((received, qty))
             else:
+                arrivals.append((day, qty))
                 when = shop_local_to_utc(day, time(15, 30))
                 price = (Decimal(str(cost)) * Decimal(str(rng.uniform(0.9, 1.15)))).quantize(Decimal("0.01"))
                 ledger.add(
@@ -1738,6 +1801,7 @@ def _consumables(rng, shop, ledger, counters):
                 counters["consumable_purchases"] += 1
             gap = max(2, round(every * rng.uniform(0.7, 1.3)))
             day = shop.next_working(day + timedelta(days=gap))
+        _hand_outs(rng, shop, ledger, counters, tool, arrivals, every, office)
 
 
 def _stock_po(rng, shop, ledger, supplier, day, rows, office, counters):
@@ -2284,6 +2348,7 @@ def _summary(plans, counters, holidays_added, holidays_present, ledger):
         "purchaseOrders": counters["purchase_orders"],
         "posBySupplier": pos,
         "consumablePurchases": counters["consumable_purchases"],
+        "handOuts": counters["hand_outs"],
         "toolBorrows": counters["borrows"],
         "toolReturns": counters["returns"],
         "toolUnitsOpenBorrow": counters["open_borrows"],
@@ -2314,6 +2379,7 @@ def _blank_counters():
         "purchase_orders": 0,
         "suppliers": defaultdict(lambda: {"name": "", "orders": 0, "on_time": 0, "late": 0, "open": 0}),
         "consumable_purchases": 0,
+        "hand_outs": 0,
         "borrows": 0,
         "returns": 0,
         "open_borrows": 0,

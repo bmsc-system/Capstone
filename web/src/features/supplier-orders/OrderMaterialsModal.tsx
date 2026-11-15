@@ -666,11 +666,23 @@ export default function OrderMaterialsModal({
                     render: (_: unknown, c) =>
                       c.due ? (
                         <div style={{ fontSize: 12 }}>
-                          <span style={{ color: c.due.status === 'OVERDUE' ? '#b91c1c' : '#b45309', fontWeight: 600 }}>
-                            {c.due.status === 'OVERDUE' ? 'Was due' : 'Due'}{' '}
-                            {formatShop(c.due.nextPurchaseOn, 'MMM D')}
-                          </span>
-                          {c.due.usualQuantity ? ` · usually ${fmtQty(c.due.usualQuantity, c.unit)}` : ''}
+                          {c.due.basis === 'USAGE' ? (
+                            <>
+                              <span style={{ color: c.due.status === 'OVERDUE' ? '#b91c1c' : '#b45309', fontWeight: 600 }}>
+                                {fmtQty(c.due.onHand ?? 0, c.unit)} left
+                              </span>
+                              {c.due.runOutOn ? ` · runs out ${formatShop(c.due.runOutOn, 'MMM D')}` : ''}
+                              {c.due.usualQuantity ? ` · suggested ${fmtQty(c.due.usualQuantity, c.unit)}` : ''}
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ color: c.due.status === 'OVERDUE' ? '#b91c1c' : '#b45309', fontWeight: 600 }}>
+                                {c.due.status === 'OVERDUE' ? 'Was due' : 'Due'}{' '}
+                                {formatShop(c.due.nextPurchaseOn, 'MMM D')}
+                              </span>
+                              {c.due.usualQuantity ? ` · usually ${fmtQty(c.due.usualQuantity, c.unit)}` : ''}
+                            </>
+                          )}
                           {c.due.onOrderQuantity > 0 ? (
                             <div style={{ color: '#64748b' }}>
                               {fmtQty(c.due.onOrderQuantity, c.unit)} already on order
