@@ -165,7 +165,7 @@ function AheadSelect({ value, onChange }: { value: number; onChange: (m: number)
       aria-label="Forecast range"
       value={value}
       onChange={onChange}
-      style={{ width: 128 }}
+      style={{ width: 146 }}
       options={FORECAST_MONTHS.map((m) => ({ value: m, label: `Next ${m} month${m > 1 ? 's' : ''}` }))}
     />
   );
