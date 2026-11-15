@@ -18,6 +18,7 @@ from app.services.schedule_calendar import (
     next_shop_working_day,
     utc_to_shop,
 )
+from tests.catalog_helpers import approve_issue
 from tests.test_material_delay import (  # noqa: F401  (fixtures)
     _draft_order,
     _headers,
@@ -79,7 +80,13 @@ def test_later_date_keeps_original_audits_note_and_moves_job(client, shop):
     assert after > before
     assert utc_to_shop(after).date() == new
     assert "expected delivery changed" in job.material_delay_reason
-    assert StaffAlert.query.filter_by(recipient_id=shop["admin"].id).count() == 1
+    # The move alert; the earlier approval request is a different kind.
+    assert (
+        StaffAlert.query.filter(
+            StaffAlert.recipient_id == shop["admin"].id, StaffAlert.kind != "PO_APPROVAL"
+        ).count()
+        == 1
+    )
 
     entry = AuditLog.query.filter_by(
         entity_type="SupplierOrder", entity_id=issued["id"], action="EXPECTED_DELIVERY_CHANGED"
@@ -199,10 +206,6 @@ def test_issue_without_date_uses_manila_day_at_utc_sunday(client, shop, monkeypa
 
     job, _ = _job(shop, _local(shop["today"] + timedelta(days=20), 9))
     order = _draft_order(client, shop, job, shop["quick"])
-    res = client.post(
-        f"/api/v1/supplier-orders/{order['id']}/issue",
-        json={},
-        headers=_headers(shop["office"]),
-    )
+    res = approve_issue(client, f"/api/v1/supplier-orders/{order['id']}", {}, _headers(shop["office"]))
     assert res.status_code == 200, res.get_json()
     assert res.get_json()["dateIssued"] == "2026-10-19"

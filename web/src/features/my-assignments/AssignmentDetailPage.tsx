@@ -18,7 +18,7 @@ import SyncChip from '../../offline/SyncChip';
 import { CrewChips } from '../../components/PersonAvatar';
 import { DOWNTIME_REASONS, type DowntimeCategory } from '../../constants/downtimeReasons';
 import { SHOP_TZ, formatShop, shopToday } from '../../utils/shopTime';
-import type { JobOrder, Operation, OperationPauseReason, PartCondition } from '../../types';
+import type { JobOrder, Operation, OperationPauseReason } from '../../types';
 import { PageSkeleton } from '../../components/ui';
 import { isJobFinished } from '../job-orders/jobStage';
 import { useMyOperationsOptional } from './useMyOperations';
@@ -38,18 +38,6 @@ const PAUSE_REASONS: { value: OperationPauseReason; label: string }[] = [
   { value: 'OTHER', label: 'Other' },
 ];
 
-const PART_STAGE_LABEL: Record<PartCondition, string> = {
-  RAW_MATERIAL: 'Raw material',
-  CLIENT_SUPPLIED_ITEM: 'Client supplied item',
-  WORK_IN_PROCESS: 'Work in process',
-  CUT: 'Cut',
-  BLANK: 'Blank',
-  FORMED: 'Formed',
-  MACHINED: 'Machined',
-  ASSEMBLED: 'Assembled',
-  HEAT_TREATED: 'Heat treated',
-  FINISHED: 'Finished',
-};
 
 function workedSecondsSoFar(op: Operation, nowMs: number): number {
   const logs = [...(op.timeLogs || [])].sort(
@@ -414,13 +402,6 @@ export default function AssignmentDetailPage() {
               <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 8 }}>
                 Qty {job.quantity}
                 {job.unitOfMeasure ? ` ${job.unitOfMeasure}` : ''}
-              </div>
-            )}
-            {job.partCondition && (
-              <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 6 }}>
-                <span style={{ fontWeight: 700, color: colors.text }}>Stage of the part</span>
-                {': '}
-                {PART_STAGE_LABEL[job.partCondition] || job.partCondition}
               </div>
             )}
           </div>

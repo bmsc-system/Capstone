@@ -14,6 +14,7 @@ from app.extensions import db
 from app.models.job_order import JobOrder, JobOrderStatus, MaterialStatus
 from app.models.material_purchase import MaterialPurchase
 from app.models.supplier import Supplier
+from app.models.user import User, UserRole
 from app.models.supplier_order import (
     DELIVERY_MODES,
     SupplierOrder,
@@ -130,6 +131,8 @@ def ordering_context(job_id=None):
                 "issuedLineCount": sum(1 for p in active if not p.is_draft),
                 "draftLineCount": sum(1 for p in active if p.is_draft),
                 "notOrderedYet": not mp_service.placed_lines(job),
+                # What the plan still needs, so picking the job fills its lines.
+                "plannedMaterials": job.planned_materials_summary(),
             }
         )
     from app.models.material_catalog import CONSUMABLE_UNITS, MATERIAL_UNITS
@@ -203,6 +206,9 @@ def due_consumables() -> list[dict]:
                 "status": item["status"],
                 "nextPurchaseOn": item["nextPurchaseOn"],
                 "usualQuantity": item["usualQuantity"],
+                "basis": item.get("basis"),
+                "onHand": item.get("onHand"),
+                "runOutOn": item.get("runOutOn"),
                 "onOrderQuantity": float(ordered),
                 "remainingSuggestedQuantity": float(max(usual - ordered, Decimal("0"))),
             }
@@ -214,6 +220,14 @@ def _draft_for(supplier: Supplier, actor_id: str) -> SupplierOrder:
         supplier_id=supplier.id, status=SupplierOrderStatus.DRAFT
     ).first()
     if order:
+        # One draft per supplier; a draft sent for approval is locked.
+        if order.submitted_at is not None:
+            raise AppError(
+                f"The draft order for {supplier.name} is waiting for the Admin's approval. "
+                "Take it back to add lines, or add them after it is issued.",
+                "ORDER_AWAITING_APPROVAL",
+                409,
+            )
         return order
     order = SupplierOrder(
         supplier_id=supplier.id,
@@ -235,6 +249,16 @@ def _require_draft(order: SupplierOrder):
         )
 
 
+def _require_editable_draft(order: SupplierOrder):
+    _require_draft(order)
+    if order.submitted_at is not None:
+        raise AppError(
+            "This order is waiting for the Admin's approval. Take it back to change it.",
+            "ORDER_AWAITING_APPROVAL",
+            409,
+        )
+
+
 def _build_consumable_line(supplier: Supplier, data: dict) -> MaterialPurchase:
     """A consumable restock line: chosen from the consumables list, not tied to a job."""
     from app.models.tool import Tool, ToolCategory
@@ -250,9 +274,14 @@ def _build_consumable_line(supplier: Supplier, data: dict) -> MaterialPurchase:
         )
     unit = (data.get("unit") or tool.unit or "pcs").strip()
     if unit != tool.unit:
-        raise AppError(
-            f"Unit must be {tool.unit} to match the consumable", "VALIDATION_ERROR", 400
-        )
+        # Office Staff set the unit this consumable is bought and counted in.
+        from app.models.material_catalog import CONSUMABLE_UNITS
+
+        if unit not in CONSUMABLE_UNITS:
+            raise AppError(
+                f"Unit must be one of {', '.join(CONSUMABLE_UNITS)}", "VALIDATION_ERROR", 400
+            )
+        tool.unit = unit
     grade = (data.get("gradeOrSpec") or "").strip() or tool.size_spec
     return MaterialPurchase(
         tool_id=tool.id,
@@ -347,7 +376,7 @@ def update_draft(order: SupplierOrder, data: dict) -> SupplierOrder:
                 )
             order.delivery_mode = mode
     if "notes" in data or "vatRate" in data:
-        _require_draft(order)
+        _require_editable_draft(order)
     if "notes" in data:
         order.notes = (data.get("notes") or "").strip() or None
     if "vatRate" in data:
@@ -374,7 +403,7 @@ def refresh_draft_line_name(line: MaterialPurchase):
 
 
 def update_draft_line(order: SupplierOrder, line: MaterialPurchase, data: dict):
-    _require_draft(order)
+    _require_editable_draft(order)
     if "quantity" in data:
         line.quantity = _decimal(data.get("quantity"), "quantity", positive=True)
     if "unitCost" in data:
@@ -407,7 +436,7 @@ def update_draft_line(order: SupplierOrder, line: MaterialPurchase, data: dict):
 
 
 def remove_draft_line(order: SupplierOrder, line: MaterialPurchase):
-    _require_draft(order)
+    _require_editable_draft(order)
     db.session.delete(line)
     db.session.commit()
 
@@ -454,16 +483,155 @@ def _chosen_po_seq(value):
     return seq
 
 
+def _po_number_taken(order: SupplierOrder, year: int, chosen: int):
+    return (
+        SupplierOrder.query.filter(
+            SupplierOrder.supplier_id == order.supplier_id,
+            SupplierOrder.po_year == year,
+            SupplierOrder.po_seq == chosen,
+            SupplierOrder.id != order.id,
+        ).first()
+        or SupplierOrder.query.filter(
+            SupplierOrder.po_number == format_po_number(order.supplier.code, year, chosen),
+            SupplierOrder.id != order.id,
+        ).first()
+    )
+
+
+def _alert_order(roles, title, message, order, key):
+    from app.models.staff_alert import StaffAlertKind
+    from app.services.staff_alert_service import raise_alert
+
+    raise_alert(
+        roles=roles,
+        kind=StaffAlertKind.PO_APPROVAL,
+        title=title,
+        message=message,
+        supplier_order_id=order.id,
+        dedupe_key=key,
+    )
+
+
+def submit_for_approval(
+    order: SupplierOrder, actor_id: str, date_issued=None, po_seq=None
+) -> SupplierOrder:
+    """Office Staff send the draft to the Admin for approval. The draft locks;
+    the PO number and date they ask for are kept for the Admin to confirm."""
+    chosen = _chosen_po_seq(po_seq)
+    _require_editable_draft(order)
+    _check_issuable(order)
+    issued = _parse_date(date_issued, "dateIssued") or shop_now().date()
+    if chosen is not None and _po_number_taken(order, issued.year, chosen) is not None:
+        seq = _next_po_seq(order.supplier_id, issued.year)
+        raise AppError(
+            f"{format_po_number(order.supplier.code, issued.year, chosen)} is already "
+            f"used. The next free number is "
+            f"{format_po_number(order.supplier.code, issued.year, seq)}.",
+            "PO_NUMBER_TAKEN",
+            409,
+        )
+    order.submitted_at = datetime.now(timezone.utc)
+    order.submitted_by_id = actor_id
+    order.prepared_by_id = actor_id
+    order.requested_po_seq = chosen
+    order.requested_issue_date = issued if date_issued else None
+    order.return_note = None
+    sender = db.session.get(User, actor_id)
+    who = sender.full_name if sender else "Office Staff"
+    _alert_order(
+        [UserRole.ADMIN],
+        f"Supplier order for {order.supplier.name} needs your approval",
+        f"{who} prepared it: {len(order.active_lines)} line(s), "
+        f"PHP {float(order.subtotal):,.2f} before VAT. Approve it to issue the PO.",
+        order,
+        f"po-approval:{order.id}:{order.submitted_at.isoformat()}",
+    )
+    db.session.commit()
+    return order
+
+
+def withdraw_submission(order: SupplierOrder) -> SupplierOrder:
+    """Office Staff take a sent draft back to change it."""
+    _require_draft(order)
+    if order.submitted_at is None:
+        raise AppError("This order was not sent for approval.", "VALIDATION_ERROR", 400)
+    order.submitted_at = None
+    order.submitted_by_id = None
+    db.session.commit()
+    return order
+
+
+def return_to_office(order: SupplierOrder, note) -> SupplierOrder:
+    """The Admin sends the draft back with what to change."""
+    _require_draft(order)
+    if order.submitted_at is None:
+        raise AppError("This order was not sent for approval.", "VALIDATION_ERROR", 400)
+    text = (note or "").strip()
+    if not text:
+        raise AppError("Say what should be changed.", "VALIDATION_ERROR", 400)
+    order.return_note = text[:1000]
+    stamp = order.submitted_at.isoformat()
+    order.submitted_at = None
+    _alert_order(
+        [UserRole.OFFICE_STAFF],
+        f"Supplier order for {order.supplier.name} was sent back",
+        f"The Admin asked for a change: {order.return_note}",
+        order,
+        f"po-returned:{order.id}:{stamp}",
+    )
+    db.session.commit()
+    return order
+
+
+def _check_issuable(order: SupplierOrder):
+    if not order.active_lines:
+        raise AppError("Add at least one line before issuing.", "VALIDATION_ERROR", 400)
+    if order.supplier and not order.supplier.active:
+        raise AppError(
+            f"{order.supplier.name} is inactive. Reactivate it on the Suppliers page "
+            "to issue this order.",
+            "SUPPLIER_INACTIVE",
+            400,
+        )
+    lead = order.supplier.typical_lead_time_days if order.supplier else None
+    if lead is None:
+        raise AppError(
+            f"{order.supplier.name} has no lead time. Set it on the Suppliers page "
+            "before issuing, so the expected delivery date can be worked out.",
+            "SUPPLIER_LEAD_TIME_MISSING",
+            400,
+        )
+    if not order.supplier.code:
+        raise AppError(
+            f"{order.supplier.name} has no supplier code. Set it on the Suppliers page "
+            "before issuing; the PO number starts with it.",
+            "SUPPLIER_CODE_MISSING",
+            400,
+        )
+
+
 def issue_order(
     order: SupplierOrder, actor_id: str, date_issued=None, po_seq=None
 ) -> SupplierOrder:
-    """Office Staff issue the PO: number, date, expected delivery; lines lock.
-    The issuer is the one who prepared it; "Approved by" is signed on paper.
+    """The Admin approves the draft the Office Staff sent and issues the PO:
+    number, date, expected delivery; lines lock. Prepared by stays the Office
+    Staff who sent it; the Admin is the one who approved and issued it.
 
-    ``po_seq``: a number of their own for this PO (any unused one for the
-    supplier and year). Later POs carry on from the highest number used."""
-    chosen = _chosen_po_seq(po_seq)
+    ``po_seq`` / ``date_issued``: default to what the Office Staff asked for,
+    else the supplier's next number and today. Later POs carry on from the
+    highest number used."""
     _require_draft(order)
+    if order.submitted_at is None:
+        raise AppError(
+            "Office Staff have not sent this order for approval yet.",
+            "ORDER_NOT_SUBMITTED",
+            409,
+        )
+    if po_seq in (None, ""):
+        po_seq = order.requested_po_seq
+    if not date_issued and order.requested_issue_date:
+        date_issued = order.requested_issue_date.isoformat()
+    chosen = _chosen_po_seq(po_seq)
     if not order.active_lines:
         raise AppError("Add at least one line before issuing.", "VALIDATION_ERROR", 400)
     if order.supplier and not order.supplier.active:
@@ -493,20 +661,7 @@ def issue_order(
     try:
         seq = _next_po_seq(order.supplier_id, issued.year)
         if chosen is not None and chosen != seq:
-            taken = (
-                SupplierOrder.query.filter(
-                    SupplierOrder.supplier_id == order.supplier_id,
-                    SupplierOrder.po_year == issued.year,
-                    SupplierOrder.po_seq == chosen,
-                    SupplierOrder.id != order.id,
-                ).first()
-                or SupplierOrder.query.filter(
-                    SupplierOrder.po_number
-                    == format_po_number(order.supplier.code, issued.year, chosen),
-                    SupplierOrder.id != order.id,
-                ).first()
-            )
-            if taken is not None:
+            if _po_number_taken(order, issued.year, chosen) is not None:
                 raise AppError(
                     f"{format_po_number(order.supplier.code, issued.year, chosen)} is already "
                     f"used. The next free number is "
@@ -521,7 +676,8 @@ def issue_order(
         order.date_issued = issued
         order.expected_delivery_date = next_shop_working_day(issued + timedelta(days=lead))
         order.issued_by_id = actor_id
-        order.prepared_by_id = actor_id
+        if order.submitted_by_id:
+            order.prepared_by_id = order.submitted_by_id
         order.status = SupplierOrderStatus.ISSUED
         for line in order.active_lines:
             # Freeze the catalog name on the line (draft followed the catalog).
@@ -531,6 +687,13 @@ def issue_order(
         db.session.flush()
         for job in _jobs_of(order.active_lines):
             mp_service.sync_job_material_from_purchases(job)
+        _alert_order(
+            [UserRole.OFFICE_STAFF],
+            f"{order.po_number} was approved and issued",
+            f"The purchase order for {order.supplier.name} is ready to print and send.",
+            order,
+            f"po-issued:{order.id}",
+        )
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -574,7 +737,7 @@ def cancel_order(order: SupplierOrder, actor_id: str) -> SupplierOrder:
         raise AppError("This supplier order is closed.", "ORDER_CLOSED", 409)
     if any(ln.date_received for ln in order.active_lines):
         raise AppError(
-            "Part of this order was received earlier. Complete it with Receive order.",
+            "Part of this order was received earlier. Complete it with Confirm delivery.",
             "PARTLY_RECEIVED",
             409,
         )

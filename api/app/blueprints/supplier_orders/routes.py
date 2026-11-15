@@ -87,9 +87,40 @@ def update_order(order_id):
     return jsonify(order.to_dict(include_lines=True))
 
 
-@supplier_orders_bp.route("/<order_id>/issue", methods=["POST"])
+@supplier_orders_bp.route("/<order_id>/submit", methods=["POST"])
 @jwt_required()
 @require_roles(UserRole.OFFICE_STAFF)
+def submit(order_id):
+    data = request.get_json() or {}
+    order = svc.submit_for_approval(
+        svc.get_order(order_id),
+        get_current_user_id(),
+        data.get("dateIssued"),
+        po_seq=data.get("poSeq"),
+    )
+    return jsonify(order.to_dict(include_lines=True))
+
+
+@supplier_orders_bp.route("/<order_id>/withdraw", methods=["POST"])
+@jwt_required()
+@require_roles(UserRole.OFFICE_STAFF)
+def withdraw(order_id):
+    order = svc.withdraw_submission(svc.get_order(order_id))
+    return jsonify(order.to_dict(include_lines=True))
+
+
+@supplier_orders_bp.route("/<order_id>/return", methods=["POST"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
+def send_back(order_id):
+    data = request.get_json() or {}
+    order = svc.return_to_office(svc.get_order(order_id), data.get("note"))
+    return jsonify(order.to_dict(include_lines=True))
+
+
+@supplier_orders_bp.route("/<order_id>/issue", methods=["POST"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
 def issue(order_id):
     data = request.get_json() or {}
     order = svc.issue_order(

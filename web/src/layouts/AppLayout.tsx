@@ -126,7 +126,7 @@ function routeMeta(pathname: string, section: string | null): Meta {
       crumbs: [jobs, { label: 'Archived' }],
     };
   }
-  if (pathname === '/job-orders/new') return { title: 'New job order', crumbs: [jobs, { label: 'New' }] };
+  if (pathname === '/job-orders/new') return { title: 'Create job order', crumbs: [jobs, { label: 'Create' }] };
   if (/^\/job-orders\/[^/]+\/edit$/.test(pathname)) return { title: 'Edit job order', crumbs: [jobs, { label: 'Edit' }] };
   if (/^\/job-orders\/[^/]+\/plan$/.test(pathname)) {
     return { title: 'Plan job order', crumbs: [{ label: 'Job Orders', to: '/job-orders?tab=drafts' }, { label: 'Plan' }] };

@@ -296,7 +296,7 @@ export default function ClientDetailPage() {
                 </Button>
                 {canEncodeJob ? (
                   <Button type="primary" icon={<PlusOutlined />} onClick={newJob} block>
-                    New job order
+                    Create job order
                   </Button>
                 ) : null}
               </div>
@@ -437,7 +437,7 @@ export default function ClientDetailPage() {
             action={
               canEncodeJob ? (
                 <Button type="primary" icon={<PlusOutlined />} onClick={newJob}>
-                  New job order
+                  Create job order
                 </Button>
               ) : undefined
             }

@@ -10,7 +10,7 @@ from decimal import Decimal
 import pytest
 from flask_jwt_extended import create_access_token
 
-from tests.catalog_helpers import ensure_material
+from tests.catalog_helpers import approve_issue, ensure_material
 from app.extensions import bcrypt, db
 from app.models.audit_log import AuditLog
 from app.models.client import Client
@@ -123,11 +123,7 @@ def test_draft_order_cannot_be_printed_until_issued(client, shop):
     assert res.get_json()["error"]["code"] == "ORDER_NOT_ISSUED"
     assert res.get_json()["error"]["message"] == "Issue the order before printing."
 
-    res = client.post(
-        f"/api/v1/supplier-orders/{order['id']}/issue",
-        json={"dateIssued": "2031-03-02"},
-        headers=headers,
-    )
+    res = approve_issue(client, f"/api/v1/supplier-orders/{order['id']}", {"dateIssued": "2031-03-02"}, headers)
     assert res.status_code == 200, res.get_json()
 
     res = client.get(f"/api/v1/supplier-orders/{order['id']}/print", headers=headers)
@@ -142,11 +138,7 @@ def _issued_order(client, shop, job=None):
         shop,
         [{"jobOrderId": job.id, "materialCatalogId": ensure_material("Round bar 50mm"), "materialName": "Round bar 50mm", "quantity": 4, "unitCost": 250}],
     ).get_json()
-    res = client.post(
-        f"/api/v1/supplier-orders/{order['id']}/issue",
-        json={"dateIssued": "2031-03-02"},
-        headers=_headers(shop["office"]),
-    )
+    res = approve_issue(client, f"/api/v1/supplier-orders/{order['id']}", {"dateIssued": "2031-03-02"}, _headers(shop["office"]))
     assert res.status_code == 200, res.get_json()
     return res.get_json()
 

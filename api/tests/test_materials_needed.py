@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 from flask_jwt_extended import create_access_token
 
-from tests.catalog_helpers import ensure_material
+from tests.catalog_helpers import approve_issue, ensure_material
 from app.extensions import bcrypt, db
 from app.models.client import Client
 from app.models.job_order import JobOrder, JobOrderStatus
@@ -93,11 +93,7 @@ def _add_line(client, shop, job_id, **body):
 
 
 def _issue(client, shop, order_id):
-    res = client.post(
-        f"/api/v1/supplier-orders/{order_id}/issue",
-        json={"dateIssued": "2031-03-02"},
-        headers=_headers(shop["office"]),
-    )
+    res = approve_issue(client, f"/api/v1/supplier-orders/{order_id}", {"dateIssued": "2031-03-02"}, _headers(shop["office"]))
     assert res.status_code == 200, res.get_json()
     return res.get_json()
 

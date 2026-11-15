@@ -1,6 +1,6 @@
 """Consumable purchases: recorded by the Office Staff, or received on a supplier order.
 
-Both feed the replenishment forecast. A recorded purchase entered by mistake
+Both add to the stock on hand and feed the replenishment forecast. A recorded purchase entered by mistake
 is voided, not deleted, so the audit log still shows it.
 """
 
@@ -13,6 +13,7 @@ from app.extensions import db
 from app.models.consumable_purchase import ConsumablePurchase
 from app.models.material_purchase import MaterialPurchase
 from app.models.tool import Tool, ToolCategory
+from app.models.tool_event import ToolEvent, ToolEventType
 from app.services.schedule_calendar import shop_now
 from app.utils.errors import AppError
 
@@ -47,6 +48,28 @@ def _consumable(tool_id) -> Tool:
     return tool
 
 
+def _move_stock(tool_id, delta: Decimal, user_id, event_type, when, note):
+    """A bought quantity goes on the shelf (and comes off again when the entry
+    is removed), so stock on hand follows what was bought and handed out."""
+    from app.utils.row_locks import lock_row
+
+    tool = lock_row(Tool, tool_id)
+    after = Decimal(str(tool.quantity_on_hand or 0)) + delta
+    tool.quantity_on_hand = max(after, Decimal("0"))
+    db.session.add(
+        ToolEvent(
+            tool_id=tool.id,
+            worker_id=user_id,
+            recorded_by_id=user_id,
+            type=event_type,
+            quantity=abs(delta),
+            stock_delta=delta,
+            reason=note,
+            received_on=when,
+        )
+    )
+
+
 def record_purchase(data: dict, user_id: str) -> ConsumablePurchase:
     tool = _consumable(data.get("toolId"))
     if not tool.active:
@@ -73,6 +96,7 @@ def record_purchase(data: dict, user_id: str) -> ConsumablePurchase:
     )
     db.session.add(purchase)
     db.session.flush()
+    _move_stock(tool.id, quantity, user_id, ToolEventType.RECEIVE, day, purchase.bought_from)
     # Buying the item answers any running-low report from the shop floor.
     from app.services.consumable_request_service import close_on_purchase
 
@@ -89,6 +113,14 @@ def void_purchase(purchase_id: str, user_id: str) -> ConsumablePurchase:
         raise _bad("This purchase was already removed.")
     purchase.voided_at = datetime.now(timezone.utc)
     purchase.voided_by_id = user_id
+    _move_stock(
+        purchase.tool_id,
+        -Decimal(str(purchase.quantity)),
+        user_id,
+        ToolEventType.ADJUST,
+        None,
+        "Purchase entry removed",
+    )
     db.session.commit()
     return purchase
 

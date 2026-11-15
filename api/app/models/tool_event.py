@@ -81,6 +81,10 @@ class ToolEvent(db.Model):
         nullable=True,
         index=True,
     )
+    # ISSUE: the Office Staff who handed the consumable to ``worker_id``.
+    recorded_by_id = db.Column(
+        db.String(36), db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     undoes_event_id = db.Column(
         db.String(36),
         db.ForeignKey("tool_events.id", ondelete="SET NULL"),
@@ -93,7 +97,8 @@ class ToolEvent(db.Model):
 
     tool = db.relationship("Tool", back_populates="events")
     tool_unit = db.relationship("ToolUnit", back_populates="events")
-    worker = db.relationship("User", back_populates="tool_events")
+    worker = db.relationship("User", back_populates="tool_events", foreign_keys=[worker_id])
+    recorded_by = db.relationship("User", foreign_keys=[recorded_by_id])
     job_order = db.relationship("JobOrder", back_populates="tool_events")
     operation = db.relationship("JobOperation", foreign_keys=[operation_id])
     material_purchase = db.relationship("MaterialPurchase")
@@ -137,6 +142,7 @@ class ToolEvent(db.Model):
             "receivedOn": self.received_on.isoformat() if self.received_on else None,
             "jobOrderId": self.job_order_id,
             "operationId": self.operation_id,
+            "recordedByName": self.recorded_by.full_name if self.recorded_by else None,
             "undoesEventId": self.undoes_event_id,
             "undoneAt": self.undone_at.isoformat() if self.undone_at else None,
             "clientActionId": self.client_action_id,

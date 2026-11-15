@@ -1,18 +1,25 @@
-"""Consumable replenishment forecast from purchase history (objective 4.3).
+"""Consumable replenishment forecast (objective 4.3).
 
-Consumables are not counted or scanned, so the forecast works from what the
-shop bought and when. Purchases of a consumable are irregular and come in
-uneven amounts, which is intermittent demand. The forecast uses the
-Syntetos-Boylan Approximation of Croston's method: the size of a purchase and
-the days between purchases are each smoothed with the same constant, and the
-next purchase is expected one smoothed interval after the last one.
+The Office Staff keep the consumables and hand them to workers, so the system
+knows how much is on hand and how fast each item is used. Hand-outs of an item
+are irregular and come in uneven amounts, which is intermittent demand. The
+forecast uses the Syntetos-Boylan Approximation of Croston's method: the size
+of a hand-out and the days between hand-outs are each smoothed with the same
+constant, which gives the usual use per day. From that:
 
-An item needs ``MIN_PURCHASES`` purchases (two intervals) before it gets a
-forecast; with fewer it shows only when it was last bought.
+    reorder point = use per day x (delivery lead time + safety days)
+    runs out on   = today + stock on hand / use per day
+    reorder on    = the day stock on hand reaches the reorder point
+
+An item needs ``MIN_PURCHASES`` days with hand-outs (two intervals) for this.
+Until then the same method is applied to its purchase history instead (when it
+was bought and how much), which says when it is usually bought next; with fewer
+than ``MIN_PURCHASES`` purchases it shows only when it was last bought.
 """
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -24,6 +31,11 @@ ALPHA = 0.2
 MIN_PURCHASES = 3
 DUE_SOON_DAYS = 7
 SPEND_MONTHS = 6
+DEFAULT_LEAD_DAYS = 7
+SAFETY_MIN_DAYS = 3
+COVER_DAYS = 30
+BASIS_USAGE = "USAGE"
+BASIS_PURCHASES = "PURCHASES"
 
 
 def _round(value, places=1):
@@ -83,6 +95,75 @@ def _status(count, days_until):
     return "OK"
 
 
+def usage_events(tool_ids) -> dict:
+    """{tool id: [(shop date, quantity handed out that day)]}, oldest first.
+    Hand-outs that were undone do not count."""
+    from app.models.tool_event import ToolEvent, ToolEventType
+    from app.services.schedule_calendar import utc_to_shop
+
+    ids = list(tool_ids)
+    if not ids:
+        return {}
+    per_day = defaultdict(lambda: defaultdict(float))
+    rows = ToolEvent.query.filter(
+        ToolEvent.tool_id.in_(ids),
+        ToolEvent.type.in_((ToolEventType.ISSUE, ToolEventType.SCAN)),
+        ToolEvent.undone_at.is_(None),
+    ).all()
+    for e in rows:
+        if e.created_at is None:
+            continue
+        per_day[e.tool_id][utc_to_shop(e.created_at).date()] += float(e.quantity or 0)
+    return {tid: sorted(days.items()) for tid, days in per_day.items()}
+
+
+def lead_days(tool_ids) -> dict:
+    """{tool id: average days from ordering to delivery} from received supplier
+    order lines; items never bought on an order use ``DEFAULT_LEAD_DAYS``."""
+    from app.models.material_purchase import MaterialPurchase
+
+    ids = list(tool_ids)
+    if not ids:
+        return {}
+    spans = defaultdict(list)
+    lines = MaterialPurchase.query.filter(
+        MaterialPurchase.tool_id.in_(ids),
+        MaterialPurchase.cancelled_at.is_(None),
+        MaterialPurchase.date_received.isnot(None),
+        MaterialPurchase.date_ordered.isnot(None),
+    ).all()
+    for ln in lines:
+        spans[ln.tool_id].append(max((ln.date_received - ln.date_ordered).days, 0))
+    return {tid: sum(v) / len(v) for tid, v in spans.items()}
+
+
+def usage_forecast(events, on_hand: float, lead: float, today: date) -> dict | None:
+    """Reorder point, run-out date and suggested quantity from hand-outs.
+    None with fewer than ``MIN_PURCHASES`` days of hand-outs."""
+    fit = croston_sba(events)
+    if not fit or fit["dailyRate"] <= 0:
+        return None
+    daily = fit["dailyRate"]
+    safety_days = max(SAFETY_MIN_DAYS, fit["typicalErrorDays"] or 0)
+    reorder_point = daily * (lead + safety_days)
+    days_until = math.floor((on_hand - reorder_point) / daily)
+    cover = on_hand / daily
+    target = daily * (COVER_DAYS + lead + safety_days)
+    return {
+        "dailyUse": daily,
+        "usualIssue": fit["usualQuantity"],
+        "issueEveryDays": fit["everyDays"],
+        "typicalErrorDays": fit["typicalErrorDays"],
+        "safetyDays": safety_days,
+        "reorderPoint": reorder_point,
+        "daysOfCover": cover,
+        "runOutOn": today + timedelta(days=math.floor(cover)),
+        "daysUntilReorder": days_until,
+        "reorderOn": today + timedelta(days=days_until),
+        "suggestedQuantity": max(math.ceil(target - on_hand), 1),
+    }
+
+
 def replenishment(today: date | None = None) -> dict:
     """One row per offered consumable, with the summary the dashboards use."""
     today = today or shop_now().date()
@@ -96,6 +177,8 @@ def replenishment(today: date | None = None) -> dict:
     for row in rows:
         by_tool[row["toolId"]].append(row)
 
+    used_by_tool = usage_events([t.id for t in tools])
+    lead_by_tool = lead_days([t.id for t in tools])
     months = _months_back(today, SPEND_MONTHS)
     spend_by_month = {m: 0.0 for m in months}
     spend_30 = 0.0
@@ -118,10 +201,21 @@ def replenishment(today: date | None = None) -> dict:
         fit = croston_sba(events)
         last = history[-1] if history else None
         next_date = days_until = None
-        if fit:
-            next_date = events[-1][0] + timedelta(days=round(fit["everyDays"]))
-            days_until = (next_date - today).days
-        status = _status(len(events), days_until if days_until is not None else 0)
+        on_hand = float(tool.quantity_on_hand or 0)
+        lead = lead_by_tool.get(tool.id, DEFAULT_LEAD_DAYS)
+        used = used_by_tool.get(tool.id, [])
+        use = usage_forecast(used, on_hand, lead, today)
+        if use:
+            # Enough hand-outs: forecast from how fast the item is used.
+            basis = BASIS_USAGE
+            next_date, days_until = use["reorderOn"], use["daysUntilReorder"]
+            status = _status(len(used), days_until)
+        else:
+            basis = BASIS_PURCHASES
+            if fit:
+                next_date = events[-1][0] + timedelta(days=round(fit["everyDays"]))
+                days_until = (next_date - today).days
+            status = _status(len(events), days_until if days_until is not None else 0)
         costs = [r["unitCost"] for r in history if r["unitCost"] is not None]
         items.append(
             {
@@ -135,9 +229,29 @@ def replenishment(today: date | None = None) -> dict:
                 "lastQuantity": last["quantity"] if last else None,
                 "lastUnitCost": costs[-1] if costs else None,
                 "everyDays": _round(fit["everyDays"]) if fit else None,
-                "usualQuantity": _round(fit["usualQuantity"]) if fit else None,
-                "monthlyNeed": _round(fit["dailyRate"] * 30) if fit else None,
-                "typicalErrorDays": _round(fit["typicalErrorDays"]) if fit else None,
+                # What to buy: enough to cover the next ``COVER_DAYS`` once hand-outs
+                # are known; before that, the usual size of a purchase.
+                "usualQuantity": (
+                    use["suggestedQuantity"] if use
+                    else _round(fit["usualQuantity"]) if fit else None
+                ),
+                "monthlyNeed": (
+                    _round(use["dailyUse"] * 30) if use
+                    else _round(fit["dailyRate"] * 30) if fit else None
+                ),
+                "typicalErrorDays": (
+                    _round(use["typicalErrorDays"]) if use
+                    else _round(fit["typicalErrorDays"]) if fit else None
+                ),
+                "basis": basis,
+                "onHand": _round(on_hand, 2),
+                "handOuts": len(used),
+                "leadDays": _round(lead),
+                "dailyUse": _round(use["dailyUse"], 2) if use else None,
+                "safetyDays": _round(use["safetyDays"]) if use else None,
+                "reorderPoint": _round(use["reorderPoint"]) if use else None,
+                "daysOfCover": _round(use["daysOfCover"]) if use else None,
+                "runOutOn": use["runOutOn"].isoformat() if use else None,
                 "nextPurchaseOn": next_date.isoformat() if next_date else None,
                 "daysUntilNext": days_until,
                 "status": status,
@@ -150,7 +264,7 @@ def replenishment(today: date | None = None) -> dict:
         "asOf": today.isoformat(),
         "items": items,
         "summary": {
-            "tracked": sum(1 for r in items if r["purchases"]),
+            "tracked": sum(1 for r in items if r["purchases"] or r["handOuts"]),
             "forecast": sum(1 for r in items if r["status"] in ("OK", "DUE_SOON", "OVERDUE")),
             "dueSoon": sum(1 for r in items if r["status"] == "DUE_SOON"),
             "overdue": sum(1 for r in items if r["status"] == "OVERDUE"),
@@ -163,6 +277,9 @@ def replenishment(today: date | None = None) -> dict:
             "alpha": ALPHA,
             "minPurchases": MIN_PURCHASES,
             "dueSoonDays": DUE_SOON_DAYS,
+            "safetyMinDays": SAFETY_MIN_DAYS,
+            "coverDays": COVER_DAYS,
+            "defaultLeadDays": DEFAULT_LEAD_DAYS,
         },
     }
 

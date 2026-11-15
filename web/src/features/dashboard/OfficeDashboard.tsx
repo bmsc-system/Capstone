@@ -38,7 +38,7 @@ type Task = {
 };
 
 const TASK_LABEL: Record<TaskKind, { label: string; tone: 'amber' | 'blue' }> = {
-  materials: { label: 'Order materials', tone: 'amber' },
+  materials: { label: 'Create supplier order', tone: 'amber' },
   invoice: { label: 'Record sales invoice', tone: 'blue' },
 };
 

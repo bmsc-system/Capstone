@@ -74,7 +74,9 @@ class User(db.Model):
         back_populates="assigned_worker",
         foreign_keys="JobOperation.assigned_worker_id",
     )
-    tool_events = db.relationship("ToolEvent", back_populates="worker")
+    tool_events = db.relationship(
+        "ToolEvent", back_populates="worker", foreign_keys="ToolEvent.worker_id"
+    )
 
     def sync_active_flag(self):
         self.active = self.status == UserStatus.ACTIVE

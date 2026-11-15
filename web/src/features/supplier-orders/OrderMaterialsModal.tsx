@@ -2,7 +2,7 @@ import { formatShop } from '../../utils/shopTime';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Input, InputNumber, Modal, Select, Typography, message } from 'antd';
 import { DeleteOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
-import { catalogApi, type CatalogItem } from '../../api/catalog.api';
+import { catalogApi, CONSUMABLE_UNITS, type CatalogItem } from '../../api/catalog.api';
 import { supplierOrdersApi } from '../../api/supplierOrders.api';
 import { suppliersApi } from '../../api/suppliers.api';
 import { MATERIAL_UNITS } from '../../api/materialCatalog.api';
@@ -47,7 +47,13 @@ function ReliabilityText({ row }: { row?: SupplierReliability }) {
   );
 }
 
-type PlannedEdit = { quantity: number | null; unitCost: number | null; gradeOrSpec: string };
+type PlannedEdit = {
+  quantity: number | null;
+  unitCost: number | null;
+  gradeOrSpec: string;
+  /** Set when Office Staff change the unit the consumable is bought in. */
+  unit?: string;
+};
 
 /** A job material line picked from the catalog by Office Staff. */
 type MaterialLineDraft = {
@@ -235,6 +241,25 @@ export default function OrderMaterialsModal({
 
   const supplier = suppliers.find((s) => s.id === supplierId);
   const jobs = data?.jobs || [];
+  /** Picking a job on an empty line fills in the materials its plan still
+      needs (cost still to enter); a line already typed only changes its job. */
+  const pickJob = (key: number, jobOrderId: string) => {
+    const job = data?.jobs.find((j) => j.id === jobOrderId);
+    const fromPlan = linesFromPlanned(jobOrderId, job?.plannedMaterials);
+    setLines((prev) => {
+      const current = prev.find((l) => l.key === key);
+      const empty = current ? isBlank({ ...current, unit: 'pcs' }) : false;
+      const listed = new Set(
+        prev.filter((l) => l.jobOrderId === jobOrderId && l.plannedMaterialId).map((l) => l.plannedMaterialId)
+      );
+      const add = fromPlan.filter((l) => !listed.has(l.plannedMaterialId));
+      if (!empty || !add.length) {
+        return prev.map((l) => (l.key === key ? { ...l, jobOrderId } : l));
+      }
+      return prev.flatMap((l) => (l.key === key ? add : [l]));
+    });
+  };
+
   const setLine = (key: number, patch: Partial<MaterialLineDraft>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const addLine = () =>
@@ -307,7 +332,7 @@ export default function OrderMaterialsModal({
       payload.push({
         toolId: c.toolId,
         quantity: e.quantity,
-        unit: c.unit,
+        unit: e.unit || c.unit,
         unitCost: e.unitCost,
         gradeOrSpec: e.gradeOrSpec.trim() || null,
       });
@@ -351,7 +376,7 @@ export default function OrderMaterialsModal({
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="app-form-modal__title">
-            {jobId ? 'Order materials for this job' : 'New supplier order'}
+            {jobId ? 'Create supplier order for this job' : 'Create supplier order'}
           </div>
         </div>
         <button type="button" className="app-form-modal__close" onClick={onClose} aria-label="Close">
@@ -453,7 +478,7 @@ export default function OrderMaterialsModal({
                             placeholder="Choose a job"
                             style={{ width: '100%' }}
                             value={l.jobOrderId}
-                            onChange={(v: string) => setLine(l.key, { jobOrderId: v })}
+                            onChange={(v: string) => pickJob(l.key, v)}
                             popupMatchSelectWidth={false}
                             labelRender={(o) =>
                               jobs.find((j) => j.id === o.value)?.jobNumber ?? o.label
@@ -671,16 +696,29 @@ export default function OrderMaterialsModal({
                   {
                     title: 'Quantity',
                     key: 'qty',
-                    width: 130,
+                    width: 190,
                     render: (_: unknown, c) => (
-                      <InputNumber
-                        size="small"
-                        min={0.01}
-                        style={{ width: '100%' }}
-                        value={consumableEdits[c.toolId]?.quantity}
-                        onChange={(v) => setConsumableEdit(c.toolId, { quantity: v })}
-                        addonAfter={c.unit}
-                      />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <InputNumber
+                          size="small"
+                          min={0.01}
+                          style={{ flex: 1, minWidth: 0 }}
+                          value={consumableEdits[c.toolId]?.quantity}
+                          onChange={(v) => setConsumableEdit(c.toolId, { quantity: v })}
+                        />
+                        <Select
+                          size="small"
+                          aria-label={`Unit for ${c.name}`}
+                          style={{ width: 82 }}
+                          popupMatchSelectWidth={false}
+                          value={consumableEdits[c.toolId]?.unit || c.unit}
+                          onChange={(v: string) => setConsumableEdit(c.toolId, { unit: v })}
+                          options={[...new Set([c.unit, ...CONSUMABLE_UNITS])].map((u) => ({
+                            value: u,
+                            label: u,
+                          }))}
+                        />
+                      </div>
                     ),
                   },
                   {

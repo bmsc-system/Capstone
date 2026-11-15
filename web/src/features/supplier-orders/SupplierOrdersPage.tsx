@@ -137,11 +137,16 @@ export default function SupplierOrdersPage() {
       title: 'Status',
       dataIndex: 'status',
       width: 130,
-      render: (v: SupplierOrderStatus) => (
-        <StatusPill color={ORDER_STATUS_PILL[v].color} compact>
-          {ORDER_STATUS_PILL[v].label}
-        </StatusPill>
-      ),
+      render: (v: SupplierOrderStatus, row: SupplierOrder) =>
+        row.awaitingApproval ? (
+          <StatusPill color="amber" compact>
+            Awaiting approval
+          </StatusPill>
+        ) : (
+          <StatusPill color={ORDER_STATUS_PILL[v].color} compact>
+            {ORDER_STATUS_PILL[v].label}
+          </StatusPill>
+        ),
     },
     {
       title: 'Lines',
@@ -187,7 +192,7 @@ export default function SupplierOrdersPage() {
 
   const newButton = canOfficeWrite ? (
     <Button type="primary" icon={<PlusOutlined />} onClick={() => setNewOpen(true)}>
-      New supplier order
+      Create supplier order
     </Button>
   ) : null;
 

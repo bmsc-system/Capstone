@@ -95,7 +95,7 @@ export default function ClientFormModal({
           <ContactsOutlined />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="app-form-modal__title">{client ? 'Edit client' : 'Register client'}</div>
+          <div className="app-form-modal__title">{client ? 'Edit client' : 'Create client'}</div>
         </div>
         <button type="button" className="app-form-modal__close" onClick={onClose} aria-label="Close">
           ×

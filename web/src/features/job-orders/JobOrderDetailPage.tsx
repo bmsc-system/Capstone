@@ -111,18 +111,6 @@ const NAVY = '#0f1c2e';
 const BORDER = '#e2e8f0';
 const MUTED = '#64748b';
 
-const PART_STAGE_LABEL: Record<string, string> = {
-  RAW_MATERIAL: 'Raw material',
-  CLIENT_SUPPLIED_ITEM: 'Client supplied item',
-  WORK_IN_PROCESS: 'Work in process',
-  CUT: 'Cut',
-  BLANK: 'Blank',
-  FORMED: 'Formed',
-  MACHINED: 'Machined',
-  ASSEMBLED: 'Assembled',
-  HEAT_TREATED: 'Heat treated',
-  FINISHED: 'Finished',
-};
 
 const JOB_TYPE_LABEL: Record<string, string> = {
   FABRICATION: 'Fabrication',
@@ -900,7 +888,7 @@ function JobOrderDetailView() {
               <div style={{ fontWeight: 800, fontSize: 14, color: NAVY }}>Materials</div>
               {canOfficeWrite && job.materialStatus !== 'NOT_REQUIRED' ? (
                 <Button type="primary" onClick={() => setPurchaseOpen(true)}>
-                  Order materials
+                  Create supplier order
                 </Button>
               ) : null}
             </div>
@@ -919,8 +907,8 @@ function JobOrderDetailView() {
                   canOfficeWrite &&
                   row.supplierOrderId &&
                   row.status === 'ORDERED' ? (
-                    <Tooltip title="Deliveries arrive complete: receive the whole order on its page.">
-                      <Link to={`/supplier-orders/${row.supplierOrderId}`}>Receive order</Link>
+                    <Tooltip title="Deliveries arrive complete: confirm the whole delivery on the order's page.">
+                      <Link to={`/supplier-orders/${row.supplierOrderId}`}>Confirm delivery</Link>
                     </Tooltip>
                   ) : null
                 }
@@ -1174,10 +1162,6 @@ function JobOrderDetailView() {
                           ? 'To order'
                           : '—'
                 }
-              />
-              <DetailRow
-                label="Stage of the part"
-                value={friendlyEnum(job.partCondition, PART_STAGE_LABEL)}
               />
               <DetailRow label="Created" value={fmtDate(job.createdAt)} />
             </div>

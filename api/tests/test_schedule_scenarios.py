@@ -13,7 +13,7 @@ from decimal import Decimal
 import pytest
 from flask_jwt_extended import create_access_token
 
-from tests.catalog_helpers import ensure_material
+from tests.catalog_helpers import approve_issue, ensure_material
 from app.extensions import db
 from app.models.client import Client
 from app.models.job_order import JobOrder, JobOrderStatus, JobType, MaterialStatus, PartCondition
@@ -383,11 +383,7 @@ def _order_line(client, shop, job, issued, expected):
     )
     assert res.status_code == 200, res.get_json()
     order_id = res.get_json()["id"]
-    res = client.post(
-        f"/api/v1/supplier-orders/{order_id}/issue",
-        json={"dateIssued": issued.isoformat()},
-        headers=_headers(shop["office"]),
-    )
+    res = approve_issue(client, f"/api/v1/supplier-orders/{order_id}", {"dateIssued": issued.isoformat()}, _headers(shop["office"]))
     assert res.status_code == 200, res.get_json()
     so = db.session.get(SupplierOrder, order_id)
     so.expected_delivery_date = expected

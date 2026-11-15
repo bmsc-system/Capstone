@@ -28,6 +28,7 @@ class StaffAlertKind:
     LOW_STOCK = "LOW_STOCK"
     OPERATION_DONE = "OPERATION_DONE"
     JOB_DONE = "JOB_DONE"
+    PO_APPROVAL = "PO_APPROVAL"
 
 
 class StaffAlert(db.Model):

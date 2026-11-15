@@ -32,6 +32,15 @@ export const supplierOrdersApi = {
     }
   ) => apiClient.patch<SupplierOrder>(`/supplier-orders/${id}`, data),
   /** poSeq: the PO number's last digits, when Office Staff set their own. */
+  /** Office Staff: send the draft to the Admin for approval. */
+  submit: (id: string, dateIssued?: string, poSeq?: number) =>
+    apiClient.post<SupplierOrder>(`/supplier-orders/${id}/submit`, { dateIssued, poSeq }),
+  /** Office Staff: take a sent draft back to change it. */
+  withdraw: (id: string) => apiClient.post<SupplierOrder>(`/supplier-orders/${id}/withdraw`),
+  /** Admin: send the draft back with what to change. */
+  sendBack: (id: string, note: string) =>
+    apiClient.post<SupplierOrder>(`/supplier-orders/${id}/return`, { note }),
+  /** Admin: approve the sent draft and issue the PO. */
   issue: (id: string, dateIssued?: string, poSeq?: number) =>
     apiClient.post<SupplierOrder>(`/supplier-orders/${id}/issue`, { dateIssued, poSeq }),
   changeExpectedDelivery: (id: string, expectedDeliveryDate: string, note: string) =>
@@ -40,7 +49,7 @@ export const supplierOrdersApi = {
       note,
     }),
   cancel: (id: string) => apiClient.post<SupplierOrder>(`/supplier-orders/${id}/cancel`),
-  /** Receive order: every open line on one date. */
+  /** Confirm delivery: every open line on one date. */
   receive: (id: string, receivedDate?: string) =>
     apiClient.post<SupplierOrder>(`/supplier-orders/${id}/receive`, { receivedDate }),
   /** Read-only print payload (does not mark printed). */

@@ -255,8 +255,8 @@ def test_consumable_line_needs_offered_tool_but_not_stock(client, shop):
     res = _add_lines(client, shop, [{"toolId": hidden.id, "quantity": 1}])
     assert res.status_code == 400
 
-    res = _add_lines(client, shop, [{"toolId": fresh.id, "quantity": 3, "unit": "pcs"}])
-    assert res.status_code == 400  # unit is locked to the consumable's unit
+    res = _add_lines(client, shop, [{"toolId": fresh.id, "quantity": 3, "unit": "crate"}])
+    assert res.status_code == 400  # only the listed consumable units
     res = _add_lines(client, shop, [{"toolId": fresh.id, "quantity": 3, "unitCost": 10}])
     assert res.status_code == 200, res.get_json()
     assert res.get_json()["lines"][0]["unit"] == "box"

@@ -795,7 +795,7 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
                   type="button"
                   className="sched-m__icon jo-m__add"
                   onClick={() => navigate('/job-orders/new')}
-                  aria-label="New job order"
+                  aria-label="Create job order"
                 >
                   <PlusOutlined />
                 </button>
@@ -965,7 +965,7 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
               onClick={() => navigate('/job-orders/new')}
               style={{ fontWeight: 700 }}
             >
-              New Job Order
+              Create job order
             </Button>
           )}
         </div>

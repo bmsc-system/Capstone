@@ -238,7 +238,7 @@ export default function ClientsPage() {
           </Tooltip>
           {canEdit && (
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} style={{ fontWeight: 700 }}>
-              Register client
+              Create client
             </Button>
           )}
         </div>

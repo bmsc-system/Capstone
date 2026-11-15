@@ -330,6 +330,14 @@ export interface SupplierOrder {
   preparedByName?: string | null;
   issuedById?: string | null;
   issuedByName?: string | null;
+  /** A draft the Office Staff sent to the Admin; locked until approved or taken back. */
+  awaitingApproval?: boolean;
+  submittedAt?: string | null;
+  submittedByName?: string | null;
+  requestedPoSeq?: number | null;
+  requestedIssueDate?: string | null;
+  /** What the Admin asked to change when sending the draft back. */
+  returnNote?: string | null;
   /** Set on first Print PO; required before receive. */
   printedAt?: string | null;
   printedById?: string | null;
@@ -357,6 +365,8 @@ export interface OrderingJob {
   draftLineCount: number;
   /** No line on an issued supplier order yet. */
   notOrderedYet: boolean;
+  /** The job's materials needed, with what is still to order. */
+  plannedMaterials?: PlannedMaterialSummary[];
 }
 
 /** A consumable due to be bought again, offered when creating a supplier order. */

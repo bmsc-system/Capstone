@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 from flask_jwt_extended import create_access_token
 
-from tests.catalog_helpers import ensure_material
+from tests.catalog_helpers import approve_issue, ensure_material
 
 from app.extensions import bcrypt, db
 from app.models.client import Client
@@ -115,11 +115,7 @@ def _both_jobs_draft(client, shop):
 
 
 def _issue(client, shop, order_id, user=None, when="2031-03-02"):
-    return client.post(
-        f"/api/v1/supplier-orders/{order_id}/issue",
-        json={"dateIssued": when},
-        headers=_headers(user or shop["office"]),
-    )
+    return approve_issue(client, f"/api/v1/supplier-orders/{order_id}", {"dateIssued": when}, _headers(user or shop["office"]))
 
 
 def _print(client, shop, order_id, user=None):
@@ -187,7 +183,9 @@ def test_issuing_assigns_number_and_locks_lines(client, shop):
     assert issued["poNumber"] == "PSL31000001"
     assert issued["dateIssued"] == "2031-03-02"
     assert issued["expectedDeliveryDate"] == "2031-03-07"
-    assert issued["issuedById"] == shop["office"].id
+    # Prepared by the Office Staff who sent it; approved and issued by an Admin.
+    assert issued["preparedById"] == shop["office"].id
+    assert issued["issuedByName"] == "Approver Admin"
     assert all(ln["dateOrdered"] == "2031-03-02" for ln in issued["lines"])
 
     headers = _headers(shop["office"])
@@ -336,7 +334,7 @@ def test_partly_received_order_is_completed_by_receive_order(client, shop):
         f"/api/v1/supplier-orders/{order['id']}/cancel", headers=_headers(shop["office"])
     )
     assert res.status_code == 409
-    assert "Receive order" in res.get_json()["error"]["message"]
+    assert "Confirm delivery" in res.get_json()["error"]["message"]
 
     res = _receive(client, shop, order["id"], "2031-03-08")
     assert res.status_code == 200, res.get_json()
@@ -605,11 +603,7 @@ def test_the_first_po_can_carry_on_from_the_paper_numbers(client, shop):
     first = _add_lines(client, shop, [_line(shop["job_a"], "Bolts", 1, 5)], supplier=shop["steel"])
     draft = client.get(f"/api/v1/supplier-orders/{first.get_json()['id']}", headers=_headers(shop["office"]))
     assert draft.get_json()["nextPoSeq"] == 1
-    res = client.post(
-        f"/api/v1/supplier-orders/{first.get_json()['id']}/issue",
-        json={"dateIssued": "2031-03-02", "poSeq": 21},
-        headers=_headers(shop["office"]),
-    )
+    res = approve_issue(client, f"/api/v1/supplier-orders/{first.get_json()['id']}", {"dateIssued": "2031-03-02", "poSeq": 21}, _headers(shop["office"]))
     assert res.status_code == 200, res.get_json()
     assert res.get_json()["poNumber"] == "PSL31000021"
     second = _add_lines(client, shop, [_line(shop["job_a"], "Nuts", 1, 5)], supplier=shop["steel"])
@@ -620,16 +614,57 @@ def test_a_po_number_already_used_is_refused(client, shop):
     first = _add_lines(client, shop, [_line(shop["job_a"], "Bolts", 1, 5)], supplier=shop["steel"])
     _issue(client, shop, first.get_json()["id"], when="2031-03-02")
     second = _add_lines(client, shop, [_line(shop["job_a"], "Nuts", 1, 5)], supplier=shop["steel"])
-    res = client.post(
-        f"/api/v1/supplier-orders/{second.get_json()['id']}/issue",
-        json={"dateIssued": "2031-03-03", "poSeq": 1},
-        headers=_headers(shop["office"]),
-    )
+    res = approve_issue(client, f"/api/v1/supplier-orders/{second.get_json()['id']}", {"dateIssued": "2031-03-03", "poSeq": 1}, _headers(shop["office"]))
     assert res.status_code == 409
     assert res.get_json()["error"]["code"] == "PO_NUMBER_TAKEN"
-    bad = client.post(
-        f"/api/v1/supplier-orders/{second.get_json()['id']}/issue",
-        json={"dateIssued": "2031-03-03", "poSeq": 0},
-        headers=_headers(shop["office"]),
-    )
+    bad = approve_issue(client, f"/api/v1/supplier-orders/{second.get_json()['id']}", {"dateIssued": "2031-03-03", "poSeq": 0}, _headers(shop["office"]))
     assert bad.status_code == 400
+
+
+def test_office_sends_for_approval_and_only_the_admin_issues(client, shop):
+    order_id = _add_lines(client, shop, [_line(shop["job_a"], "Plate", 2, 100)]).get_json()["id"]
+    url = f"/api/v1/supplier-orders/{order_id}"
+    office = _headers(shop["office"])
+    admin = _headers(shop["admin"])
+
+    # Office Staff cannot issue, and the Admin cannot issue what was not sent.
+    assert client.post(f"{url}/issue", json={}, headers=office).status_code == 403
+    res = client.post(f"{url}/issue", json={}, headers=admin)
+    assert res.status_code == 409
+    assert res.get_json()["error"]["code"] == "ORDER_NOT_SUBMITTED"
+
+    res = client.post(f"{url}/submit", json={"dateIssued": "2031-03-02", "poSeq": 40}, headers=office)
+    assert res.status_code == 200, res.get_json()
+    body = res.get_json()
+    assert body["status"] == "DRAFT" and body["awaitingApproval"] is True
+    assert body["requestedPoSeq"] == 40
+    # The sent draft is locked: no line changes and no new lines until it is
+    # approved, sent back or taken back.
+    line_id = body["lines"][0]["id"]
+    res = client.patch(f"{url}/lines/{line_id}", json={"quantity": 9}, headers=office)
+    assert res.status_code == 409
+    assert res.get_json()["error"]["code"] == "ORDER_AWAITING_APPROVAL"
+    res = _add_lines(client, shop, [_line(shop["job_a"], "Bolts", 1, 5)])
+    assert res.status_code == 409
+    assert res.get_json()["error"]["code"] == "ORDER_AWAITING_APPROVAL"
+    assert client.post(f"{url}/withdraw", json={}, headers=office).status_code == 200
+    assert client.patch(f"{url}/lines/{line_id}", json={"quantity": 2}, headers=office).status_code == 200
+    assert client.post(f"{url}/submit", json={"dateIssued": "2031-03-02", "poSeq": 40}, headers=office).status_code == 200
+
+    # The Admin sends it back with a note; Office Staff change it and send again.
+    res = client.post(f"{url}/return", json={"note": "Make it 3 pcs"}, headers=admin)
+    assert res.status_code == 200, res.get_json()
+    assert res.get_json()["awaitingApproval"] is False
+    assert res.get_json()["returnNote"] == "Make it 3 pcs"
+    assert client.patch(f"{url}/lines/{line_id}", json={"quantity": 3}, headers=office).status_code == 200
+    assert client.post(f"{url}/submit", json={"dateIssued": "2031-03-02", "poSeq": 40}, headers=office).status_code == 200
+
+    # Approving uses the number and date the Office Staff asked for.
+    res = client.post(f"{url}/issue", json={}, headers=admin)
+    assert res.status_code == 200, res.get_json()
+    issued = res.get_json()
+    assert issued["status"] == "ISSUED"
+    assert issued["poNumber"].endswith("000040")
+    assert issued["dateIssued"] == "2031-03-02"
+    assert issued["preparedById"] == shop["office"].id
+    assert issued["issuedById"] == shop["admin"].id

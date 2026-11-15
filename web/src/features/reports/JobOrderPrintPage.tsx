@@ -38,18 +38,6 @@ function fmtStamp(v?: string | null) {
   return v ? formatShop(v, 'MMM D, h:mm A') : '—';
 }
 
-const PART_STAGE_LABEL: Record<string, string> = {
-  RAW_MATERIAL: 'Raw material',
-  CLIENT_SUPPLIED_ITEM: 'Client supplied item',
-  WORK_IN_PROCESS: 'Work in process',
-  CUT: 'Cut',
-  BLANK: 'Blank',
-  FORMED: 'Formed',
-  MACHINED: 'Machined',
-  ASSEMBLED: 'Assembled',
-  HEAT_TREATED: 'Heat treated',
-  FINISHED: 'Finished',
-};
 
 function orDash(v?: string | number | null) {
   return v == null || v === '' ? '—' : v;
@@ -238,12 +226,6 @@ export default function JobOrderPrintPage() {
         <div>
           <span className="shop-print-label">Quantity:</span> {quantity}
         </div>
-        {job.partCondition ? (
-          <div className="shop-print-fields__full">
-            <span className="shop-print-label">Stage of the part:</span>{' '}
-            {PART_STAGE_LABEL[job.partCondition] || job.partCondition}
-          </div>
-        ) : null}
         <div className="shop-print-fields__full">
           <span className="shop-print-label">Title:</span> {orDash(job.title)}
         </div>

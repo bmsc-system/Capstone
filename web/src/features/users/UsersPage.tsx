@@ -244,7 +244,7 @@ export default function UsersPage() {
   const onDeactivate = async (id: string) => {
     try {
       await usersApi.deactivate(id);
-      message.success('User disabled');
+      message.success('User deactivated');
       fetchUsers();
     } catch (err) {
       message.error(getErrorMessage(err));
@@ -254,7 +254,7 @@ export default function UsersPage() {
   const onReenable = async (id: string) => {
     try {
       await usersApi.update(id, { active: true });
-      message.success('User re-enabled');
+      message.success('User reactivated');
       fetchUsers();
     } catch (err) {
       message.error(getErrorMessage(err));
@@ -263,9 +263,9 @@ export default function UsersPage() {
 
   const confirmDisable = (id: string, name: string) => {
     confirmAction({
-      title: `Disable ${name}?`,
+      title: `Deactivate ${name}?`,
       content: 'They can no longer sign in. Their history is kept.',
-      okText: 'Disable',
+      okText: 'Deactivate',
       danger: true,
       onOk: () => onDeactivate(id),
     });
@@ -322,7 +322,7 @@ export default function UsersPage() {
         const color =
           status === 'ACTIVE' ? 'green' : status === 'INVITED' ? 'amber' : 'red';
         const label =
-          status === 'ACTIVE' ? 'Active' : status === 'INVITED' ? 'Invited' : 'Disabled';
+          status === 'ACTIVE' ? 'Active' : status === 'INVITED' ? 'Invited' : 'Deactivated';
         return (
           <StatusPill color={color} compact>
             {label}
@@ -377,19 +377,19 @@ export default function UsersPage() {
             key: 'deactivate',
             icon: <StopOutlined />,
             danger: true,
-            label: 'Disable',
+            label: 'Deactivate',
             onClick: () => confirmDisable(record.id, record.fullName),
           });
         } else {
           items.push({
             key: 'reenable',
             icon: <CheckCircleOutlined />,
-            label: 'Re-enable',
+            label: 'Reactivate',
             onClick: () => {
               confirmAction({
-                title: `Re-enable ${record.fullName}?`,
+                title: `Reactivate ${record.fullName}?`,
                 content: 'They can sign in again with their current password.',
-                okText: 'Re-enable',
+                okText: 'Reactivate',
                 onOk: () => onReenable(record.id),
               });
             },
@@ -492,7 +492,7 @@ export default function UsersPage() {
             onClick={() => setModalOpen(true)}
             style={{ fontWeight: 700 }}
           >
-            Add User
+            Create user account
           </Button>
         </div>
       </div>
@@ -541,12 +541,12 @@ export default function UsersPage() {
       <FormModal
         open={modalOpen}
         icon={<UserAddOutlined />}
-        title="Add User"
+        title="Create user account"
         size="lg"
         width={640}
         onCancel={closeModal}
         onOk={() => form.submit()}
-        okText="Create User"
+        okText="Create account"
         confirmLoading={submitting}
         destroyOnHidden
       >

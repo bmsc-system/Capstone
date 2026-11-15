@@ -76,6 +76,8 @@ function IssueFields({
   nextSeq,
   onDate,
   onSeq,
+  startDate,
+  startSeq,
 }: {
   intro: string;
   code: string | null | undefined;
@@ -83,14 +85,17 @@ function IssueFields({
   nextSeq: number;
   onDate: (d: Dayjs) => void;
   onSeq: (n: number) => void;
+  /** What the Office Staff asked for, shown to the Admin to confirm. */
+  startDate?: Dayjs;
+  startSeq?: number;
 }) {
-  const [seq, setSeq] = useState<number>(nextSeq);
+  const [seq, setSeq] = useState<number>(startSeq ?? nextSeq);
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ marginBottom: 8, fontSize: 13, color: '#475569' }}>{intro}</div>
       <DatePicker
         style={{ width: '100%' }}
-        defaultValue={shopToday()}
+        defaultValue={startDate ?? shopToday()}
         format="MMM D, YYYY"
         allowClear={false}
         disabledDate={isFutureShopDay}
@@ -136,7 +141,7 @@ function IssueFields({
 export default function SupplierOrderDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { canOfficeWrite } = useAuth();
+  const { canOfficeWrite, isAdmin } = useAuth();
   const phone = useMediaQuery(PHONE_QUERY);
   const [order, setOrder] = useState<SupplierOrder | null>(null);
   const [loading, setLoading] = useState(true);
@@ -202,10 +207,13 @@ export default function SupplierOrderDetailPage() {
   if (!order) return <div style={{ padding: 24 }}>Supplier order not found.</div>;
 
   const isDraft = order.status === 'DRAFT';
+  const awaiting = isDraft && Boolean(order.awaitingApproval);
   const receivable = order.status === 'ISSUED' || order.status === 'PARTIALLY_RECEIVED';
   const lines = order.lines || [];
-  const pill = ORDER_STATUS_PILL[order.status];
-  const editableDraft = isDraft && canOfficeWrite;
+  const pill = awaiting
+    ? { label: 'Awaiting approval', color: 'amber' as const }
+    : ORDER_STATUS_PILL[order.status];
+  const editableDraft = isDraft && canOfficeWrite && !awaiting;
   const printed = canReceiveOrder(order.printedAt);
   const receivableByMe = receivable && canOfficeWrite;
   const cancelled = order.status === 'CANCELLED';
@@ -268,18 +276,17 @@ export default function SupplierOrderDetailPage() {
   const draftDirty =
     editableDraft && ((order.notes || '') !== notes || (order.vatRate ?? null) !== vatRate);
 
-  const issue = () => {
+  /** Office Staff: send the draft to the Admin with the PO number and date they want. */
+  const sendForApproval = () => {
     let picked: Dayjs = shopToday();
     const nextSeq = order.nextPoSeq ?? 1;
     let seq = nextSeq;
     confirmAction({
       wide: true,
-      title: `Issue ${order.supplierName} order?`,
+      title: `Send ${order.supplierName} order for approval?`,
       content: (
         <IssueFields
-          intro={`This assigns the PO number, sets the expected delivery date from the supplier's ${
-            order.supplierLeadTimeDays ?? '—'
-          }-day lead time, and locks the lines. Date issued:`}
+          intro="The Admin approves it before the PO is issued. The lines lock while it waits; you can take it back to change it. Date to issue:"
           code={order.supplierCode}
           year={order.nextPoYear ?? shopToday().year()}
           nextSeq={nextSeq}
@@ -291,7 +298,54 @@ export default function SupplierOrderDetailPage() {
           }}
         />
       ),
-      okText: 'Issue order',
+      okText: 'Send for approval',
+      onOk: () =>
+        run(
+          () =>
+            supplierOrdersApi.submit(
+              order.id,
+              picked.format('YYYY-MM-DD'),
+              order.supplierCode && seq !== nextSeq ? seq : undefined
+            ),
+          'Sent to the Admin for approval'
+        ),
+    });
+  };
+
+  const takeBack = () =>
+    run(() => supplierOrdersApi.withdraw(order.id), 'Taken back. You can change it now.').catch(
+      () => {}
+    );
+
+  /** Admin: approve what the Office Staff sent and issue the PO. */
+  const issue = () => {
+    const nextSeq = order.nextPoSeq ?? 1;
+    const startSeq = order.requestedPoSeq ?? nextSeq;
+    const startDate = order.requestedIssueDate ? dayjs(order.requestedIssueDate) : shopToday();
+    let picked: Dayjs = startDate;
+    let seq = startSeq;
+    confirmAction({
+      wide: true,
+      title: `Approve and issue ${order.supplierName} order?`,
+      content: (
+        <IssueFields
+          intro={`This assigns the PO number, sets the expected delivery date from the supplier's ${
+            order.supplierLeadTimeDays ?? '—'
+          }-day lead time, and locks the lines. Date issued:`}
+          code={order.supplierCode}
+          year={order.nextPoYear ?? shopToday().year()}
+          nextSeq={nextSeq}
+          startSeq={startSeq}
+          startDate={startDate}
+          onDate={(d) => {
+            picked = d;
+          }}
+          onSeq={(n) => {
+            seq = n;
+          }}
+        />
+      ),
+      okText: 'Approve and issue',
       onOk: () =>
         run(
           () =>
@@ -300,8 +354,36 @@ export default function SupplierOrderDetailPage() {
               picked.format('YYYY-MM-DD'),
               order.supplierCode && seq !== nextSeq ? seq : undefined
             ),
-          'Order issued'
+          'Order approved and issued'
         ),
+    });
+  };
+
+  const sendBack = () => {
+    let note = '';
+    confirmAction({
+      title: 'Send this order back to Office Staff?',
+      content: (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>What should be changed?</div>
+          <Input.TextArea
+            rows={3}
+            maxLength={1000}
+            placeholder="For example: reduce the quantity of the round bar to 4 pcs"
+            onChange={(e) => {
+              note = e.target.value;
+            }}
+          />
+        </div>
+      ),
+      okText: 'Send back',
+      onOk: async () => {
+        if (!note.trim()) {
+          message.warning('Say what should be changed.');
+          throw new Error('note required');
+        }
+        await run(() => supplierOrdersApi.sendBack(order.id, note.trim()), 'Sent back to Office Staff');
+      },
     });
   };
 
@@ -344,22 +426,26 @@ export default function SupplierOrderDetailPage() {
   const openLines = lines.filter((ln) => !ln.cancelledAt && !ln.dateReceived);
   const receiveOrder = () =>
     askDate(
-      `Receive ${order.poNumber}?`,
+      `Confirm delivery of ${order.poNumber}?`,
       `Deliveries arrive complete: all ${openLines.length} open line${
         openLines.length === 1 ? '' : 's'
       } on this order are received on one date. Date received:`,
-      'Receive order',
-      (d) => run(() => supplierOrdersApi.receive(order.id, d), 'Order received')
+      'Confirm delivery',
+      (d) => run(() => supplierOrdersApi.receive(order.id, d), 'Delivery confirmed')
     );
 
+  // A draft was never sent to the supplier, so it is discarded, not cancelled.
   const cancelOrder = () =>
     confirmAction({
-      title: 'Cancel this supplier order?',
-      content: 'Its materials go back to "to order".',
-      okText: 'Cancel order',
+      title: isDraft ? 'Discard this draft order?' : 'Cancel this supplier order?',
+      content: isDraft
+        ? 'The draft is removed and its materials go back to "to order". Nothing was sent to the supplier.'
+        : 'Its materials go back to "to order".',
+      okText: isDraft ? 'Discard draft' : 'Cancel order',
       danger: true,
       cancelText: 'Keep',
-      onOk: () => run(() => supplierOrdersApi.cancel(order.id), 'Order cancelled'),
+      onOk: () =>
+        run(() => supplierOrdersApi.cancel(order.id), isDraft ? 'Draft discarded' : 'Order cancelled'),
     });
 
   const removeLine = (ln: MaterialPurchase) =>
@@ -575,25 +661,41 @@ export default function SupplierOrderDetailPage() {
                 Add lines
               </Button>
             ) : null}
-            {isDraft ? (
+            {isDraft && canOfficeWrite && !awaiting ? (
+              <Tooltip title={draftDirty ? 'Save your changes first' : undefined}>
+                <Button
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  disabled={busy || lines.length === 0 || draftDirty}
+                  onClick={sendForApproval}
+                >
+                  Send for approval
+                </Button>
+              </Tooltip>
+            ) : null}
+            {awaiting && canOfficeWrite ? (
+              <Button disabled={busy} onClick={takeBack}>
+                Take back to change
+              </Button>
+            ) : null}
+            {isDraft && isAdmin ? (
               <Tooltip
-                title={
-                  !canOfficeWrite
-                    ? 'Only Office Staff can issue a supplier order.'
-                    : draftDirty
-                      ? 'Save your changes first'
-                      : undefined
-                }
+                title={!awaiting ? 'Office Staff have not sent this order for approval yet.' : undefined}
               >
                 <Button
                   type="primary"
                   icon={<CheckOutlined />}
-                  disabled={!canOfficeWrite || busy || lines.length === 0 || draftDirty}
+                  disabled={busy || !awaiting || lines.length === 0}
                   onClick={issue}
                 >
-                  Issue order
+                  Approve and issue
                 </Button>
               </Tooltip>
+            ) : null}
+            {awaiting && isAdmin ? (
+              <Button disabled={busy} onClick={sendBack}>
+                Send back
+              </Button>
             ) : null}
             {!isDraft && !cancelled ? (
               <Button
@@ -613,18 +715,44 @@ export default function SupplierOrderDetailPage() {
                   disabled={!openLines.length || busy || !printed}
                   onClick={receiveOrder}
                 >
-                  Receive order
+                  Confirm delivery
                 </Button>
               </Tooltip>
             ) : null}
             {canOfficeWrite && (order.status === 'DRAFT' || order.status === 'ISSUED') ? (
               <Button danger icon={<StopOutlined />} disabled={busy} onClick={cancelOrder}>
-                Cancel order
+                {isDraft ? 'Discard draft' : 'Cancel order'}
               </Button>
             ) : null}
           </Space>
         </header>
 
+        {awaiting ? (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={`Waiting for the Admin's approval${
+              order.submittedByName ? `. Sent by ${order.submittedByName}` : ''
+            }${order.submittedAt ? ` on ${formatShop(order.submittedAt, 'MMM D, h:mm A')}` : ''}.`}
+            description={
+              canOfficeWrite
+                ? 'The lines are locked while it waits. Take it back if something needs to change.'
+                : isAdmin
+                  ? 'Check the lines and totals, then approve and issue it, or send it back with what to change.'
+                  : undefined
+            }
+          />
+        ) : null}
+        {isDraft && !awaiting && order.returnNote ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="The Admin sent this order back"
+            description={order.returnNote}
+          />
+        ) : null}
         <div className="so-doc__grid">
           <div className="so-doc__block">
             <div className="so-doc__label">Supplier</div>

@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 from flask_jwt_extended import create_access_token
 
-from tests.catalog_helpers import ensure_material
+from tests.catalog_helpers import approve_issue, ensure_material
 from app.extensions import bcrypt, db
 from app.models.client import Client
 from app.models.job_order import JobOrder, JobOrderStatus, JobType, MaterialStatus, PartCondition
@@ -131,11 +131,7 @@ def test_office_opens_draft_detail_and_records_purchase(client, shop):
     body = client.get(f"/api/v1/job-orders/{job.id}", headers=headers).get_json()
     assert body["materialStatus"] == "TO_ORDER"
 
-    res = client.post(
-        f"/api/v1/supplier-orders/{order_id}/issue",
-        json={"dateIssued": "2031-03-02"},
-        headers=_headers(shop["office"]),
-    )
+    res = approve_issue(client, f"/api/v1/supplier-orders/{order_id}", {"dateIssued": "2031-03-02"}, _headers(shop["office"]))
     assert res.status_code == 200, res.get_json()
 
     body = client.get(f"/api/v1/job-orders/{job.id}", headers=headers).get_json()
@@ -393,11 +389,7 @@ def test_expected_arrival_matches_latest_outstanding_po_line(client, shop):
             headers=headers,
         )
         assert res.status_code == 201, res.get_json()
-        res = client.post(
-            f"/api/v1/supplier-orders/{res.get_json()['supplierOrderId']}/issue",
-            json={"dateIssued": "2031-03-02"},
-            headers=_headers(shop["office"]),
-        )
+        res = approve_issue(client, f"/api/v1/supplier-orders/{res.get_json()['supplierOrderId']}", {"dateIssued": "2031-03-02"}, _headers(shop["office"]))
         assert res.status_code == 200, res.get_json()
     _line(job, shop["fast"], date(2031, 2, 20), received=date(2031, 3, 5), name="Bolts")
 

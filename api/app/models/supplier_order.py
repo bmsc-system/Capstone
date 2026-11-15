@@ -108,6 +108,16 @@ class SupplierOrder(db.Model):
     )
     prepared_by_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
     issued_by_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    # Approval: Office Staff send the draft to the Admin, who approves and issues
+    # it (or sends it back with a note). A sent draft is locked until taken back.
+    submitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    submitted_by_id = db.Column(
+        db.String(36), db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # The PO number and date the Office Staff asked for; the Admin may change them.
+    requested_po_seq = db.Column(db.Integer, nullable=True)
+    requested_issue_date = db.Column(db.Date, nullable=True)
+    return_note = db.Column(db.Text, nullable=True)
     # First print of the issued PO (the supplier needs the paper copy before receive).
     printed_at = db.Column(db.DateTime(timezone=True), nullable=True)
     printed_by_id = db.Column(
@@ -124,6 +134,7 @@ class SupplierOrder(db.Model):
     supplier = db.relationship("Supplier")
     prepared_by = db.relationship("User", foreign_keys=[prepared_by_id])
     issued_by = db.relationship("User", foreign_keys=[issued_by_id])
+    submitted_by = db.relationship("User", foreign_keys=[submitted_by_id])
     printed_by = db.relationship("User", foreign_keys=[printed_by_id])
     lines = db.relationship(
         "MaterialPurchase",
@@ -177,6 +188,16 @@ class SupplierOrder(db.Model):
             "preparedByName": self.prepared_by.full_name if self.prepared_by else None,
             "issuedById": self.issued_by_id,
             "issuedByName": self.issued_by.full_name if self.issued_by else None,
+            "awaitingApproval": bool(
+                self.status == SupplierOrderStatus.DRAFT and self.submitted_at
+            ),
+            "submittedAt": self.submitted_at.isoformat() if self.submitted_at else None,
+            "submittedByName": self.submitted_by.full_name if self.submitted_by else None,
+            "requestedPoSeq": self.requested_po_seq,
+            "requestedIssueDate": (
+                self.requested_issue_date.isoformat() if self.requested_issue_date else None
+            ),
+            "returnNote": self.return_note,
             "printedAt": self.printed_at.isoformat() if self.printed_at else None,
             "printedById": self.printed_by_id,
             "printedByName": self.printed_by.full_name if self.printed_by else None,
