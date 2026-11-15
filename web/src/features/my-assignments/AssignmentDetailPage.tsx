@@ -21,6 +21,7 @@ import { SHOP_TZ, formatShop, shopToday } from '../../utils/shopTime';
 import type { JobOrder, Operation, OperationPauseReason, PartCondition } from '../../types';
 import { PageSkeleton } from '../../components/ui';
 import { isJobFinished } from '../job-orders/jobStage';
+import { useMyOperationsOptional } from './useMyOperations';
 import {
   announceRecorded,
   canStartOperation,
@@ -119,6 +120,7 @@ export default function AssignmentDetailPage() {
   const { user } = useAuth();
   const { colors } = useWorkerTheme();
   const { online, userId, pending, version, record } = useOffline();
+  const myOps = useMyOperationsOptional();
   const [loadedJob, setLoadedJob] = useState<JobOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -317,6 +319,22 @@ export default function AssignmentDetailPage() {
           : colors.accent;
 
   const ops = job.operations || [];
+  // One running operation per worker: the one this worker has the clock on now.
+  const runningElsewhere = (opId: string) =>
+    (myOps?.operations || []).find(
+      (o) => o.id !== opId && o.status === 'IN_PROGRESS' && !o.isPaused
+    ) || ops.find(
+      (o) =>
+        o.id !== opId &&
+        o.status === 'IN_PROGRESS' &&
+        !o.isPaused &&
+        Boolean(user?.id) &&
+        (o.assignedWorkerId === user?.id || (o.helperIds || []).includes(user?.id as string))
+    );
+  const stillOnText = (o: Operation) =>
+    `You're still on ${o.operationName || 'another operation'}${
+      o.jobNumber ? ` (${o.jobNumber})` : ''
+    }. Pause or finish it first.`;
 
   return (
     <div>
@@ -442,6 +460,13 @@ export default function AssignmentDetailPage() {
                 (op.assignedWorkerId === user.id || (op.helperIds || []).includes(user.id))
             );
             const canStart = canStartOperation(op, ops, user?.id);
+            const busyWith = isMine && !done ? runningElsewhere(op.id) : undefined;
+            const startsLater =
+              canStart &&
+              op.scheduledStart &&
+              formatShop(op.scheduledStart, 'YYYY-MM-DD') > shopToday().format('YYYY-MM-DD')
+                ? formatShop(op.scheduledStart, 'ddd, MMM D')
+                : null;
             const isLast = index === ops.length - 1;
             const opName = op.operationName || op.name || 'Operation';
             const seq = op.sequenceNo ?? op.seq ?? index + 1;
@@ -718,22 +743,56 @@ export default function AssignmentDetailPage() {
                       </div>
                     </>
                   )}
-                  {canStart && !job.waitingForMaterials && (
-                    <Button
-                      type="primary"
-                      block
-                      size="large"
-                      loading={actionLoading === op.id}
-                      onClick={() => runAction(op, 'start')}
-                      style={{
-                        height: 48,
-                        fontWeight: 700,
-                        background: colors.accent,
-                        borderColor: colors.accent,
-                      }}
-                    >
-                      Start Operation
-                    </Button>
+                  {canStart && !job.waitingForMaterials && busyWith && (
+                    <>
+                      <Button block size="large" disabled style={{ height: 48, fontWeight: 700 }}>
+                        Start Operation
+                      </Button>
+                      <div
+                        style={{
+                          marginTop: 8,
+                          fontSize: 12,
+                          color: colors.amber,
+                          fontWeight: 600,
+                          textAlign: 'center',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {stillOnText(busyWith)}
+                      </div>
+                    </>
+                  )}
+                  {canStart && !job.waitingForMaterials && !busyWith && (
+                    <>
+                      <Button
+                        type="primary"
+                        block
+                        size="large"
+                        loading={actionLoading === op.id}
+                        onClick={() => runAction(op, 'start')}
+                        style={{
+                          height: 48,
+                          fontWeight: 700,
+                          background: colors.accent,
+                          borderColor: colors.accent,
+                        }}
+                      >
+                        Start Operation
+                      </Button>
+                      {startsLater ? (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                            textAlign: 'center',
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          Scheduled for {startsLater}. Starting now puts you ahead of schedule.
+                        </div>
+                      ) : null}
+                    </>
                   )}
                   {isMine && active && !op.isPaused && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -776,7 +835,26 @@ export default function AssignmentDetailPage() {
                       </Button>
                     </div>
                   )}
-                  {isMine && active && op.isPaused && (
+                  {isMine && active && op.isPaused && busyWith && (
+                    <>
+                      <Button block size="large" disabled style={{ height: 48, fontWeight: 700 }}>
+                        Resume
+                      </Button>
+                      <div
+                        style={{
+                          marginTop: 8,
+                          fontSize: 12,
+                          color: colors.amber,
+                          fontWeight: 600,
+                          textAlign: 'center',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {stillOnText(busyWith)}
+                      </div>
+                    </>
+                  )}
+                  {isMine && active && op.isPaused && !busyWith && (
                     <Button
                       type="primary"
                       block

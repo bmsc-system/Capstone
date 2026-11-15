@@ -261,6 +261,58 @@ def _last_event(operation):
     return logs[-1] if logs else None
 
 
+def _is_running(op) -> bool:
+    """In progress with the clock on (started or resumed, not paused)."""
+    if op.status != OperationStatus.IN_PROGRESS:
+        return False
+    last = _last_event(op)
+    return bool(last and last.event in (OperationTimeEvent.START, OperationTimeEvent.RESUME))
+
+
+def _op_ref(op) -> str:
+    job = op.job_order
+    name = op.operation_name or "an operation"
+    return f"{name} ({job.job_number})" if job and job.job_number else name
+
+
+def _assert_worker_free(operation, user_id):
+    """One running operation per worker: the clock cannot count the same
+    person on two jobs at once."""
+    others = JobOperation.query.filter(
+        JobOperation.crew_includes(user_id),
+        JobOperation.status == OperationStatus.IN_PROGRESS,
+        JobOperation.id != operation.id,
+    ).all()
+    for other in others:
+        if _is_running(other):
+            raise AppError(
+                f"You're still on {_op_ref(other)}. Pause or finish it first.",
+                "WORKER_BUSY",
+                409,
+            )
+
+
+def _assert_unit_free(operation):
+    """One running operation per machine unit, even when other units of the
+    same type are free."""
+    if not operation.machine_unit_id:
+        return
+    others = JobOperation.query.filter(
+        JobOperation.machine_unit_id == operation.machine_unit_id,
+        JobOperation.status == OperationStatus.IN_PROGRESS,
+        JobOperation.id != operation.id,
+    ).all()
+    for other in others:
+        if _is_running(other):
+            unit = operation.machine_unit
+            label = unit.label if unit is not None else "This machine"
+            raise AppError(
+                f"{label} is running {_op_ref(other)} now. It has to be paused or finished first.",
+                "MACHINE_UNIT_BUSY",
+                409,
+            )
+
+
 def _assert_materials_arrived(job, user_role):
     """Start gate for a job's first operation (see ``material_start_block``)."""
     block = mp_service.material_start_block(
@@ -318,6 +370,7 @@ def start_operation(operation, user_id, user_role, timestamp, received_at=None):
         )
 
     _assert_earlier_operations_completed(operation)
+    _assert_worker_free(operation, user_id)
 
     assert_machine_type_available(
         operation.machine_type_id,
@@ -325,6 +378,7 @@ def start_operation(operation, user_id, user_role, timestamp, received_at=None):
     )
     if operation.machine_unit_id:
         _assert_unit_not_down(operation.machine_unit_id)
+    _assert_unit_free(operation)
 
     first_start = not mp_service.job_has_started(job)
     if first_start:
@@ -428,12 +482,14 @@ def resume_operation(operation, user_id, user_role, timestamp=None, received_at=
             "Operation is not paused", "INVALID_TRANSITION", 409
         )
 
+    _assert_worker_free(operation, user_id)
     assert_machine_type_available(
         operation.machine_type_id,
         exclude_operation_id=operation.id,
     )
     if operation.machine_unit_id:
         _assert_unit_not_down(operation.machine_unit_id)
+    _assert_unit_free(operation)
 
     ts = _parse_timestamp(timestamp)
     if received_at is not None:
