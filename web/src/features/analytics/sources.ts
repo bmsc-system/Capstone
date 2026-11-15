@@ -44,9 +44,11 @@ export const useByOperationType = (p: Period | null) =>
 export const useByMachine = (p: Period | null) =>
   useAnalyticsData(p ? key('byMachine', p) : null, () => analyticsApi.byMachine(p!));
 
-/** Forecasts and stock use all history, not the selected period. */
-export const useSalesForecast = () => useAnalyticsData(key('salesForecast'), () => analyticsApi.salesForecast());
-export const useDemandForecast = () => useAnalyticsData(key('demandForecast'), () => analyticsApi.demandForecast());
+/** Forecasts and stock use all history, not the selected period. ``months`` is how far ahead. */
+export const useSalesForecast = (months = 3) =>
+  useAnalyticsData(`salesForecast:${months}`, () => analyticsApi.salesForecast({ months }));
+export const useDemandForecast = (months = 3) =>
+  useAnalyticsData(`demandForecast:${months}`, () => analyticsApi.demandForecast({ months }));
 export const useConsumables = () =>
   useAnalyticsData(key('consumables'), () => analyticsApi.consumableReplenishment());
 export const useCompletion = (enabled = true) =>

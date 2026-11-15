@@ -136,14 +136,18 @@ def sales_summary():
 @require_roles(*TRANSACTIONS)
 def sales_forecast():
     period = _period()
-    return _cached("sales-forecast", lambda: analytics.sales_forecast(**period), **period)
+    months = request.args.get("months")
+    return _cached(
+        "sales-forecast", lambda: analytics.sales_forecast(**period, months=months), months=months, **period
+    )
 
 
 @analytics_bp.route("/demand/forecast", methods=["GET"])
 @jwt_required()
 @require_roles(*TRANSACTIONS)
 def demand_forecast():
-    return _cached("demand-forecast", analytics.demand_forecast)
+    months = request.args.get("months")
+    return _cached("demand-forecast", lambda: analytics.demand_forecast(months=months), months=months)
 
 
 @analytics_bp.route("/consumables/replenishment", methods=["GET"])

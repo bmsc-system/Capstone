@@ -50,6 +50,17 @@ def test_backtest_needs_window_plus_one_values():
 # --- Monthly series -------------------------------------------------------------
 
 
+def test_forecast_range_accepts_one_three_or_six_months_only():
+    assert [fs.horizon_months(v) for v in ("1", "3", "6", 6)] == [1, 3, 6, 6]
+    for bad in (None, "", "12", "abc", 0):
+        assert fs.horizon_months(bad) == fs.FORECAST_HORIZON_MONTHS
+    dated = [(date(2030, m, 5), 100 + (m * 37) % 50) for m in range(1, 13)]
+    out = fs.monthly_forecast(dated, today=date(2031, 1, 15), horizon=6)
+    assert [h["month"] for h in out["horizon"]] == [
+        "2031-01", "2031-02", "2031-03", "2031-04", "2031-05", "2031-06",
+    ]
+
+
 def test_monthly_forecast_fills_gaps_and_excludes_current_month():
     dated = [
         (date(2031, 1, 1), 100),

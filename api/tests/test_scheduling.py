@@ -997,3 +997,27 @@ def test_repropose_never_moves_in_progress_operations(monkeypatch):
     # Not-started work is re-fitted right after the in-progress operations.
     moved = datetime.fromisoformat(by_id["op-3"]["scheduledStart"]).astimezone(SHOP)
     assert (moved.date(), moved.hour) == (monday, 15)
+
+
+def test_tidy_placement_starts_on_the_half_hour_and_keeps_a_short_job_in_one_day():
+    """Used for the sample history: plans read 9:30 - 11:00, not 9:26 - 10:44."""
+    from app.services.schedule_calendar import utc_to_shop
+
+    schedule_by_dow = _mon_sat_schedule_by_dow()
+    anchor = shop_local_to_utc(date(2026, 8, 10), time(9, 26))
+    end = anchor + timedelta(days=7)
+    windows = build_worker_working_windows(schedule_by_dow, {}, anchor, end)
+
+    start, finish, _ = place_unbroken(windows, [], timedelta(hours=1.3), anchor, end, tidy=True)
+    assert start == shop_local_to_utc(date(2026, 8, 10), time(9, 30))
+    assert finish == shop_local_to_utc(date(2026, 8, 10), time(11, 0))
+
+    late = shop_local_to_utc(date(2026, 8, 10), time(15, 0))
+    start, finish, _ = place_unbroken(windows, [], timedelta(hours=4), late, end, tidy=True)
+    assert start == shop_local_to_utc(date(2026, 8, 11), time(8, 0))
+    assert utc_to_shop(finish).date() == date(2026, 8, 11)
+
+    long_start = shop_local_to_utc(date(2026, 8, 10), time(14, 0))
+    start, finish, _ = place_unbroken(windows, [], timedelta(hours=12), long_start, end, tidy=True)
+    assert start == long_start
+    assert utc_to_shop(finish).date() > date(2026, 8, 10)

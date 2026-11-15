@@ -51,8 +51,7 @@ vi.mock('../api/notifications.api', async (importOriginal) => {
     ...actual,
     notificationsApi: {
       list: () => Promise.resolve({ data: [] }),
-      sendTest: () => Promise.resolve({ data: { status: 'SENT' } }),
-      resend: () => Promise.resolve({ data: {} }),
+        resend: () => Promise.resolve({ data: {} }),
     },
   };
 });

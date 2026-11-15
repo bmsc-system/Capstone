@@ -163,27 +163,85 @@ def place_duration(
     return None, None, placeable_hours
 
 
+# Sample-history plans start on the half hour and run in half-hour blocks, so
+# a seeded plan reads 8:00 AM - 1:30 PM, not 8:26 AM - 1:44 PM.
+BOOKING_MINUTES = 30
+
+
+def round_up_to_block(dt: datetime, minutes: int = BOOKING_MINUTES) -> datetime:
+    """``dt`` moved forward to the next whole block of ``minutes`` (shop time)."""
+    dt = ensure_utc(dt)
+    local = utc_to_shop(dt)
+    midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    block = timedelta(minutes=minutes)
+    steps = -(-(local - midnight) // block)
+    return ensure_utc((midnight + steps * block).astimezone(timezone.utc))
+
+
+def booked_duration(duration: timedelta, minutes: int = BOOKING_MINUTES) -> timedelta:
+    """``duration`` rounded up to whole blocks (5.3 h is booked as 5.5 h)."""
+    block = timedelta(minutes=minutes)
+    return -(-duration // block) * block
+
+
+def _hours_on_day(windows, on_date) -> float:
+    return sum(
+        (min(e, shop_local_to_utc(on_date + timedelta(days=1), time(0, 0)))
+         - max(s, shop_local_to_utc(on_date, time(0, 0)))).total_seconds()
+        for s, e in windows
+        if utc_to_shop(s).date() <= on_date <= utc_to_shop(e - timedelta(seconds=1)).date()
+    ) / 3600
+
+
+def _next_day_start(windows, after: datetime):
+    """First working moment on a later shop day than ``after``."""
+    day = utc_to_shop(after).date()
+    for s, _e in windows:
+        if utc_to_shop(s).date() > day:
+            return s
+    return None
+
+
 def place_unbroken(
     windows: list[tuple[datetime, datetime]],
     busy: list[tuple[datetime, datetime]],
     duration: timedelta,
     not_before: datetime,
     end_utc: datetime,
+    tidy: bool = False,
 ) -> tuple[datetime | None, datetime | None, float]:
     """
     Earliest placement of `duration` across working `windows` that never touches
     `busy`. Work may stop outside the windows (nights, days off), never for a
     booking: only the start and end are stored, and every working moment between
     them counts as booked. Returns (start_utc, end_utc, free_hours_within_horizon).
+
+    With ``tidy`` (used for the sample history) the start falls on the half
+    hour, the booking runs in half-hour blocks, and an operation that fits in
+    one working day is not split across two: it waits for the next day's start.
     """
     windows = merge_intervals(windows)
     busy = merge_intervals(busy)
     placeable = total_placeable_hours(subtract_intervals(windows, busy), not_before, end_utc)
-    cursor = ensure_utc(not_before)
+    if tidy:
+        duration = booked_duration(duration)
+    cursor = round_up_to_block(not_before) if tidy else ensure_utc(not_before)
+    hours = duration.total_seconds() / 3600
     while True:
         start, end, _ = place_duration(windows, duration, cursor, end_utc)
         if start is None:
             return None, None, placeable
+        if tidy:
+            snapped = round_up_to_block(start)
+            if snapped != start:
+                cursor = snapped
+                continue
+            last_day = utc_to_shop(end - timedelta(seconds=1)).date()
+            if last_day != utc_to_shop(start).date():
+                nxt = _next_day_start(windows, start)
+                if nxt is not None and nxt < end_utc and hours <= _hours_on_day(windows, utc_to_shop(nxt).date()) + 1e-9:
+                    cursor = nxt
+                    continue
         worked = intersect_intervals([(start, end)], windows)
         hit = next(
             (b for b in busy if any(b[0] < we and ws < b[1] for ws, we in worked)),
@@ -191,7 +249,7 @@ def place_unbroken(
         )
         if hit is None:
             return start, end, placeable
-        cursor = hit[1]
+        cursor = round_up_to_block(hit[1]) if tidy else hit[1]
 
 
 def derive_working_segments(
