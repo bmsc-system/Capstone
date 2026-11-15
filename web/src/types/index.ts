@@ -2222,6 +2222,10 @@ export interface OfficeRestockItem {
   nextPurchaseOn: string;
   lastBoughtOn: string | null;
   usualQuantity: number | null;
+  /** USAGE: from the quantity on hand and the hand-outs. PURCHASES: from purchase history. */
+  basis?: 'USAGE' | 'PURCHASES' | null;
+  onHand?: number | null;
+  runOutOn?: string | null;
 }
 
 export interface OfficeSummary {

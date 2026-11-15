@@ -159,7 +159,7 @@ export default function OfficeDashboard() {
           value={toBuyCount}
           valueTone={reported.length ? 'red' : toBuyCount ? 'amber' : undefined}
           loading={loading}
-          hint={reported.length ? `${reported.length} reported by workers` : 'Due by the purchase forecast'}
+          hint={reported.length ? `${reported.length} reported by workers` : 'At or near the reorder point'}
           onClick={() => navigate('/tools?tab=consumables')}
         />
       </StatGrid>
@@ -254,7 +254,7 @@ export default function OfficeDashboard() {
 
           <SectionCard
             title="Consumables to buy"
-            subtitle="Reported by workers, then due by how often they are bought"
+            subtitle="At or near the reorder point"
             extra={
               <Button type="link" size="small" onClick={() => navigate('/tools?tab=consumables')}>
                 Inventory <RightOutlined />
@@ -289,18 +289,24 @@ export default function OfficeDashboard() {
                       <span className="office-dash__main">
                         <strong>{it.name}</strong>
                         <span>
-                          {it.lastBoughtOn ? `Bought ${formatShop(it.lastBoughtOn, 'MMM D')}` : 'Not bought yet'}
-                          {it.usualQuantity
-                            ? ` · usually ${qty(it.usualQuantity >= 10 ? Math.round(it.usualQuantity) : Math.round(it.usualQuantity * 10) / 10)} ${it.unit}`
-                            : ''}
+                          {it.basis === 'USAGE'
+                            ? `${qty(it.onHand ?? 0)} ${it.unit} on hand${it.runOutOn ? ` · runs out ${formatShop(it.runOutOn, 'MMM D')}` : ''}`
+                            : `${it.lastBoughtOn ? `Bought ${formatShop(it.lastBoughtOn, 'MMM D')}` : 'Not bought yet'}${
+                                it.usualQuantity
+                                  ? ` · usually ${qty(it.usualQuantity >= 10 ? Math.round(it.usualQuantity) : Math.round(it.usualQuantity * 10) / 10)} ${it.unit}`
+                                  : ''
+                              }`}
                         </span>
                       </span>
                       <span
                         className="office-dash__when ui-tabular"
                         style={it.status === 'OVERDUE' ? { color: 'var(--c-danger, #b91c1c)' } : undefined}
                       >
-                        {it.status === 'OVERDUE' ? 'Was due ' : 'Due '}
-                        {formatShop(it.nextPurchaseOn, 'MMM D')}
+                        {it.status === 'OVERDUE'
+                          ? it.basis === 'USAGE'
+                            ? 'Reorder now'
+                            : `Was due ${formatShop(it.nextPurchaseOn, 'MMM D')}`
+                          : `${it.basis === 'USAGE' ? 'Reorder by' : 'Due'} ${formatShop(it.nextPurchaseOn, 'MMM D')}`}
                       </span>
                     </button>
                   </li>

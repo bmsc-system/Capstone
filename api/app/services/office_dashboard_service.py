@@ -121,6 +121,10 @@ def office_summary() -> dict:
                 "nextPurchaseOn": r["nextPurchaseOn"],
                 "lastBoughtOn": r["lastBoughtOn"],
                 "usualQuantity": r["usualQuantity"],
+                # USAGE: from the quantity on hand and the hand-outs.
+                "basis": r.get("basis"),
+                "onHand": r.get("onHand"),
+                "runOutOn": r.get("runOutOn"),
             }
             for r in restock
         ],
