@@ -352,8 +352,11 @@ def reset_demo_data(start, end, seed=42, apply=False):
     try:
         with _quiet_audit():
             wiped = _wipe_transactions()
+            offered, hidden = _trim_consumables()
             summary = _generate(start_d, end_d, int(seed))
             summary["wiped"] = wiped
+            summary["consumablesOffered"] = offered
+            summary["consumablesHidden"] = hidden
             if apply:
                 db.session.commit()
             else:
@@ -365,6 +368,85 @@ def reset_demo_data(start, end, seed=42, apply=False):
         raise
     finally:
         _thaw_onupdate(frozen)
+
+
+# A full month's job order sales stay within this band (PHP): 7-10 jobs a
+# week at about PHP 30,000 each. A month of unusually big or small jobs is
+# scaled back inside it, so no single month looks out of place.
+MONTHLY_SALES_BAND = (1_000_000.0, 1_500_000.0)
+
+
+def _keep_monthly_sales_in_band(rng, plans, start, end):
+    """Scale each full month's job amounts so its total sits inside the band.
+
+    The first and last months are left alone when the range covers only part
+    of them.
+    """
+    low, high = MONTHLY_SALES_BAND
+    by_month = defaultdict(list)
+    for plan in plans:
+        by_month[(plan["po"].year, plan["po"].month)].append(plan)
+    for (year, month), month_plans in by_month.items():
+        first = date(year, month, 1)
+        last = date(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1)
+        if first < start or last > end:
+            continue
+        total = sum(p["amount"] for p in month_plans)
+        if total <= 0 or low <= total <= high:
+            continue
+        target = high * rng.uniform(0.92, 0.99) if total > high else low * rng.uniform(1.01, 1.1)
+        factor = target / total
+        for plan in month_plans:
+            plan["amount"] = round(plan["amount"] * factor, 2)
+
+
+# The consumables the sample shop keeps on its list (by catalog code): the
+# everyday cutting, grinding, welding and safety items. A reset marks every
+# other consumable Not offered, so the list stays about a page long.
+SAMPLE_CONSUMABLE_CODES = (
+    "INV-OIL-CUT-PAIL",  # Cutting oil
+    "INV-COOLANT",  # Soluble coolant
+    "INV-HSSDRILL-6",
+    "INV-HSSDRILL-10",
+    "INV-HSSEM-10",
+    "INV-INS-CNMG",  # Carbide insert CNMG 120408
+    "INV-LATHEHSS-12",  # Lathe tool bit 1/2"
+    "INV-CTRDRILL-A",
+    "INV-TAP-M10",
+    "INV-GRIND-4",
+    "INV-CUT-14",
+    "INV-FLAP-4-G60",
+    "INV-RODE6013-25",
+    "INV-MIG-08",
+    "INV-GLOVES-WELD",
+    "INV-SAFETY-GLASS",
+    "INV-SAND-G120",
+    "INV-SHOP-RAGS",
+)
+
+
+def _trim_consumables():
+    """Offer only the sample list's consumables; mark the rest Not offered.
+
+    Returns (offered, hidden). Refuses to touch anything when most of the
+    list's codes are missing, since that means a different catalog.
+    """
+    consumables = Tool.query.filter_by(category=ToolCategory.CONSUMABLE).all()
+    keep = set(SAMPLE_CONSUMABLE_CODES)
+    found = {t.code for t in consumables} & keep
+    if len(found) < len(keep) // 2:
+        raise ValueError(
+            f"Only {len(found)} of the {len(keep)} sample consumable codes are in "
+            "the catalog; consumables were left as they are. Nothing was changed."
+        )
+    hidden = 0
+    for tool in consumables:
+        offer = tool.code in keep
+        if not offer and tool.active:
+            hidden += 1
+        tool.active = offer
+    db.session.flush()
+    return len(found), hidden
 
 
 def generate(start, end, seed=42, apply=False):
@@ -756,6 +838,18 @@ def format_summary(summary):
             + ", ".join(summary["holidaysAlreadyPresent"])
         )
     lines.append(f"Stock snapshots: {summary['stockSnapshots']}")
+    if "consumablesOffered" in summary:
+        lines.append(
+            f"Consumables offered: {summary['consumablesOffered']}; "
+            f"set to Not offered: {summary['consumablesHidden']}"
+        )
+    if summary.get("salesByMonth"):
+        values = list(summary["salesByMonth"].values())
+        lines.append(
+            "Sales per month (PHP, by PO date): "
+            f"lowest {min(values):,.0f}, highest {max(values):,.0f}, "
+            f"average {sum(values) / len(values):,.0f}"
+        )
     return lines
 
 
@@ -827,9 +921,9 @@ def _plan_jobs(rng, shop, start, end):
         season = {3: 1.08, 4: 0.97, 5: 1.03, 6: 0.90, 7: 1.05, 8: 1.08, 9: 0.96, 10: 1.12}.get(
             anchor.month, 1.0
         )
-        # About 32 job orders a month at the start, rising to about 38
-        # (the shop's 30-40 a month), with the seasonal wobble.
-        full = (7.5 + month_i * 0.17) * season * rng.uniform(0.94, 1.06)
+        # About 7.5 job orders a week at the start, rising slowly; with the
+        # seasonal wobble a week stays within the shop's 7-10.
+        full = min(10.0, (7.5 + month_i * 0.1) * season * rng.uniform(0.94, 1.06))
         count = max(1, int(round(full * (len(week) / 6))))
         for _ in range(count):
             seq += 1
@@ -845,9 +939,10 @@ def _plan_jobs(rng, shop, start, end):
                 1: 0.94, 2: 0.97, 3: 1.06, 4: 0.95, 5: 1.0, 6: 0.94,
                 7: 1.03, 8: 1.08, 9: 0.96, 10: 1.12, 11: 1.04, 12: 0.98,
             }[po.month]
-            # Most jobs are small; a few large ones (log-uniform), so monthly
-            # sales land around PHP 3.5-5 million.
-            raw = math.exp(rng.uniform(math.log(20000), math.log(210000)))
+            # Most jobs are small; a few large ones (log-uniform). About PHP
+            # 30,000 a job on average, so 7-10 jobs a week come to roughly
+            # PHP 1-1.5 million a month.
+            raw = math.exp(rng.uniform(math.log(11000), math.log(65000)))
             # Bigger parts cost more; a repair or rethreading job is a fraction
             # of a new part (the client PO's rethreading was PHP 1,344 a piece).
             raw *= (
@@ -856,9 +951,9 @@ def _plan_jobs(rng, shop, start, end):
                 else {"20": 0.45, "35": 0.7, "50": 1.0, "80": 1.4, "120": 1.9}.get(size.split()[0], 1.0)
             )
             amount = min(
-                400000.0,
+                120000.0,
                 max(
-                    1500.0 if kind == JobType.REPAIR else 6000.0,
+                    1500.0 if kind == JobType.REPAIR else 3000.0,
                     raw * (1 + 0.006 * month_i_job) * sale_season * rng.uniform(0.94, 1.06),
                 ),
             )
@@ -888,6 +983,7 @@ def _plan_jobs(rng, shop, start, end):
                     "supplier_index": 0,
                 }
             )
+    _keep_monthly_sales_in_band(rng, plans, start, end)
     plans.sort(key=lambda p: (p["po"], p["seq"]))
     if (end - start).days >= 28 and len(plans) >= len(OPEN_FATES):
         for plan, fate in zip(plans[-len(OPEN_FATES) :], OPEN_FATES):
@@ -2320,7 +2416,15 @@ def _summary(plans, counters, holidays_added, holidays_present, ledger):
             }
         )
     pos.sort(key=lambda r: r["name"].lower())
+    sales = defaultdict(float)
+    for plan in plans:
+        if "cancel" not in str(plan.get("fate", "")).lower():
+            sales[plan["po"].strftime("%Y-%m")] += float(plan["amount"])
+    months = sorted(sales)
+    if len(months) > 2:  # the first and last months are usually partial
+        months = months[1:-1]
     return {
+        "salesByMonth": {m: round(sales[m], 2) for m in months},
         "jobs": counters["jobs"],
         "jobsByStatus": dict(counters["by_status"]),
         "jobsByType": dict(counters["by_type"]),
