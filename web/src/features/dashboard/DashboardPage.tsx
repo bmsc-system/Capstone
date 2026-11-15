@@ -63,7 +63,7 @@ function isJobOverdue(job: JobOrder) {
   );
 }
 
-const OP_SERIES = ['COMPLETED', 'IN_PROGRESS', 'SCHEDULED', 'REWORK', 'PENDING'] as const;
+const OP_SERIES = ['COMPLETED', 'IN_PROGRESS', 'SCHEDULED', 'PENDING'] as const;
 
 type MachineState = 'running' | 'idle' | 'breakdown';
 function machineState(u: MachineUnitStatus): MachineState | null {
