@@ -302,7 +302,6 @@ export default function JobOrderFormPage() {
                         { value: 'pcs', label: 'pcs' },
                         { value: 'lot', label: 'lot' },
                         { value: 'set', label: 'set' },
-                        { value: 'kg', label: 'kg' },
                       ]}
                     />
                   </Form.Item>

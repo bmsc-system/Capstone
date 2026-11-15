@@ -13,5 +13,5 @@ export { default as LevelBar } from './LevelBar';
 export { default as Legend, type LegendItem } from './Legend';
 export { default as FormModal, type FormModalSize } from './FormModal';
 export { default as StatusPill } from '../StatusPill';
-export { EllipsisText, TwoLineCell, ChipOverflow } from './listCells';
+export { EllipsisText, TwoLineCell, ChipOverflow, RowAvatar } from './listCells';
 export { rowOpenProps } from './rowOpen';

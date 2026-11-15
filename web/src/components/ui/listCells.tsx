@@ -85,3 +85,39 @@ export function ChipOverflow({
     </span>
   );
 }
+
+const AVATAR_TONE = {
+  blue: { bg: '#e0ecff', fg: '#1d4ed8' },
+  teal: { bg: '#d9f3ee', fg: '#0f766e' },
+} as const;
+
+/** Round icon at the start of a row, so a list reads as people or companies. */
+export function RowAvatar({
+  icon,
+  tone = 'blue',
+  size = 36,
+}: {
+  icon: ReactNode;
+  tone?: keyof typeof AVATAR_TONE;
+  size?: number;
+}) {
+  const t = AVATAR_TONE[tone];
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: t.bg,
+        color: t.fg,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      {icon}
+    </span>
+  );
+}

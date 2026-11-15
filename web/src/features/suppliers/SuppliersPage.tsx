@@ -16,7 +16,8 @@ import { suppliersApi } from '../../api/suppliers.api';
 import { getErrorMessage } from '../../api/client';
 import type { Supplier, SupplierReliability } from '../../types';
 import StatusPill, { type PillColor } from '../../components/StatusPill';
-import { DataTable, EmptyState, EllipsisText, FilterBar, FilterSelect, TwoLineCell, rowOpenProps } from '../../components/ui';
+import { DataTable, EmptyState, EllipsisText, FilterBar, FilterSelect, RowAvatar, TwoLineCell, rowOpenProps } from '../../components/ui';
+import { Truck } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { PHONE_QUERY, useMediaQuery } from '../../hooks/useViewport';
 
@@ -148,15 +149,18 @@ export default function SuppliersPage() {
         phone ? (
           r.name
         ) : (
-          <TwoLineCell
-            primary={
-              <>
-                {r.name}
-                {nameTags(r)}
-              </>
-            }
-            secondary={r.contactPerson || null}
-          />
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <RowAvatar icon={<Truck size={17} strokeWidth={2} />} tone="teal" />
+            <TwoLineCell
+              primary={
+                <>
+                  {r.name}
+                  {nameTags(r)}
+                </>
+              }
+              secondary={r.contactPerson || null}
+            />
+          </span>
         ),
     },
     ...(phone

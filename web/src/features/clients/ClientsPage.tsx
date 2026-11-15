@@ -11,7 +11,8 @@ import { clientsApi } from '../../api/jobOrders.api';
 import { getErrorMessage } from '../../api/client';
 import StatusPill from '../../components/StatusPill';
 import SelectMultipleIcon from '../../components/SelectMultipleIcon';
-import { EllipsisText, ResponsiveTable, rowOpenProps } from '../../components/ui';
+import { EllipsisText, ResponsiveTable, RowAvatar, rowOpenProps } from '../../components/ui';
+import { Building2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import type { Client } from '../../types';
 import { useNavigate } from 'react-router-dom';
@@ -94,28 +95,31 @@ export default function ClientsPage() {
       sorter: (a, b) => a.name.localeCompare(b.name),
       ellipsis: true,
       render: (n: string, r: Client) => (
-        <button
-          type="button"
-          className="client-name-link"
-          title={n}
-          onClick={() => navigate(`/clients/${r.id}`)}
-          style={{
-            fontWeight: 600,
-            fontSize: 14,
-            color: '#0f172a',
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            textAlign: 'left',
-            maxWidth: '100%',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {n}
-        </button>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <RowAvatar icon={<Building2 size={17} strokeWidth={2} />} tone="blue" />
+          <button
+            type="button"
+            className="client-name-link"
+            title={n}
+            onClick={() => navigate(`/clients/${r.id}`)}
+            style={{
+              fontWeight: 600,
+              fontSize: 14,
+              color: '#0f172a',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              textAlign: 'left',
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {n}
+          </button>
+        </span>
       ),
     },
     {
