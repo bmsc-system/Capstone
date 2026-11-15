@@ -29,6 +29,8 @@
 }
 
 .w-top__title {
+  /* A heading's default bottom margin pushed the date line away from it. */
+  margin: 0;
   font-size: 18px;
   font-weight: 800;
   line-height: 1.2;
