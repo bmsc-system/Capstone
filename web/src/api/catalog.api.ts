@@ -17,6 +17,8 @@ export interface CatalogItem {
   category: string | null;
   active: boolean;
   notStockedYet: boolean | null;
+  /** Consumable offered on a supplier purchase order (most are bought at a store). */
+  orderedFromSupplier?: boolean;
   quantityOnHand?: number | null;
   minimumStock?: number | null;
 }
@@ -39,6 +41,7 @@ export type CatalogCreateInput = {
   category?: string | null;
   sizeSpec?: string | null;
   active?: boolean;
+  orderedFromSupplier?: boolean;
 };
 
 export type CatalogUpdateInput = Partial<
@@ -56,6 +59,8 @@ export const CONSUMABLE_UNITS = [
   'pail',
   'bottle',
   'pair',
+  'gallon',
+  'liter',
 ];
 
 export const catalogApi = {

@@ -95,6 +95,7 @@ def create_tool(data):
         size_spec=(data.get("sizeSpec") or None) or None,
         shop_term=(data.get("shopTerm") or "").strip() or None,
         active=bool(data["active"]) if "active" in data else True,
+        ordered_from_supplier=bool(data.get("orderedFromSupplier")),
     )
     db.session.add(tool)
     db.session.commit()
@@ -133,6 +134,9 @@ def update_tool(tool_id, data):
 
     if "sizeSpec" in data:
         tool.size_spec = (data.get("sizeSpec") or None) or None
+
+    if "orderedFromSupplier" in data:
+        tool.ordered_from_supplier = bool(data.get("orderedFromSupplier"))
 
     if "shopTerm" in data:
         tool.shop_term = (data.get("shopTerm") or "").strip() or None

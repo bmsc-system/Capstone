@@ -31,6 +31,7 @@ def shop(app):
         quantity_on_hand=Decimal("3"),
         minimum_stock=Decimal("10"),
         size_spec='4"',
+        ordered_from_supplier=True,
     )
     db.session.add_all([client_row, hardware, disc])
     db.session.commit()
@@ -190,3 +191,34 @@ def test_admin_cannot_add_or_receive_consumable_lines(client, shop):
 
     view = client.get(f"/api/v1/supplier-orders/{order['id']}", headers=_headers(shop["admin"]))
     assert view.status_code == 200
+
+
+def test_store_bought_consumables_stay_off_supplier_orders(client, shop):
+    """Most consumables are bought in cash at a store; only those marked
+    Ordered from a supplier go on a supplier order or its due list."""
+    from datetime import timedelta
+
+    from app.models.consumable_purchase import ConsumablePurchase
+    from app.services.schedule_calendar import shop_now
+
+    tape = Tool(name="Masking tape", code="CPO-TAPE", category=ToolCategory.CONSUMABLE, unit="roll")
+    db.session.add(tape)
+    db.session.flush()
+    today = shop_now().date()
+    for days_ago in (42, 32, 22, 12):
+        db.session.add(
+            ConsumablePurchase(
+                tool_id=tape.id, purchased_on=today - timedelta(days=days_ago), quantity=Decimal(5),
+                unit="roll", recorded_by_id=shop["office"].id,
+            )
+        )
+    db.session.commit()
+
+    due = client.get("/api/v1/supplier-orders/outstanding", headers=_headers(shop["office"])).get_json()
+    assert tape.id not in {r["toolId"] for r in due["dueConsumables"]}
+    res = _add_lines(
+        client, shop, [{"toolId": tape.id, "quantity": 5, "unit": "roll", "unitCost": 40}],
+        supplier=shop["hardware"],
+    )
+    assert res.status_code == 400
+    assert "not ordered from a supplier" in res.get_json()["error"]["message"]

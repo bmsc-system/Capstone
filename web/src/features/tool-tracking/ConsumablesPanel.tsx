@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dayjs } from 'dayjs';
-import { Button, DatePicker, Drawer, Form, Input, InputNumber, Select, message } from 'antd';
+import { Button, DatePicker, Drawer, Form, Input, InputNumber, Select, Space, message } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { DownloadOutlined, ExportOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { DownloadOutlined, ExportOutlined, NumberOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { BellRing, CalendarClock, CircleAlert, Package, Wallet } from 'lucide-react';
 import { analyticsApi } from '../../api/analytics.api';
+import { CONSUMABLE_UNITS } from '../../api/catalog.api';
 import { consumablesApi } from '../../api/consumables.api';
 import { toolsApi } from '../../api/tools.api';
 import { getErrorMessage } from '../../api/client';
 import StatusPill from '../../components/StatusPill';
 import { FilterBar, FormModal, TwoLineCell, rowOpenProps } from '../../components/ui';
+import { RowMenu } from '../../components/ui/DataTable';
 import ResponsiveTable from '../../components/ui/ResponsiveTable';
 import { MOBILE_SHELL_QUERY, NARROW_QUERY, useMediaQuery } from '../../hooks/useViewport';
 import type {
@@ -61,6 +63,7 @@ type RecordValues = {
   toolId: string;
   purchasedOn: Dayjs;
   quantity: number;
+  unit?: string;
   unitCost?: number | null;
   boughtFrom?: string;
   note?: string;
@@ -278,6 +281,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
       toolId: target === 'any' ? undefined : target.toolId,
       purchasedOn: shopToday(),
       quantity: target === 'any' ? undefined : (target.usualQuantity ?? target.lastQuantity ?? undefined),
+      unit: target === 'any' ? undefined : target.unit,
       unitCost: target === 'any' ? undefined : (target.lastUnitCost ?? undefined),
     } as Partial<RecordValues>);
     setRecordFor(target);
@@ -290,6 +294,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
         toolId: values.toolId,
         purchasedOn: values.purchasedOn.format('YYYY-MM-DD'),
         quantity: values.quantity,
+        unit: values.unit,
         unitCost: values.unitCost ?? null,
         boughtFrom: values.boughtFrom?.trim() || null,
         note: values.note?.trim() || null,
@@ -343,6 +348,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   const pickedId = Form.useWatch('toolId', form);
   const issueToolId = Form.useWatch('toolId', issueForm);
   const picked = items.find((i) => i.toolId === pickedId) ?? selected;
+  const recordUnit = Form.useWatch('unit', form);
 
   const itemCell = (i: ReplenishmentItem) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
@@ -454,14 +460,14 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
           {
             title: '',
             key: 'actions',
-            width: 112,
+            width: 132,
             render: (_: unknown, i: ReplenishmentItem) => (
-              <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
                 <Button
                   size="small"
-                  type="primary"
                   icon={<ExportOutlined />}
                   disabled={(i.onHand ?? 0) <= 0}
+                  title={(i.onHand ?? 0) <= 0 ? 'None on hand to hand out' : undefined}
                   onClick={(e) => {
                     e.stopPropagation();
                     openIssue(i);
@@ -469,29 +475,40 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
                 >
                   Hand out
                 </Button>
-                <Button
-                  size="small"
-                  icon={<ShoppingCartOutlined />}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openRecord(i);
-                  }}
-                >
-                  Bought
-                </Button>
-                {reports[i.toolId] ? (
-                  <Button
-                    size="small"
-                    type="link"
-                    style={{ paddingInline: 0 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      dismissReport(reports[i.toolId]);
-                    }}
-                  >
-                    Dismiss report
-                  </Button>
-                ) : null}
+                <RowMenu
+                  items={[
+                    {
+                      key: 'bought',
+                      icon: <ShoppingCartOutlined />,
+                      label: 'Record purchase',
+                      onClick: ({ domEvent }) => {
+                        domEvent.stopPropagation();
+                        openRecord(i);
+                      },
+                    },
+                    {
+                      key: 'count',
+                      icon: <NumberOutlined />,
+                      label: 'Set count',
+                      onClick: ({ domEvent }) => {
+                        domEvent.stopPropagation();
+                        setCount(i);
+                      },
+                    },
+                    ...(reports[i.toolId]
+                      ? [
+                          {
+                            key: 'dismiss',
+                            label: 'Dismiss report',
+                            onClick: ({ domEvent }: { domEvent: { stopPropagation: () => void } }) => {
+                              domEvent.stopPropagation();
+                              dismissReport(reports[i.toolId]);
+                            },
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
               </span>
             ),
           },
@@ -566,7 +583,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
         card={{ title: 'name', badge: 'status', actions: 'none' }}
         onRow={(i) => rowOpenProps(() => setHistoryFor(i))}
         pagination={{ pageSize: 25, hideOnSinglePage: true }}
-        scroll={narrow ? undefined : { x: 940 }}
+        scroll={narrow ? undefined : { x: 960 }}
         locale={{
           emptyText: items.length
             ? 'No consumable matches.'
@@ -602,6 +619,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
                   if (it) {
                     form.setFieldsValue({
                       quantity: it.usualQuantity ?? it.lastQuantity ?? undefined,
+                      unit: it.unit,
                       unitCost: it.lastUnitCost ?? undefined,
                     } as Partial<RecordValues>);
                   }
@@ -617,8 +635,32 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
             <Form.Item name="purchasedOn" label="Date bought" rules={[{ required: true, message: 'Pick the date' }]}>
               <DatePicker style={{ width: '100%' }} format="MMM D, YYYY" disabledDate={(d) => isFutureShopDay(d)} />
             </Form.Item>
-            <Form.Item name="quantity" label="Quantity" rules={[{ required: true, message: 'Enter the quantity' }]}>
-              <InputNumber min={0.01} style={{ width: '100%' }} addonAfter={picked?.unit ?? 'pcs'} />
+            <Form.Item
+              label="Quantity"
+              required
+              extra={
+                picked && recordUnit && recordUnit !== picked.unit
+                  ? `${picked.name} will be counted in ${recordUnit} from now on.`
+                  : undefined
+              }
+            >
+              <Space.Compact style={{ width: '100%' }}>
+                <Form.Item name="quantity" noStyle rules={[{ required: true, message: 'Enter the quantity' }]}>
+                  <InputNumber min={0.01} style={{ width: '100%' }} />
+                </Form.Item>
+                <Form.Item name="unit" noStyle>
+                  <Select
+                    aria-label="Unit"
+                    style={{ width: 96 }}
+                    popupMatchSelectWidth={false}
+                    placeholder="unit"
+                    options={[...new Set([...(picked?.unit ? [picked.unit] : []), ...CONSUMABLE_UNITS])].map((u) => ({
+                      value: u,
+                      label: u,
+                    }))}
+                  />
+                </Form.Item>
+              </Space.Compact>
             </Form.Item>
             <Form.Item name="unitCost" label="Unit cost (₱)">
               <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
@@ -696,7 +738,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
             <InputNumber
               min={0.01}
               style={{ width: '100%' }}
-              addonAfter={items.find((i) => i.toolId === issueToolId)?.unit ?? 'pcs'}
+              addonAfter={items.find((i) => i.toolId === issueToolId)?.unit}
             />
           </Form.Item>
         </Form>

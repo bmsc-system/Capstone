@@ -60,6 +60,7 @@ def consumable_item(tool: Tool, *, stocked: bool | None = None) -> dict:
         "category": CONSUMABLE_CATEGORY,
         "active": bool(tool.active) if tool.active is not None else True,
         "notStockedYet": not stocked,
+        "orderedFromSupplier": bool(tool.ordered_from_supplier),
         "quantityOnHand": _num(tool.quantity_on_hand),
         "minimumStock": _num(tool.minimum_stock),
         "createdAt": tool.created_at.isoformat() if tool.created_at else None,

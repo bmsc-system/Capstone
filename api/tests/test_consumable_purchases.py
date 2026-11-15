@@ -117,3 +117,16 @@ def test_replenishment_statuses(app, shop):
     assert data["summary"]["overdue"] == 1 and data["summary"]["dueSoon"] == 1
     # Within the last 30 days: two disc purchases and the rod (the oil was 30 days ago).
     assert data["summary"]["spentLast30Days"] == pytest.approx(50 * 10 * 2 + 5 * 10)
+
+
+def test_a_purchase_can_set_the_unit_the_item_is_counted_in(client, shop):
+    today = shop_now().date().isoformat()
+    h = _headers(shop["office"])
+    body = {"toolId": shop["oil"].id, "purchasedOn": today, "quantity": 3, "unit": "gallon"}
+    res = client.post(URL, json=body, headers=h)
+    assert res.status_code == 201, res.get_json()
+    assert res.get_json()["unit"] == "gallon"
+    db.session.expire_all()
+    assert db.session.get(Tool, shop["oil"].id).unit == "gallon"
+    bad = client.post(URL, json={**body, "unit": "barrel"}, headers=h)
+    assert bad.status_code == 400

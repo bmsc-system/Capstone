@@ -181,6 +181,9 @@ def _ensure_inventory_catalog():
                 unit=unit,
                 quantity_on_hand=Decimal(str(qty)),
                 minimum_stock=Decimal(str(minimum)),
+                # The shop orders cutting oil from a supplier by the gallon;
+                # the other consumables are bought at nearby stores.
+                ordered_from_supplier=name == "Cutting oil",
             )
         )
     db.session.add_all(tools)

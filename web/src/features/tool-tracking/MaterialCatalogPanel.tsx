@@ -99,6 +99,7 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
       defaultUnit: 'pcs',
       unit: 'pcs',
       active: true,
+      orderedFromSupplier: false,
     });
     setModalOpen(true);
   };
@@ -114,6 +115,7 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
       unit: r.unit,
       category: r.category,
       active: r.active,
+      orderedFromSupplier: !!r.orderedFromSupplier,
     });
     setModalOpen(true);
   };
@@ -129,7 +131,7 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
           category: values.category,
           ...(editing.kind === 'MATERIAL'
             ? { defaultUnit: values.defaultUnit || values.unit }
-            : { sizeSpec: values.sizeSpec || null, unit: values.unit }),
+            : { sizeSpec: values.sizeSpec || null, unit: values.unit, orderedFromSupplier: !!values.orderedFromSupplier }),
         };
         if (editing.kind === 'MATERIAL') {
           await catalogApi.updateMaterial(editing.id, body);
@@ -147,7 +149,11 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
           category: kind === 'MATERIAL' ? values.category : undefined,
           ...(kind === 'MATERIAL'
             ? { defaultUnit: values.defaultUnit || 'pcs' }
-            : { sizeSpec: values.sizeSpec || null, unit: values.unit || 'pcs' }),
+            : {
+                sizeSpec: values.sizeSpec || null,
+                unit: values.unit || 'pcs',
+                orderedFromSupplier: !!values.orderedFromSupplier,
+              }),
         });
         message.success('Catalog item added');
       }
@@ -231,6 +237,7 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
         const secondary = [
           r.shopTerm ? `Shop term: “${r.shopTerm}”` : null,
           r.kind === 'CONSUMABLE' && r.code ? `Code: ${r.code}` : null,
+          r.kind === 'CONSUMABLE' && r.orderedFromSupplier ? 'Ordered from a supplier' : null,
         ]
           .filter(Boolean)
           .join(' · ');
@@ -479,11 +486,23 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
                 </Form.Item>
               </Col>
             ) : null}
-            <Col xs={24} md={isMaterial ? 6 : 8}>
+            <Col xs={isMaterial ? 24 : 12} md={isMaterial ? 6 : 8}>
               <Form.Item name="active" label="Offered" valuePropName="checked">
                 <Switch checkedChildren="Yes" unCheckedChildren="No" />
               </Form.Item>
             </Col>
+            {isMaterial ? null : (
+              <Col xs={12} md={16}>
+                <Form.Item
+                  name="orderedFromSupplier"
+                  label="Ordered from a supplier"
+                  valuePropName="checked"
+                  tooltip="Most consumables are bought in cash at a nearby store. Turn this on only for items ordered through a supplier purchase order, such as cutting oil by the gallon."
+                >
+                  <Switch checkedChildren="Yes" unCheckedChildren="No" />
+                </Form.Item>
+              </Col>
+            )}
           </Row>
         </Form>
         <div className="app-form-modal__footer">

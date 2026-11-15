@@ -81,6 +81,14 @@ def record_purchase(data: dict, user_id: str) -> ConsumablePurchase:
         raise _bad("Enter the date it was bought.")
     if day > shop_now().date():
         raise _bad("The purchase date can't be in the future.")
+    unit = (data.get("unit") or tool.unit or "pcs").strip()
+    if unit != tool.unit:
+        # Office Staff set the unit this consumable is bought and counted in.
+        from app.models.material_catalog import CONSUMABLE_UNITS
+
+        if unit not in CONSUMABLE_UNITS:
+            raise _bad(f"Unit must be one of {', '.join(CONSUMABLE_UNITS)}")
+        tool.unit = unit
     quantity = _decimal(data.get("quantity"), "quantity bought")
     cost = data.get("unitCost")
     unit_cost = None if cost in (None, "") else _decimal(cost, "unit cost", allow_zero=True)

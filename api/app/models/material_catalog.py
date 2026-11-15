@@ -21,7 +21,7 @@ MATERIAL_CATEGORIES = [
     "Other",
 ]
 # Units a consumable (stocked by count/pack) may be bought and counted in.
-CONSUMABLE_UNITS = ["pcs", "pack", "roll", "box", "spool", "can", "pail", "bottle", "pair"]
+CONSUMABLE_UNITS = ["pcs", "pack", "roll", "box", "spool", "can", "pail", "bottle", "pair", "gallon", "liter"]
 
 
 def _utcnow():

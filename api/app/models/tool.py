@@ -61,6 +61,11 @@ class Tool(db.Model):
     active = db.Column(
         db.Boolean, nullable=False, default=True, server_default=db.text("true")
     )
+    # Most consumables are bought in cash at nearby stores; only these are
+    # offered on a supplier purchase order (cutting oil, by the gallon).
+    ordered_from_supplier = db.Column(
+        db.Boolean, nullable=False, default=False, server_default=db.false()
+    )
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
 
     events = db.relationship(
@@ -112,6 +117,7 @@ class Tool(db.Model):
             "sizeSpec": self.size_spec,
             "shopTerm": self.shop_term,
             "active": bool(self.active) if self.active is not None else True,
+            "orderedFromSupplier": bool(self.ordered_from_supplier),
             "lowStock": self.low_stock,
             "createdAt": self.created_at.isoformat() if self.created_at else None,
         }

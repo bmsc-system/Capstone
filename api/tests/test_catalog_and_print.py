@@ -34,6 +34,7 @@ def _tool(name, code, *, qty="0", unit="pcs", active=True):
         unit=unit,
         quantity_on_hand=Decimal(qty),
         active=active,
+        ordered_from_supplier=True,
     )
     db.session.add(tool)
     db.session.commit()
@@ -366,7 +367,7 @@ def test_receive_needs_a_print_first(client, shop):
 def test_receiving_a_not_stocked_consumable_makes_it_stocked(client, shop):
     h = _headers(shop["office"])
     created = client.post(
-        CATALOG, json={"kind": "CONSUMABLE", "name": "Weld rod", "unit": "box"}, headers=h
+        CATALOG, json={"kind": "CONSUMABLE", "name": "Weld rod", "unit": "box", "orderedFromSupplier": True}, headers=h
     ).get_json()
     tool_id = created["id"]
     stocked_ids = lambda: {  # noqa: E731

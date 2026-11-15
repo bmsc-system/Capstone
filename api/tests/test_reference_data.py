@@ -217,6 +217,7 @@ def test_existing_records_updated_in_place_and_history_kept(app):
     tonga = Tool(
         name="Tonga tip", code="INV-TONGA-STD", category=ToolCategory.CONSUMABLE,
         unit="pcs", quantity_on_hand=Decimal("40"), minimum_stock=Decimal("12"),
+        ordered_from_supplier=True,
     )
     db.session.add_all([cutting, tonga])
     db.session.flush()
@@ -273,6 +274,7 @@ def test_po_number_carries_supplier_code(app):
     load_reference_data()
     ric = Supplier.query.filter_by(code="RIC").one()
     tool = Tool.query.filter_by(name="Sandpaper").one()
+    tool.ordered_from_supplier = True
 
     order, _ = so_service.add_lines_to_draft(ric.id, [{"toolId": tool.id, "quantity": 10}], office.id)
     so_service.submit_for_approval(order, office.id, "2026-10-05")
@@ -295,6 +297,7 @@ def test_inactive_supplier_draft_cannot_be_issued(app):
     load_reference_data()
     stp = Supplier.query.filter_by(code="STP").one()
     tool = Tool.query.filter_by(name="Sandpaper").one()
+    tool.ordered_from_supplier = True
     order, _ = so_service.add_lines_to_draft(stp.id, [{"toolId": tool.id, "quantity": 1}], office.id)
     so_service.submit_for_approval(order, office.id)
     stp.active = False

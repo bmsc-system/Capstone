@@ -125,7 +125,6 @@ export function InventorySummaryCards({
                 valueTone={card.tone && card.tone !== 'slate' && card.value > 0 ? card.tone : undefined}
                 label={card.shortLabel ?? card.label}
                 value={card.value}
-                hint={card.caption}
                 active={pressed}
                 onClick={() => onSelect(pressed ? null : card.key)}
               />
@@ -165,6 +164,7 @@ export function InventorySummaryCards({
             key={card.key}
             type="button"
             aria-pressed={pressed}
+            title={card.caption}
             onClick={() => onSelect(pressed ? null : card.key)}
             style={{
               display: 'flex',
@@ -202,11 +202,6 @@ export function InventorySummaryCards({
               <span style={{ display: 'block', fontSize: 12, fontWeight: 600, opacity: 0.9 }}>
                 {card.label}
               </span>
-              {card.caption ? (
-                <span style={{ display: 'block', fontSize: 11, opacity: 0.7, marginTop: 2 }}>
-                  {card.caption}
-                </span>
-              ) : null}
             </span>
           </button>
         );

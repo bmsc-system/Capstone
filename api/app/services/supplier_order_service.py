@@ -188,10 +188,17 @@ def due_consumables() -> list[dict]:
     on_order = _consumable_on_order()
     tools = {
         t.id: t
-        for t in Tool.query.filter(Tool.category == ToolCategory.CONSUMABLE, Tool.active.is_(True))
+        for t in Tool.query.filter(
+            Tool.category == ToolCategory.CONSUMABLE,
+            Tool.active.is_(True),
+            Tool.ordered_from_supplier.is_(True),
+        )
     }
     rows = []
     for item in due_items():
+        if item["toolId"] not in tools:
+            # Bought in cash at a nearby store, not through a supplier order.
+            continue
         ordered = on_order.get(item["toolId"], Decimal("0"))
         usual = Decimal(str(item["usualQuantity"] or 0))
         tool = tools.get(item["toolId"])
@@ -266,6 +273,13 @@ def _build_consumable_line(supplier: Supplier, data: dict) -> MaterialPurchase:
     tool = Tool.query.get(data.get("toolId") or "")
     if not tool or tool.category != ToolCategory.CONSUMABLE:
         raise AppError("Consumable not found", "NOT_FOUND", 404)
+    if not tool.ordered_from_supplier:
+        raise AppError(
+            f"{tool.name} is bought at a store, not ordered from a supplier. "
+            "Record it with Record purchase, or mark it Ordered from a supplier on the catalog.",
+            "VALIDATION_ERROR",
+            400,
+        )
     if not tool.active:
         raise AppError(
             f"{tool.name} is not offered. Mark it Offered on the catalog to order it.",

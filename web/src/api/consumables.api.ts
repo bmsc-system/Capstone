@@ -12,6 +12,8 @@ export interface RecordPurchaseInput {
   toolId: string;
   purchasedOn: string;
   quantity: number;
+  /** The unit it is bought and counted in; changing it changes the item's unit. */
+  unit?: string;
   unitCost?: number | null;
   boughtFrom?: string | null;
   note?: string | null;

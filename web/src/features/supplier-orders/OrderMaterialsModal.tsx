@@ -210,10 +210,10 @@ export default function OrderMaterialsModal({
       .then(({ data: rows }) => setReliability(Object.fromEntries(rows.map((r) => [r.supplierId, r]))))
       .catch(() => setReliability({}));
     if (offerConsumables) {
-      // Every offered consumable can be added to the order.
+      // Only consumables ordered from a supplier (most are bought at a store).
       catalogApi
         .list({ type: 'CONSUMABLE' })
-        .then(({ data: res }) => setConsumables(res.items.filter((i) => i.active)))
+        .then(({ data: res }) => setConsumables(res.items.filter((i) => i.active && i.orderedFromSupplier)))
         .catch(() => setConsumables([]));
     }
     Promise.all([suppliersApi.list({ activeOnly: true }), supplierOrdersApi.outstanding(jobId)])
@@ -614,13 +614,13 @@ export default function OrderMaterialsModal({
                 }}
               >
                 <div style={{ fontWeight: 700, fontSize: 13 }}>
-                  Consumables to restock
+                  Consumables ordered from a supplier
                 </div>
                 <Select
                   showSearch
                   size="small"
                   optionFilterProp="label"
-                  placeholder="Add another consumable"
+                  placeholder="Add a consumable"
                   style={{ width: 280 }}
                   value={null}
                   onChange={(v: string) => addConsumable(v)}
@@ -641,7 +641,11 @@ export default function OrderMaterialsModal({
                 pagination={false}
                 scroll={{ y: 'min(260px, calc(100vh - 520px))' }}
                 dataSource={consumableRows}
-                locale={{ emptyText: 'No consumable is due to be bought.' }}
+                locale={{
+                  emptyText: consumables.length
+                    ? 'None is due yet. Add one with the list above if needed.'
+                    : 'No consumable is marked Ordered from a supplier on the catalog.',
+                }}
                 rowSelection={{
                   selectedRowKeys: selectedConsumables,
                   onChange: (keys) => setSelectedConsumables(keys as string[]),
