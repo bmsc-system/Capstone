@@ -178,6 +178,9 @@ def test_open_machine_downtime_blocks_unit_in_scheduler(monkeypatch):
         lambda: {"unit-1": [(_ts(8), _ts(18))]},
     )
 
+    from app.services import worker_cover_service
+
+    monkeypatch.setattr(worker_cover_service, "absence_intervals", lambda *a, **k: {})
     _, machine_busy = sched._load_external_bookings()
     assert "unit-1" in machine_busy
     assert machine_busy["unit-1"][0] == (_ts(8), _ts(18))

@@ -275,6 +275,7 @@ def test_po_number_carries_supplier_code(app):
     tool = Tool.query.filter_by(name="Sandpaper").one()
 
     order, _ = so_service.add_lines_to_draft(ric.id, [{"toolId": tool.id, "quantity": 10}], office.id)
+    so_service.submit_for_approval(order, office.id, "2026-10-05")
     so_service.issue_order(order, office.id, "2026-10-05")
     assert order.po_number == "RIC26000001"
 
@@ -283,6 +284,7 @@ def test_po_number_carries_supplier_code(app):
     db.session.commit()
     order2, _ = so_service.add_lines_to_draft(plain.id, [{"toolId": tool.id, "quantity": 5}], office.id)
     with pytest.raises(AppError) as exc:
+        so_service.submit_for_approval(order2, office.id, "2026-10-05")
         so_service.issue_order(order2, office.id, "2026-10-05")
     assert exc.value.code == "SUPPLIER_CODE_MISSING"
     assert order2.po_number is None
@@ -294,6 +296,7 @@ def test_inactive_supplier_draft_cannot_be_issued(app):
     stp = Supplier.query.filter_by(code="STP").one()
     tool = Tool.query.filter_by(name="Sandpaper").one()
     order, _ = so_service.add_lines_to_draft(stp.id, [{"toolId": tool.id, "quantity": 1}], office.id)
+    so_service.submit_for_approval(order, office.id)
     stp.active = False
     db.session.commit()
     with pytest.raises(AppError) as exc:

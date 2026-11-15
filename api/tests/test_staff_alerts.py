@@ -23,7 +23,10 @@ from tests.test_material_delay import (  # noqa: F401  (fixtures)
 
 
 def _alerts(user):
-    return StaffAlert.query.filter_by(recipient_id=user.id).all()
+    """The user's alerts, leaving out the request to approve a supplier order."""
+    return StaffAlert.query.filter(
+        StaffAlert.recipient_id == user.id, StaffAlert.kind != "PO_APPROVAL"
+    ).all()
 
 
 def test_material_delay_creates_one_alert_per_admin(client, shop):
@@ -48,9 +51,11 @@ def test_material_delay_creates_one_alert_per_admin(client, shop):
     assert _alerts(shop["office"]) == []
 
     body = client.get("/api/v1/alerts", headers=_headers(shop["admin"])).get_json()
-    assert body["unreadCount"] == 1
-    assert body["items"][0]["poNumber"] == issued["poNumber"]
-    assert body["items"][0]["jobNumber"] == job.job_number
+    # The delay alert, plus the earlier request to approve the order.
+    assert body["unreadCount"] == 2
+    delay = next(i for i in body["items"] if i["kind"] == StaffAlertKind.MATERIAL_DELAY)
+    assert delay["poNumber"] == issued["poNumber"]
+    assert delay["jobNumber"] == job.job_number
 
 
 def test_each_delay_is_its_own_alert_and_no_move_means_no_alert(client, shop):
