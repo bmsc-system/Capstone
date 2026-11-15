@@ -1,5 +1,5 @@
 import { Form, Input, Button, Alert } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -8,6 +8,7 @@ import { getErrorCode, getErrorMessage } from '../../api/client';
 import { useOnline } from '../../offline/connectivity';
 import { createActionQueue } from '../../offline/actionQueue';
 import PinKeypad from './PinKeypad';
+import AuthShell, { AuthFooter } from './AuthShell';
 import './LoginPage.css';
 import { OLD_PIN_HINT_KEY, PIN_HINT_KEY } from '../../auth/pinHint';
 
@@ -87,158 +88,131 @@ export default function LoginPage() {
   };
 
   if (checkingPin) {
-    return <div className="login-page" />;
+    return <div className="auth" />;
   }
 
   return (
-    <div className="login-page">
-      <div className="login-page__bg" aria-hidden />
-      <div className="login-page__veil" aria-hidden />
+    <AuthShell>
+      <div className="login-card__eyebrow">Welcome back</div>
+      {!pinMode && (
+        <>
+          <h2 className="login-card__title">Sign in</h2>
+          <p className="login-card__lead">Use your email or mobile number and password.</p>
+        </>
+      )}
 
-      <div className="login-card">
-        <div className="login-card__header">
-          <img className="login-card__logo" src="/logo.png" alt="Brothers Machine Shop logo" />
-          <div className="login-card__brand">
-            Brothers Machine Shop and
-            <br />
-            Services Corporation
-          </div>
-          <div className="login-card__subtitle">Production Scheduling System</div>
-        </div>
+      {!online && (
+        <Alert
+          className="login-alert"
+          type="warning"
+          showIcon
+          title="Needs a connection"
+          description={
+            waitingActions > 0
+              ? `${waitingActions} waiting action${waitingActions === 1 ? '' : 's'} will send after you sign in.`
+              : 'Sign-in needs the network.'
+          }
+        />
+      )}
+      {online &&
+        (endReason === 'signed-out' || endReason === 'expired' || endReason === 'idle') &&
+        !error && (
+        <Alert
+          className="login-alert"
+          type={endReason === 'signed-out' ? 'warning' : 'info'}
+          showIcon
+          title={
+            endReason === 'signed-out'
+              ? 'This device was signed out'
+              : endReason === 'idle'
+                ? 'Signed out after 30 minutes idle'
+                : 'Session expired — sign in again'
+          }
+          description={
+            waitingActions > 0
+              ? `${waitingActions} waiting action${waitingActions === 1 ? '' : 's'} will send after you sign in.`
+              : undefined
+          }
+        />
+      )}
+      {error && <Alert className="login-alert" type="error" title={error} showIcon />}
 
-        <div className="login-card__body">
-          {!pinMode && (
-            <>
-              <h1 className="login-card__title">Sign in</h1>
-              <p className="login-card__lead">Use your email or mobile number and password</p>
-            </>
-          )}
-
-          {!online && (
-            <Alert
-              className="login-alert"
-              type="warning"
-              showIcon
-              title="Needs a connection"
-              description={
-                waitingActions > 0
-                  ? `${waitingActions} waiting action${waitingActions === 1 ? '' : 's'} will send after you sign in.`
-                  : 'Sign-in needs the network.'
-              }
-            />
-          )}
-          {online &&
-            (endReason === 'signed-out' || endReason === 'expired' || endReason === 'idle') &&
-            !error && (
-            <Alert
-              className="login-alert"
-              type={endReason === 'signed-out' ? 'warning' : 'info'}
-              showIcon
-              title={
-                endReason === 'signed-out'
-                  ? 'This device was signed out'
-                  : endReason === 'idle'
-                    ? 'Signed out after 30 minutes idle'
-                    : 'Session expired — sign in again'
-              }
-              description={
-                waitingActions > 0
-                  ? `${waitingActions} waiting action${waitingActions === 1 ? '' : 's'} will send after you sign in.`
-                  : undefined
-              }
-            />
-          )}
-          {error && <Alert className="login-alert" type="error" title={error} showIcon />}
-
-          {pinMode ? (
-            <PinKeypad
-              title="Enter your PIN"
-              error={pinError}
-              busy={submitting}
-              failSignal={failSignal}
-              onComplete={onPinComplete}
-              footer={
-                <button
-                  type="button"
-                  className="pin-keypad__link"
-                  onClick={() => {
-                    setPinMode(false);
-                    setPinError('');
-                    setError('');
-                  }}
-                >
-                  Use password instead
-                </button>
-              }
-            />
-          ) : (
-            <Form scrollToFirstError={{ block: 'center' }}
-              form={form}
-              layout="vertical"
-              onFinish={onPasswordLogin}
-              autoComplete="off"
-              requiredMark="optional"
+      {pinMode ? (
+        <PinKeypad
+          title="Enter your PIN"
+          error={pinError}
+          busy={submitting}
+          failSignal={failSignal}
+          onComplete={onPinComplete}
+          footer={
+            <button
+              type="button"
+              className="pin-keypad__link"
+              onClick={() => {
+                setPinMode(false);
+                setPinError('');
+                setError('');
+              }}
             >
-              <Form.Item
-                name="identifier"
-                label={
-                  <span>
-                    <span style={{ color: '#7A1528' }}>* </span>Email or mobile
-                  </span>
-                }
-                rules={[{ required: true, message: 'Email or mobile is required' }]}
-              >
-                <Input
-                  size="large"
-                  prefix={<UserOutlined style={{ color: '#94a3b8' }} />}
-                  autoComplete="username"
-                  placeholder="name@example.com"
-                />
-              </Form.Item>
-              <Form.Item
-                name="password"
-                label={
-                  <span>
-                    <span style={{ color: '#7A1528' }}>* </span>Password
-                  </span>
-                }
-                rules={[{ required: true }]}
-              >
-                <Input.Password
-                  size="large"
-                  prefix={<LockOutlined style={{ color: '#94a3b8' }} />}
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                />
-              </Form.Item>
-              <Button
-                type="primary"
-                htmlType="submit"
-                block
-                size="large"
-                loading={submitting}
-                className="login-card__submit"
-              >
-                Sign In
-              </Button>
-              <div style={{ textAlign: 'center', marginTop: 12 }}>
-                <a href="/forgot-password" style={{ fontSize: 13 }}>
-                  Forgot password?
-                </a>
-              </div>
-              {localStorage.getItem(PIN_HINT_KEY) === '1' && (
-                <Button type="link" block style={{ marginTop: 8 }} onClick={() => setPinMode(true)}>
-                  Use PIN instead
-                </Button>
-              )}
-            </Form>
-          )}
-
-          <div className="login-card__footer">
-            <a href="/privacy">Privacy</a>
+              Use password instead
+            </button>
+          }
+        />
+      ) : (
+        <Form
+          scrollToFirstError={{ block: 'center' }}
+          form={form}
+          layout="vertical"
+          onFinish={onPasswordLogin}
+          autoComplete="off"
+          requiredMark={false}
+        >
+          <Form.Item
+            name="identifier"
+            label="Email or mobile"
+            rules={[{ required: true, message: 'Email or mobile is required' }]}
+          >
+            <Input
+              size="large"
+              prefix={<UserOutlined style={{ color: '#5b6475' }} />}
+              autoComplete="username"
+              placeholder="name@example.com"
+            />
+          </Form.Item>
+          <Form.Item name="password" label="Password" rules={[{ required: true, message: 'Password is required' }]}>
+            <Input.Password
+              size="large"
+              prefix={<LockOutlined style={{ color: '#5b6475' }} />}
+              autoComplete="current-password"
+              placeholder="Enter your password"
+            />
+          </Form.Item>
+          <div className="login-card__row">
+            <a className="login-card__link" href="/forgot-password">
+              Forgot password?
+            </a>
           </div>
-        </div>
-      </div>
-    </div>
+          <Button
+            type="primary"
+            htmlType="submit"
+            block
+            size="large"
+            loading={submitting}
+            className="login-card__submit"
+            icon={<ArrowRightOutlined />}
+            iconPlacement="end"
+          >
+            Sign in
+          </Button>
+          {localStorage.getItem(PIN_HINT_KEY) === '1' && (
+            <Button type="link" block style={{ marginTop: 8 }} onClick={() => setPinMode(true)}>
+              Use PIN instead
+            </Button>
+          )}
+        </Form>
+      )}
+
+      <AuthFooter />
+    </AuthShell>
   );
 }
