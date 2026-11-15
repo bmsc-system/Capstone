@@ -358,3 +358,54 @@ def test_consumables_get_different_buying_rhythms(app):
     assert len(forecast) >= 2
     assert len({r["everyDays"] for r in forecast}) > 1
     assert len({r["nextPurchaseOn"] for r in forecast}) > 1
+
+
+def test_reset_offers_only_the_sample_consumables(app):
+    from app.services.sample_history_service import SAMPLE_CONSUMABLE_CODES, reset_demo_data
+
+    _shop()
+    for code in SAMPLE_CONSUMABLE_CODES:
+        db.session.add(
+            Tool(
+                name=f"Item {code}",
+                code=code,
+                category=ToolCategory.CONSUMABLE,
+                unit="pcs",
+                quantity_on_hand=Decimal("10"),
+                unit_cost=Decimal("25"),
+                active=code != "INV-COOLANT",
+            )
+        )
+    db.session.commit()
+    summary = reset_demo_data("2026-04-06", "2026-04-17", seed=7, apply=True)
+    offered = {t.code for t in Tool.query.filter_by(category=ToolCategory.CONSUMABLE, active=True)}
+    assert offered == set(SAMPLE_CONSUMABLE_CODES)
+    assert summary["consumablesOffered"] == len(SAMPLE_CONSUMABLE_CODES)
+    assert summary["consumablesHidden"] == 4  # the shop's own four items
+
+
+def test_reset_leaves_an_unfamiliar_catalog_alone(app):
+    from app.services.sample_history_service import reset_demo_data
+
+    _shop()
+    with pytest.raises(ValueError, match="consumables were left as they are"):
+        reset_demo_data("2026-04-06", "2026-04-17", seed=7, apply=True)
+    assert Tool.query.filter_by(category=ToolCategory.CONSUMABLE, active=False).count() == 0
+
+
+def test_a_full_month_of_sales_is_scaled_into_the_band():
+    import random
+
+    from app.services.sample_history_service import (
+        MONTHLY_SALES_BAND,
+        _keep_monthly_sales_in_band,
+    )
+
+    plans = [{"po": date(2026, 5, d), "amount": 100000.0} for d in range(1, 31)]  # 3.0M
+    plans += [{"po": date(2026, 6, d), "amount": 100000.0} for d in range(1, 31)]  # partial
+    _keep_monthly_sales_in_band(random.Random(1), plans, date(2026, 5, 1), date(2026, 6, 20))
+    may = sum(p["amount"] for p in plans if p["po"].month == 5)
+    june = sum(p["amount"] for p in plans if p["po"].month == 6)
+    low, high = MONTHLY_SALES_BAND
+    assert low <= may <= high
+    assert june == 3_000_000.0

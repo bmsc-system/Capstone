@@ -407,7 +407,9 @@ def _register_cli(app):
         """Delete ALL job orders and other shop activity, then load sample history.
 
         Keeps users, machines, clients, suppliers, the catalog, tools and
-        settings. Works on a hosted database too: take a backup first.
+        settings, except that only the sample list's 18 consumables stay
+        offered (the rest become Not offered). Works on a hosted database
+        too: take a backup first.
         --apply asks you to type the database host before it commits.
         """
         from app.services.sample_history_service import format_summary, reset_demo_data
