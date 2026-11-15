@@ -389,11 +389,11 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   };
 
   const columns: TableColumnsType<ReplenishmentItem> = [
-    { title: 'Consumable', key: 'name', render: (_: unknown, i) => itemCell(i), sorter: (a, b) => a.name.localeCompare(b.name) },
+    { title: 'Consumable', key: 'name', width: 210, render: (_: unknown, i) => itemCell(i), sorter: (a, b) => a.name.localeCompare(b.name) },
     {
       title: 'On hand',
       key: 'onHand',
-      width: 110,
+      width: 96,
       sorter: (a, b) => (a.onHand ?? 0) - (b.onHand ?? 0),
       render: (_: unknown, i) => (
         <span style={{ fontWeight: 700, color: (i.onHand ?? 0) > 0 ? undefined : '#b91c1c' }}>
@@ -404,7 +404,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     {
       title: 'Last bought',
       key: 'last',
-      width: 150,
+      width: 124,
       render: (_: unknown, i) =>
         i.lastBoughtOn ? (
           <TwoLineCell primary={day(i.lastBoughtOn)} secondary={`${num(i.lastQuantity)} ${i.unit}`} />
@@ -415,7 +415,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     {
       title: 'Usage',
       key: 'every',
-      width: 180,
+      width: 190,
       render: (_: unknown, i) =>
         i.basis === 'USAGE' && i.dailyUse != null ? (
           <TwoLineCell
@@ -435,7 +435,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
     {
       title: 'Reorder by',
       key: 'next',
-      width: 150,
+      width: 128,
       sorter: (a, b) => (a.daysUntilNext ?? 1e6) - (b.daysUntilNext ?? 1e6),
       render: (_: unknown, i) =>
         i.nextPurchaseOn ? (
@@ -447,13 +447,13 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
           '—'
         ),
     },
-    { title: 'Status', key: 'status', width: 150, render: (_: unknown, i) => statusCell(i) },
+    { title: 'Status', key: 'status', width: 118, render: (_: unknown, i) => statusCell(i) },
     ...(canEdit
       ? [
           {
             title: '',
             key: 'actions',
-            width: 130,
+            width: 118,
             render: (_: unknown, i: ReplenishmentItem) => (
               <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
                 <Button

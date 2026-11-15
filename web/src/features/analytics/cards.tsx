@@ -254,9 +254,21 @@ export function restockCounts(data: ConsumableReplenishment | null) {
 
 export function restockLine(i: ReplenishmentItem) {
   const parts = [];
-  if (i.basis === 'USAGE') parts.push(`${fmtNum(i.onHand ?? 0, 0)} ${i.unit} on hand, uses ~${fmtNum(i.dailyUse, 1)} a day`);
-  else if (i.everyDays != null) parts.push(`bought every ~${fmtNum(i.everyDays, 0)} days`);
-  if (i.nextPurchaseOn) parts.push(`${i.status === 'OVERDUE' ? 'was due' : 'next'} ${fmtDay(i.nextPurchaseOn)}`);
+  if (i.basis === 'USAGE') {
+    const d = i.dailyUse ?? 0;
+    const rate =
+      d <= 0
+        ? 'not used lately'
+        : d >= 1
+          ? `uses ~${fmtNum(d, 0)} ${i.unit} a day`
+          : `uses ~1 ${i.unit} every ${Math.max(1, Math.round(1 / d))} days`;
+    parts.push(`${fmtNum(i.onHand ?? 0, 0)} ${i.unit} on hand, ${rate}`);
+    if (i.status === 'OVERDUE') parts.push('at the reorder point');
+    else if (i.nextPurchaseOn) parts.push(`reorder by ${fmtDay(i.nextPurchaseOn)}`);
+  } else {
+    if (i.everyDays != null) parts.push(`bought every ~${fmtNum(i.everyDays, 0)} days`);
+    if (i.nextPurchaseOn) parts.push(`${i.status === 'OVERDUE' ? 'was due' : 'next'} ${fmtDay(i.nextPurchaseOn)}`);
+  }
   return parts.join(' · ') || '—';
 }
 

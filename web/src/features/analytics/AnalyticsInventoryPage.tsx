@@ -257,7 +257,7 @@ export default function AnalyticsInventoryPage() {
       />
       <span className="ana-inv__switch-sub">
         {view === 'consumables'
-          ? `Forecast as of ${fmtDay(stock.asOf)} from what the shop bought · consumables are not counted`
+          ? `Forecast as of ${fmtDay(stock.asOf)} from the quantity on hand and the consumables handed out`
           : 'Bought for each job order: which are needed most, how long they take to arrive, and which jobs are still waiting'}
       </span>
     </div>
