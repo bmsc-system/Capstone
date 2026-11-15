@@ -8,6 +8,7 @@ import type {
   MachineUnitStatus,
   Operation,
   OperationPauseReason,
+  OperationReplacements,
   ReworkReasonCategory,
   WorkerJobMaterials,
 } from '../types';
@@ -15,6 +16,14 @@ import type { DowntimeCategory } from '../constants/downtimeReasons';
 
 export const operationsApi = {
   mine: () => apiClient.get<Operation[]>('/operations/mine'),
+  /** Admin: who could take this operation at its booked time (or resume it now). */
+  replacements: (id: string) => apiClient.get<OperationReplacements>(`/operations/${id}/replacements`),
+  /** Admin: give a released, unfinished operation to another worker (best available when none named). */
+  handOver: (id: string, workerId?: string) =>
+    apiClient.post<{ operationId: string; label: string; from: string | null; to: string; toId: string }>(
+      `/operations/${id}/hand-over`,
+      { workerId }
+    ),
   /** Raw materials of the worker's open jobs (no costs). */
   myMaterials: () => apiClient.get<WorkerJobMaterials[]>('/operations/mine/materials'),
   start: (id: string, timestamp?: string) =>

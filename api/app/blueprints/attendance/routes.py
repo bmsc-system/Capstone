@@ -83,3 +83,44 @@ def update_record(record_id):
 def delete_record(record_id):
     svc.delete_record(record_id)
     return "", 204
+
+
+# --- Away periods: absent, on leave, or an emergency ------------------------------
+
+
+@attendance_bp.route("/absences", methods=["GET"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
+def list_absences():
+    from app.services import worker_cover_service as cover
+
+    return jsonify(cover.list_absences(request.args.get("date")))
+
+
+@attendance_bp.route("/absences", methods=["POST"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
+def mark_away():
+    """Mark a worker absent, on leave or gone for an emergency; their work in
+    that period is handed to others or moved, and the result says what was done."""
+    from app.services import worker_cover_service as cover
+
+    data = request.get_json() or {}
+    result = cover.mark_away(
+        data.get("workerId"),
+        data.get("fromDate"),
+        data.get("toDate"),
+        data.get("reason"),
+        data.get("note"),
+        actor_id=get_current_user_id(),
+    )
+    return jsonify(result), 201
+
+
+@attendance_bp.route("/absences/<absence_id>/cancel", methods=["POST"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
+def cancel_absence(absence_id):
+    from app.services import worker_cover_service as cover
+
+    return jsonify(cover.cancel_absence(absence_id).to_dict())

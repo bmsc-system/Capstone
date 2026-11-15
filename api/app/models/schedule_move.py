@@ -26,6 +26,10 @@ class DelayKind:
     OVERRUN = "OVERRUN"
     # The unit broke down; the work moved to another unit or after the repair.
     BREAKDOWN = "BREAKDOWN"
+    # The assigned worker is absent, on leave or left for an emergency.
+    WORKER_ABSENT = "WORKER_ABSENT"
+    # An earlier step finished ahead of schedule, so the next steps start sooner.
+    EARLY_FINISH = "EARLY_FINISH"
 
 
 class MaterialCause:

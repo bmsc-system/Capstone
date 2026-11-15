@@ -168,6 +168,59 @@ export type AttendanceStatus =
   | 'NOT_YET'
   | 'OFF';
 
+/** A period a worker is away: marked absent, on leave, or gone for an emergency. */
+export interface WorkerAbsence {
+  id: string;
+  workerId: string;
+  workerName: string | null;
+  startsAt: string;
+  endsAt: string;
+  reason: 'ABSENT' | 'EMERGENCY' | 'LEAVE';
+  reasonLabel: string;
+  note: string | null;
+  createdByName: string | null;
+  cancelledAt: string | null;
+}
+
+/** What was done with one of an away worker's operations. */
+export interface CoverOutcome {
+  operationId: string;
+  jobId: string;
+  label: string;
+  outcome:
+    | 'REASSIGNED'
+    | 'HANDED_OVER'
+    | 'HELPER_REPLACED'
+    | 'HELPER_REMOVED'
+    | 'MOVED_LATER'
+    | 'NEEDS_REPLAN'
+    | 'LEFT_PAUSED'
+    | 'UNCHANGED';
+  to?: string;
+  newStart?: string | null;
+}
+
+export interface MarkAwayResult {
+  absence: WorkerAbsence;
+  cover: { workerId: string; workerName: string; operations: CoverOutcome[] };
+  summary: string;
+}
+
+/** Who could take an operation at its booked time (or resume it now). */
+export interface OperationReplacements {
+  operationId: string;
+  from: string;
+  to: string;
+  helpers: { workerId: string; fullName: string | null }[];
+  candidates: {
+    workerId: string;
+    fullName: string;
+    score?: number | null;
+    proficiency?: number | null;
+    attendanceWarning?: string | null;
+  }[];
+}
+
 export interface AttendanceRow {
   workerId: string;
   workerName: string;
@@ -559,6 +612,7 @@ export type OperationPauseReason =
   | 'MACHINE_DOWN'
   | 'WAITING_MATERIAL'
   | 'WAITING_PRIOR_OPERATION'
+  | 'EMERGENCY'
   | 'OTHER';
 
 export interface OperationTimeLog {

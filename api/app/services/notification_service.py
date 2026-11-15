@@ -74,7 +74,12 @@ def parse_allowlist(raw: str | None) -> set[str]:
     return entries
 
 
-def _attempt(cfg, channel, to, subject, body, html_body):
+# Emails about a person's own account (setup link, password reset) go to the
+# address on that account, so the test allowlist does not hold them back.
+ACCOUNT_EVENTS = ("INVITATION", "PASSWORD_RESET")
+
+
+def _attempt(cfg, channel, to, subject, body, html_body, event=None):
     """Return (status, error, provider_reference, stored_body)."""
     if channel != NotificationChannel.EMAIL:
         return NotificationStatus.SKIPPED, SMS_RETIRED, None, body
@@ -87,7 +92,7 @@ def _attempt(cfg, channel, to, subject, body, html_body):
         return NotificationStatus.SKIPPED, TURNED_OFF, None, body
 
     allowlist = parse_allowlist(cfg.get("NOTIFY_ALLOWLIST"))
-    if allowlist and to not in allowlist:
+    if allowlist and to not in allowlist and event not in ACCOUNT_EVENTS:
         return NotificationStatus.SKIPPED, NOT_ALLOWLISTED, None, body
 
     backend = get_email_backend(cfg)
@@ -138,7 +143,7 @@ def send_notification(
             status, error, reference = NotificationStatus.SKIPPED, skip_reason, None
         else:
             status, error, reference, stored_body = _attempt(
-                current_app.config, channel, to, subject, body, html_body
+                current_app.config, channel, to, subject, body, html_body, event=event
             )
     except Exception as exc:  # noqa: BLE001 - a notification must never break the action
         logger.exception("Notification send failed event=%s channel=%s", event, channel.value)
@@ -378,8 +383,10 @@ def safe_notify_job_milestone(job_id: str, milestone: NotificationMilestone) -> 
         logger.exception("safe_notify_job_milestone failed job=%s", job_id)
 
 
-def list_notification_logs(job_order_id=None, client_id=None, status=None, limit=200):
+def list_notification_logs(job_order_id=None, client_id=None, status=None, limit=200, event=None):
     q = NotificationLog.query
+    if event:
+        q = q.filter(NotificationLog.event.in_([e.strip() for e in str(event).split(",") if e.strip()]))
     if job_order_id:
         q = q.filter_by(job_order_id=job_order_id)
     if client_id:

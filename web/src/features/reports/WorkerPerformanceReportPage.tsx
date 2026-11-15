@@ -35,6 +35,7 @@ const PAUSE_LABEL: Record<string, string> = {
   MACHINE_DOWN: 'Machine breakdown',
   WAITING_MATERIAL: 'Waiting for material',
   WAITING_PRIOR_OPERATION: 'Waiting on prior operation',
+  EMERGENCY: 'Emergency (had to leave)',
   OTHER: 'Other',
 };
 

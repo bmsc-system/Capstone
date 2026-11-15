@@ -1,4 +1,6 @@
 from app.extensions import bcrypt, db
+from sqlalchemy import func
+
 from app.models.user import User, UserRole, UserStatus
 from app.services.audit_service import write_audit_event
 from app.services.device_pin_service import revoke_all_devices_for_user
@@ -16,7 +18,8 @@ def _find_user_by_identifier(identifier: str) -> User | None:
     if not raw:
         return None
     if looks_like_email(raw):
-        return User.query.filter_by(email=raw.lower()).first()
+        # Any capitals in the stored address still match what the person types.
+        return User.query.filter(func.lower(User.email) == raw.lower()).first()
     if looks_like_mobile(raw):
         try:
             mobile = normalize_ph_mobile(raw, required=True)

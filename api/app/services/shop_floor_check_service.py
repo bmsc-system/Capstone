@@ -562,12 +562,19 @@ def run_checks(now_utc=None) -> dict:
             "stalledAlerts": flag_stalled(now),
             "downUnitAlerts": flag_work_on_down_units(now),
             "repairDateAlerts": flag_passed_repair_dates(now),
+            "notClockedInAlerts": _flag_not_clocked_in(now),
         }
         db.session.commit()
         return result
     except Exception:
         db.session.rollback()
         raise
+
+
+def _flag_not_clocked_in(now) -> int:
+    from app.services.worker_cover_service import flag_not_clocked_in
+
+    return flag_not_clocked_in(now)
 
 
 def safe_run_after_clock_event() -> None:

@@ -30,7 +30,9 @@ const itemName = (name: string, size?: string | null) => (size ? `${name} · ${s
 const statusColor = (status: string) => tones[RESTOCK_TONE[status] ?? 'grey'].solid;
 const isDue = (i: ReplenishmentItem) => i.status === 'OVERDUE' || i.status === 'DUE_SOON';
 const nextLabel = (i: ReplenishmentItem) =>
-  i.daysUntilNext == null
+  i.basis === 'USAGE' && (i.daysUntilNext ?? 0) < 0
+    ? 'now'
+    : i.daysUntilNext == null
     ? '—'
     : i.daysUntilNext < 0
       ? `${fmtNum(-i.daysUntilNext)} d late`
@@ -442,14 +444,24 @@ export default function AnalyticsInventoryPage() {
                       </td>
                       <td>
                         {i.basis === 'USAGE'
-                          ? `~${fmtNum(i.dailyUse, 1)} a day · runs out ${fmtDay(i.runOutOn)}`
+                          ? `${
+                              (i.dailyUse ?? 0) >= 1
+                                ? `~${fmtNum(i.dailyUse, 1)} a day`
+                                : `~1 every ${Math.max(1, Math.round(1 / (i.dailyUse || 1)))} days`
+                            } · ${(i.onHand ?? 0) <= 0 ? 'none left' : `runs out ${fmtDay(i.runOutOn)}`}`
                           : `bought every ~${fmtNum(i.everyDays)} d`}
                       </td>
                       <td className="num">
                         {fmtNum(i.usualQuantity)} <span className="ana-muted">{i.unit}</span>
                       </td>
                       <td>
-                        {fmtDay(i.nextPurchaseOn)} <span className="ana-muted">({nextLabel(i)})</span>
+                        {i.basis === 'USAGE' && (i.daysUntilNext ?? 0) < 0 ? (
+                          'Now'
+                        ) : (
+                          <>
+                            {fmtDay(i.nextPurchaseOn)} <span className="ana-muted">({nextLabel(i)})</span>
+                          </>
+                        )}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <StatusPill tone={RESTOCK_TONE[i.status]} compact>

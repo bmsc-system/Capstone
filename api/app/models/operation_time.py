@@ -28,6 +28,8 @@ class OperationPauseReason(enum.Enum):
     MACHINE_DOWN = "MACHINE_DOWN"
     WAITING_MATERIAL = "WAITING_MATERIAL"
     WAITING_PRIOR_OPERATION = "WAITING_PRIOR_OPERATION"
+    # The worker has to leave; their remaining work is handed over or moved.
+    EMERGENCY = "EMERGENCY"
     OTHER = "OTHER"
 
 
@@ -37,6 +39,7 @@ PAUSE_REASON_LABELS = {
     OperationPauseReason.MACHINE_DOWN.value: "Machine breakdown",
     OperationPauseReason.WAITING_MATERIAL.value: "Waiting for material",
     OperationPauseReason.WAITING_PRIOR_OPERATION.value: "Waiting on prior operation",
+    OperationPauseReason.EMERGENCY.value: "Emergency (had to leave)",
     OperationPauseReason.OTHER.value: "Other",
 }
 

@@ -211,7 +211,7 @@ def unified_scan(
     tool = Tool.query.filter_by(code=raw).first()
     if tool and tool.category == ToolCategory.CONSUMABLE:
         raise AppError(
-            f"{tool.name} is a consumable. Consumables are not scanned; only tools are.",
+            f"{tool.name} is a consumable. Ask the Office Staff for it; they hand consumables out.",
             "CONSUMABLE_NOT_SCANNED",
             400,
         )

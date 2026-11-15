@@ -19,6 +19,7 @@ def list_notifications():
         client_id=request.args.get("clientId") or request.args.get("client_id"),
         status=request.args.get("status"),
         limit=request.args.get("limit", 200),
+        event=request.args.get("event"),
     )
     # Eager relationships for to_dict
     ids = [log.id for log in logs]

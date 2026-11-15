@@ -279,6 +279,7 @@ TRANSACTION_TABLES = (
     "notification_logs",
     "staff_alerts",
     "attendance_records",
+    "worker_absences",
     "machine_downtimes",
     "tool_events",
     "stocktakes",
@@ -1707,13 +1708,15 @@ def _hand_outs(rng, shop, ledger, counters, tool, arrivals, every, office):
         days = [d for d in working if arrived <= d < until]
         if not days or stock < 1:
             continue
-        # The newest purchase is only partly used by the last day of the history.
-        share = (
-            min(0.9, max(0.1, (shop.end - arrived).days / max(1, every)))
-            if last
-            else rng.uniform(0.78, 0.96)
-        )
-        to_give = int((stock * Decimal(str(share))).to_integral_value())
+        # The office keeps some on the shelf (half to twice a usual purchase),
+        # so items sit at different points between full and the reorder point.
+        buffer = qty * Decimal(str(rng.uniform(0.5, 2.0)))
+        spare = max(stock - buffer, Decimal("0"))
+        if last:
+            # The newest purchase is only partly used by the last day of the history.
+            used = min(1.0, max(0.1, (shop.end - arrived).days / max(1, every)))
+            spare = min(stock, max(spare, qty) * Decimal(str(used)))
+        to_give = int(spare.to_integral_value())
         if to_give < 1:
             continue
         visits = max(1, min(to_give, len(days), 2 + to_give // 3, 8))

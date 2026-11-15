@@ -28,7 +28,8 @@ const KIND: Record<string, { label: string; tone: Tone }> = {
   REPAIR_DATE_PASSED: { label: 'Repair overdue', tone: 'amber' },
   OPERATION_STALLED: { label: 'Stalled', tone: 'amber' },
   WORK_MOVED: { label: 'Work moved', tone: 'blue' },
-  LOW_STOCK: { label: 'Running low', tone: 'amber' },
+  LOW_STOCK: { label: 'Reorder', tone: 'amber' },
+  PO_APPROVAL: { label: 'Purchase order', tone: 'blue' },
 };
 
 /** Today, Yesterday, or the date, for grouping the list. */

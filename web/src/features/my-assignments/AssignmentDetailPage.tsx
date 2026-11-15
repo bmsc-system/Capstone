@@ -36,6 +36,7 @@ const PAUSE_REASONS: { value: OperationPauseReason; label: string }[] = [
   { value: 'MACHINE_DOWN', label: 'Machine breakdown' },
   { value: 'WAITING_MATERIAL', label: 'Waiting for material' },
   { value: 'WAITING_PRIOR_OPERATION', label: 'Waiting on prior operation' },
+  { value: 'EMERGENCY', label: 'Emergency (I have to leave)' },
   { value: 'OTHER', label: 'Other' },
 ];
 
@@ -953,7 +954,17 @@ export default function AssignmentDetailPage() {
                     block
                     size="large"
                     loading={actionLoading === pauseForOp.id}
-                    onClick={() => confirmPause(r.value)}
+                    onClick={() =>
+                      r.value === 'EMERGENCY'
+                        ? confirmAction({
+                            title: 'Pause for an emergency?',
+                            content:
+                              'Use this when you have to leave. The Administrator is told, and your work for the rest of today is handed to other workers or moved.',
+                            okText: 'Yes, I have to leave',
+                            onOk: () => confirmPause(r.value),
+                          })
+                        : confirmPause(r.value)
+                    }
                     style={{ height: 48, fontWeight: 700, textAlign: 'left' }}
                   >
                     {r.label}

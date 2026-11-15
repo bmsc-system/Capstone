@@ -39,6 +39,8 @@ import type {
   AttendanceDaySheet,
   AttendanceHistory,
   AttendanceRow,
+  CoverOutcome,
+  WorkerAbsence,
 } from '../../types';
 import { confirmAction } from '../../utils/confirmAction';
 
@@ -73,6 +75,18 @@ function defaultTime(day: string, scheduled: string | null, fallback: string) {
   if (dayjs(day).isSame(shopToday(), 'day')) return shopWallNow().second(0);
   return dayjs(`2000-01-01T${scheduled || fallback}`);
 }
+
+const COVER_TEXT: Record<CoverOutcome['outcome'], (r: CoverOutcome) => string> = {
+  REASSIGNED: (r) => `given to ${r.to ?? 'another worker'} at the same time`,
+  HANDED_OVER: (r) => `handed over to ${r.to ?? 'another worker'}, who can resume it`,
+  HELPER_REPLACED: (r) => `${r.to ?? 'Another worker'} helps instead`,
+  HELPER_REMOVED: () => 'goes on without this helper (nobody else was free)',
+  MOVED_LATER: (r) =>
+    `moved later${r.newStart ? ` to ${formatShop(r.newStart, 'MMM D, h:mm A')}` : ''}; nobody else was free`,
+  NEEDS_REPLAN: () => 'could not be moved automatically. Open the job and reschedule it.',
+  LEFT_PAUSED: () => 'left paused; nobody is free to take it. Hand it over from the job when someone is.',
+  UNCHANGED: () => 'kept as it is',
+};
 
 function StatusCell({ row }: { row: AttendanceRow }) {
   return (
@@ -109,6 +123,8 @@ export default function AttendancePage() {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const [modal, setModal] = useState<{ mode: ModalMode; row: AttendanceRow } | null>(null);
+  // Workers marked away (absent, on leave, emergency) on the day shown.
+  const [absences, setAbsences] = useState<WorkerAbsence[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [form] = Form.useForm();
@@ -118,8 +134,12 @@ export default function AttendancePage() {
   const loadDay = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await attendanceApi.day(dayKey);
+      const [{ data }, { data: away }] = await Promise.all([
+        attendanceApi.day(dayKey),
+        attendanceApi.absences(dayKey),
+      ]);
       setSheet(data);
+      setAbsences(away);
     } catch (err) {
       message.error(getErrorMessage(err));
     } finally {
@@ -267,6 +287,137 @@ export default function AttendancePage() {
   };
 
   const isFuture = (d: string) => dayjs(d).isAfter(shopToday(), 'day');
+  const isPast = (d: string) => dayjs(d).isBefore(shopToday(), 'day');
+  const awayOn = (row: AttendanceRow) =>
+    absences.find(
+      (a) =>
+        a.workerId === row.workerId &&
+        formatShop(a.startsAt, 'YYYY-MM-DD') <= row.date &&
+        formatShop(a.endsAt, 'YYYY-MM-DD') >= row.date
+    );
+  /** Leave entered ahead of time that has not started on the day shown. */
+  const comingAway = (row: AttendanceRow) =>
+    absences.find((a) => a.workerId === row.workerId && formatShop(a.startsAt, 'YYYY-MM-DD') > row.date);
+
+  /** Mark a worker away: their work in that period is handed to others or moved. */
+  const markAway = (row: AttendanceRow) => {
+    let reason: WorkerAbsence['reason'] = 'ABSENT';
+    let firstDay: Dayjs = dayjs(row.date);
+    let lastDay: Dayjs = dayjs(row.date);
+    let note = '';
+    confirmAction({
+      wide: true,
+      title: `Mark ${row.workerName} as away?`,
+      content: (
+        <div style={{ marginTop: 8, display: 'grid', gap: 12 }}>
+          <div style={{ fontSize: 13, color: '#475569' }}>
+            Their operations in this period are handled for you: work not started goes to the best
+            free worker with the skill, or moves to after they are back when nobody is free; work
+            already started is handed to a helper or a replacement. You are told what was done and
+            can change it.
+          </div>
+          <div>
+            <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>Reason</div>
+            <Select
+              style={{ width: '100%' }}
+              defaultValue="ABSENT"
+              onChange={(v: WorkerAbsence['reason']) => {
+                reason = v;
+              }}
+              options={[
+                { value: 'ABSENT', label: 'Absent' },
+                { value: 'EMERGENCY', label: 'Emergency (left during the day)' },
+                { value: 'LEAVE', label: 'On leave' },
+              ]}
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>First day away</div>
+              <DatePicker
+                style={{ width: '100%' }}
+                defaultValue={dayjs(row.date)}
+                format="MMM D, YYYY"
+                allowClear={false}
+                disabledDate={(d) => d.isBefore(shopToday(), 'day')}
+                onChange={(d) => {
+                  if (d) firstDay = d;
+                }}
+              />
+            </div>
+            <div>
+              <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>Last day away</div>
+              <DatePicker
+                style={{ width: '100%' }}
+                defaultValue={dayjs(row.date)}
+                format="MMM D, YYYY"
+                allowClear={false}
+                disabledDate={(d) => d.isBefore(shopToday(), 'day')}
+                onChange={(d) => {
+                  if (d) lastDay = d;
+                }}
+              />
+            </div>
+          </div>
+          <Input
+            maxLength={255}
+            placeholder="Note (optional)"
+            onChange={(e) => {
+              note = e.target.value;
+            }}
+          />
+        </div>
+      ),
+      okText: 'Mark away and cover their work',
+      onOk: async () => {
+        try {
+          const { data } = await attendanceApi.markAway({
+            workerId: row.workerId,
+            fromDate: firstDay.format('YYYY-MM-DD'),
+            toDate: (lastDay.isBefore(firstDay, 'day') ? firstDay : lastDay).format('YYYY-MM-DD'),
+            reason,
+            note: note.trim() || undefined,
+          });
+          const rows = data.cover.operations;
+          Modal.info({
+            title: `${row.workerName} is marked away`,
+            width: 560,
+            content: rows.length ? (
+              <ul style={{ paddingLeft: 18, margin: '8px 0 0' }}>
+                {rows.map((r) => (
+                  <li key={r.operationId} style={{ marginBottom: 4 }}>
+                    <strong>{r.label}</strong>: {COVER_TEXT[r.outcome](r)}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              'They had no scheduled work in that period.'
+            ),
+          });
+          await loadDay();
+        } catch (err) {
+          message.error(getErrorMessage(err));
+          throw err;
+        }
+      },
+    });
+  };
+
+  const markBack = (a: WorkerAbsence) =>
+    confirmAction({
+      title: `${a.workerName ?? 'This worker'} is not away after all?`,
+      content: 'They can be scheduled again in that period. Work already handed to others stays with them.',
+      okText: 'Yes, remove it',
+      onOk: async () => {
+        try {
+          await attendanceApi.cancelAbsence(a.id);
+          message.success('Away period removed');
+          await loadDay();
+        } catch (err) {
+          message.error(getErrorMessage(err));
+        }
+      },
+    });
 
   const actionsCell = (row: AttendanceRow) => {
     const rec = row.record;
@@ -287,6 +438,19 @@ export default function AttendancePage() {
             Clock out
           </Button>
         )}
+        {awayOn(row) ? (
+          <Button size="small" type="text" onClick={() => markBack(awayOn(row)!)}>
+            Back
+          </Button>
+        ) : comingAway(row) ? (
+          <Button size="small" type="text" onClick={() => markBack(comingAway(row)!)}>
+            Cancel leave
+          </Button>
+        ) : !isPast(row.date) && !(rec && rec.clockOut) ? (
+          <Button size="small" type="text" onClick={() => markAway(row)}>
+            Mark away
+          </Button>
+        ) : null}
         {rec && (
           <Dropdown
             trigger={['click']}
@@ -333,7 +497,28 @@ export default function AttendancePage() {
       width: 120,
       render: (_: unknown, r) => fmtHours(r.record?.hoursWorked),
     },
-    { title: 'Status', key: 'status', width: 220, render: (_: unknown, r) => <StatusCell row={r} /> },
+    {
+      title: 'Status',
+      key: 'status',
+      width: 240,
+      render: (_: unknown, r) => {
+        const away = awayOn(r);
+        return (
+          <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+            <StatusCell row={r} />
+            {away ? (
+              <StatusPill tone="amber" compact>
+                Away: {away.reasonLabel}
+              </StatusPill>
+            ) : comingAway(r) ? (
+              <StatusPill tone="slate" compact>
+                {comingAway(r)!.reasonLabel} from {formatShop(comingAway(r)!.startsAt, 'MMM D')}
+              </StatusPill>
+            ) : null}
+          </span>
+        );
+      },
+    },
     {
       title: 'Note',
       key: 'note',
@@ -343,7 +528,7 @@ export default function AttendancePage() {
     {
       title: '',
       key: 'actions',
-      width: 150,
+      width: 240,
       align: 'right',
       fixed: 'right',
       render: (_: unknown, r) => actionsCell(r),

@@ -165,7 +165,13 @@ def _available_people(
     busy = get_busy_workers(
         start=scheduled_start, end=scheduled_end, exclude_operation_id=exclude_operation_id
     )
-    workers = [w for w in workers if w.id not in busy and w.id not in excluded]
+    # Marked away (absent, on leave, emergency) in that window, or right now.
+    from app.services.worker_cover_service import away_worker_ids
+
+    away = away_worker_ids(_parse_dt(scheduled_start), _parse_dt(scheduled_end))
+    workers = [
+        w for w in workers if w.id not in busy and w.id not in excluded and w.id not in away
+    ]
     return _working_during(workers, scheduled_start, scheduled_end)
 
 

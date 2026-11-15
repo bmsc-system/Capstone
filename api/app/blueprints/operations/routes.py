@@ -75,6 +75,50 @@ def _worker_action(operation_id, action, apply):
     return jsonify(operation.to_dict())
 
 
+@operations_bp.route("/<operation_id>/replacements", methods=["GET"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
+def operation_replacements(operation_id):
+    """Who could take this operation at its booked time (or resume it now)."""
+    from datetime import datetime, timezone
+
+    from app.services import worker_cover_service as cover
+
+    operation = JobOperation.query.get(operation_id)
+    if not operation:
+        raise AppError("Operation not found", "NOT_FOUND", 404)
+    start, end = cover._window(operation, datetime.now(timezone.utc))
+    return jsonify(
+        {
+            "operationId": operation.id,
+            "from": start.isoformat(),
+            "to": end.isoformat(),
+            "helpers": [
+                {"workerId": h.worker_id, "fullName": h.worker.full_name if h.worker else None}
+                for h in operation.helpers
+            ],
+            "candidates": cover.replacements(operation, start, end),
+        }
+    )
+
+
+@operations_bp.route("/<operation_id>/hand-over", methods=["POST"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
+def hand_over_operation(operation_id):
+    """Give a released, unfinished operation to another worker (the best
+    available one when none is named)."""
+    from app.services import worker_cover_service as cover
+
+    operation = JobOperation.query.get(operation_id)
+    if not operation:
+        raise AppError("Operation not found", "NOT_FOUND", 404)
+    data = request.get_json() or {}
+    return jsonify(
+        cover.hand_over(operation, data.get("workerId"), actor_id=get_current_user_id())
+    )
+
+
 @operations_bp.route("/<operation_id>/start", methods=["POST"])
 @jwt_required()
 @require_roles(UserRole.PRODUCTION_WORKER)

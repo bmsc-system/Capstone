@@ -8,6 +8,7 @@ import { useUnsavedChangesWarning } from '../../hooks/useUnsavedChangesWarning';
 import { usePageHeaderActions } from '../../layouts/pageHeaderActions';
 import { formatShop } from '../../utils/shopTime';
 import { shopLetterheadPreview } from './shopLetterheadPreview';
+import EmailCheckCard from './EmailCheckCard';
 import './shopDetails.css';
 
 const EMPTY: ShopDetails = {
@@ -316,6 +317,8 @@ export default function ShopDetailsPage() {
 
         {!isNarrow ? <PreviewPanel values={previewValues} dirty={dirty} /> : null}
       </div>
+
+      <EmailCheckCard />
 
       <Drawer
         open={drawerOpen}

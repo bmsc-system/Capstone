@@ -1,4 +1,5 @@
 from app.models.attendance import AttendanceRecord
+from app.models.worker_absence import AbsenceReason, WorkerAbsence
 from app.models.audit_log import AuditLog
 from app.models.rate_limit import RateLimitCounter
 from app.models.sample_record import SampleRecord
@@ -115,6 +116,8 @@ __all__ = [
     "StocktakeLine",
     "AuditLog",
     "AttendanceRecord",
+    "WorkerAbsence",
+    "AbsenceReason",
     "NotificationLog",
     "NotificationMilestone",
     "NotificationChannel",

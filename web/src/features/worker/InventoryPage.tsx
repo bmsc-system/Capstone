@@ -79,6 +79,7 @@ export default function InventoryPage() {
 
   const [query, setQuery] = useState('');
   const [toolView, setToolView] = useState<ToolView>('holding');
+  const [consumableView, setConsumableView] = useState<'available' | 'mine'>('available');
   const [held, setHeld] = useState<ToolUnit[]>([]);
   const [types, setTypes] = useState<ToolType[]>([]);
   const [toolsLoading, setToolsLoading] = useState(true);
@@ -409,7 +410,28 @@ export default function InventoryPage() {
           The office keeps the consumables. Ask the Office Staff for what your operation needs; they hand it to you
           and record it.
         </div>
-        <div className="w-section-title">Handed to you</div>
+        <div className="w-chips" role="tablist" aria-label="Which consumables" style={{ marginBottom: 10 }}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={consumableView === 'available'}
+            className={`w-chip${consumableView === 'available' ? ' is-active' : ''}`}
+            onClick={() => setConsumableView('available')}
+          >
+            Available ({filteredConsumables.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={consumableView === 'mine'}
+            className={`w-chip${consumableView === 'mine' ? ' is-active' : ''}`}
+            onClick={() => setConsumableView('mine')}
+          >
+            Handed to me ({usedShown.length})
+          </button>
+        </div>
+        {consumableView === 'mine' ? (
+          <>
         {usedShown.length === 0 ? (
           <EmptyState
             compact
@@ -450,9 +472,9 @@ export default function InventoryPage() {
             </div>
           </div>
         )}
-        <div className="w-section-title" style={{ marginTop: 16 }}>
-          Available in the office
-        </div>
+          </>
+        ) : (
+          <>
         {filteredConsumables.length === 0 ? (
           <EmptyState compact icon={<SearchOutlined />} title={q ? 'No consumables match your search' : 'No consumables yet'} />
         ) : (
@@ -478,6 +500,8 @@ export default function InventoryPage() {
               ))}
             </div>
           </div>
+        )}
+          </>
         )}
       </>
     );

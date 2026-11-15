@@ -309,6 +309,12 @@ def _load_external_bookings(exclude_job_id=None, exclude_operation_ids=None):
     for unit_id, intervals in open_downtime_intervals_by_unit().items():
         machine_busy.setdefault(unit_id, []).extend(intervals)
 
+    # A worker marked away (absent, on leave, emergency) cannot be booked then.
+    from app.services.worker_cover_service import absence_intervals
+
+    for worker_id, intervals in absence_intervals().items():
+        worker_busy.setdefault(worker_id, []).extend(intervals)
+
     return worker_busy, machine_busy
 
 

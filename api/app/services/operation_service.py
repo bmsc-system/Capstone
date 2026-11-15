@@ -456,6 +456,11 @@ def pause_operation(
     except Exception:
         db.session.rollback()
         raise
+    if pause_reason == OperationPauseReason.EMERGENCY:
+        # The worker has to leave: away for the rest of today, work covered.
+        from app.services.worker_cover_service import cover_after_emergency
+
+        cover_after_emergency(user_id)
     _after_clock_event()
     return operation
 
@@ -561,10 +566,16 @@ def complete_operation(operation, user_id, user_role, timestamp, received_at=Non
         _alert_operation_done(operation, job)
         db.session.commit()
         _notify_after_complete(job)
-        return operation
     except Exception:
         db.session.rollback()
         raise
+    # Finished ahead of its booked end: the job's next steps start sooner when
+    # the people and machines they need are free.
+    if operation.scheduled_end is not None and ts < _ensure_utc(operation.scheduled_end):
+        from app.services.worker_cover_service import safe_pull_forward
+
+        safe_pull_forward(operation.job_order_id)
+    return operation
 
 
 def _assert_not_outsourced(operation):

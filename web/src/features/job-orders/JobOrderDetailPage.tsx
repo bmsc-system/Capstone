@@ -51,6 +51,7 @@ import MaterialWaitTag from '../../components/MaterialWaitTag';
 import MaterialDelayTag from '../../components/MaterialDelayTag';
 import NeedsReplanTag from '../../components/NeedsReplanTag';
 import { CrewChips } from '../../components/PersonAvatar';
+import ChangeWorkerModal from './ChangeWorkerModal';
 import type {
   JobOrder,
   JobOrderStatus,
@@ -153,6 +154,7 @@ const PAUSE_REASON_LABEL: Record<string, string> = {
   MACHINE_DOWN: 'Machine breakdown',
   WAITING_MATERIAL: 'Waiting for material',
   WAITING_PRIOR_OPERATION: 'Waiting on prior operation',
+  EMERGENCY: 'Emergency (had to leave)',
   OTHER: 'Other',
 };
 
@@ -287,6 +289,7 @@ function JobOrderDetailView() {
   const [purchases, setPurchases] = useState<MaterialPurchase[]>([]);
   const [breakdowns, setBreakdowns] = useState<MachineDowntimeRecord[]>([]);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [changeWorkerOp, setChangeWorkerOp] = useState<Operation | null>(null);
   const [draftNotice, setDraftNotice] = useState<{
     id: string;
     supplierName: string;
@@ -814,6 +817,8 @@ function JobOrderDetailView() {
               RESCHEDULED: 'Rescheduled',
               OVERRUN: 'Moved later: earlier work ran long',
               BREAKDOWN: 'Moved: machine breakdown',
+              WORKER_ABSENT: 'Moved later: the worker is away',
+              EARLY_FINISH: 'Moved earlier: a step finished ahead of schedule',
             }[job.materialDelay.kind]
           }
           detail={
@@ -1013,6 +1018,27 @@ function JobOrderDetailView() {
                               size={20}
                               emptyText="No worker yet"
                             />
+                            {isAdmin &&
+                            (job.status === 'SCHEDULED' || job.status === 'IN_PROGRESS') &&
+                            op.status !== 'COMPLETED' ? (
+                              <Tooltip
+                                title={
+                                  active && !op.isPaused
+                                    ? 'It is running now. It has to be paused before someone else takes it.'
+                                    : undefined
+                                }
+                              >
+                                <Button
+                                  size="small"
+                                  type="link"
+                                  style={{ paddingInline: 4 }}
+                                  disabled={active && !op.isPaused}
+                                  onClick={() => setChangeWorkerOp(op)}
+                                >
+                                  Change worker
+                                </Button>
+                              </Tooltip>
+                            ) : null}
                           </div>
                         )}
 
@@ -1215,7 +1241,11 @@ function JobOrderDetailView() {
                                 ? 'Overrun'
                                 : m.kind === 'RESCHEDULED'
                                   ? 'Rescheduled'
-                                  : m.kind;
+                                  : m.kind === 'WORKER_ABSENT'
+                                    ? 'Worker away'
+                                    : m.kind === 'EARLY_FINISH'
+                                      ? 'Finished early'
+                                      : m.kind;
                         const autoText =
                           m.reason && !RESCHEDULE_REASON_CODES.has(m.reason) ? m.reason : null;
                         return (
@@ -1526,6 +1556,11 @@ function JobOrderDetailView() {
         )}
       </FormModal>
 
+      <ChangeWorkerModal
+        op={changeWorkerOp}
+        onClose={() => setChangeWorkerOp(null)}
+        onChanged={() => void fetchJob()}
+      />
       <OrderMaterialsModal
         open={purchaseOpen}
         onClose={() => setPurchaseOpen(false)}
