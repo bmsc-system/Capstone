@@ -1,5 +1,5 @@
 """Scheduling scenarios run end to end through the real propose, confirm, apply,
-redo and overdue-delivery code: bookings and clashes, working time, machines,
+and overdue-delivery code: bookings and clashes, working time, machines,
 materials, edits, and a load run.
 
 Uses the bmsc_test database from conftest (schema built from the models).
@@ -19,9 +19,7 @@ from app.models.client import Client
 from app.models.job_order import JobOrder, JobOrderStatus, JobType, MaterialStatus, PartCondition
 from app.models.machine import MachineType, MachineUnit
 from app.models.operation import JobOperation, OperationStatus
-from app.models.operation_time import DowntimeCategory, MachineDowntime
 from app.models.schedule_move import DelayKind
-from app.models.staff_alert import StaffAlert, StaffAlertKind
 from app.models.supplier import Supplier
 from app.models.supplier_order import SupplierOrder
 from app.models.user import User, UserRole, UserStatus
@@ -459,40 +457,6 @@ def test_typed_start_in_the_past_or_on_a_holiday(client, shop):
     assert p["problems"] == []
 
 
-def test_replanning_after_a_redo_places_it_without_clashing(client, shop):
-    other = _job(shop, status=JobOrderStatus.SCHEDULED)
-    _booked(other, 1, shop["rina"], _at(MON, 8), _at(MON, 12))
-
-    job = _job(shop, status=JobOrderStatus.IN_PROGRESS)
-    done = _booked(job, 1, shop["rina"], _at(LAST_SAT, 8), _at(LAST_SAT, 10),
-                   status=OperationStatus.COMPLETED, actual_start=_at(LAST_SAT, 8))
-    done.actual_end = _at(LAST_SAT, 10)
-    _booked(job, 2, shop["omar"], _at(MON, 14), _at(MON, 16))
-    db.session.commit()
-    res = client.post(
-        f"/api/v1/operations/{done.id}/rework",
-        json={"category": "OPERATOR_ERROR"},
-        headers=_headers(shop["admin"]),
-    )
-    assert res.status_code == 201, res.get_json()
-
-    p = _propose(client, shop, db.session.get(JobOrder, job.id))
-    by_seq = {o["sequenceNo"]: o for o in p["operations"]}
-    assert _parse(by_seq[2]["scheduledStart"]) == _at(MON, 13)
-    assert _parse(by_seq[3]["scheduledStart"]) == _at(MON, 15)
-    assert p["problems"] == []
-    res = client.post(
-        f"/api/v1/job-orders/{job.id}/schedule/apply",
-        json={"operations": [
-            {"id": o["id"], "scheduledStart": o["scheduledStart"], "machineUnitId": o["machineUnitId"]}
-            for o in p["operations"] if o["sequenceNo"] > 1
-        ]},
-        headers=_headers(shop["admin"]),
-    )
-    assert res.status_code == 200, res.get_json()
-    assert _double_bookings() == []
-
-
 # ---- Load --------------------------------------------------------------------
 
 
@@ -516,97 +480,6 @@ def test_twenty_jobs_proposed_and_confirmed_without_double_booking(client, shop)
         assert res.status_code == 200, res.get_json()
     assert _double_bookings() == []
     assert max(timings) < 2.0, timings
-
-
-# ---- Redo is scheduled right away --------------------------------------------
-
-
-def _rework(client, shop, op):
-    res = client.post(
-        f"/api/v1/operations/{op.id}/rework",
-        json={"category": "OPERATOR_ERROR"},
-        headers=_headers(shop["admin"]),
-    )
-    assert res.status_code == 201, res.get_json()
-    db.session.expire_all()
-    return res.get_json()
-
-
-def _completed(job, lead, unit=None):
-    done = _booked(job, 1, lead, _at(LAST_SAT, 8), _at(LAST_SAT, 10), unit=unit,
-                   status=OperationStatus.COMPLETED, actual_start=_at(LAST_SAT, 8))
-    done.actual_end = _at(LAST_SAT, 10)
-    db.session.commit()
-    return done
-
-
-def test_redo_is_placed_right_after_its_original_and_pushes_the_next_operation(client, shop):
-    job = _job(shop, status=JobOrderStatus.IN_PROGRESS)
-    done = _completed(job, shop["rina"])
-    redo_start, _end, _ = place_from_start(shop["rina"].id, _next_quarter_hour(), 2)
-    next_start, next_end, _ = place_from_start(shop["omar"].id, redo_start, 2)
-    _booked(job, 2, shop["omar"], next_start, next_end)
-    later = MON + timedelta(days=7)
-    _booked(job, 3, shop["ben"], _at(later, 8), _at(later, 10))
-    _rework(client, shop, done)
-
-    job = db.session.get(JobOrder, job.id)
-    ops = {op.sequence_no: op for op in job.operations}
-    redo = ops[2]
-    assert redo.rework_of_operation_id == done.id
-    assert redo.assigned_worker_id == shop["rina"].id
-    assert redo_start <= ensure_utc(redo.scheduled_start) <= redo_start + timedelta(minutes=15)
-    assert ops[3].assigned_worker_id == shop["omar"].id
-    assert ensure_utc(ops[3].scheduled_start) >= ensure_utc(redo.scheduled_end)
-    assert ensure_utc(ops[3].scheduled_start) > next_start
-    assert ensure_utc(ops[4].scheduled_start) == _at(later, 8)
-    assert ensure_utc(ops[1].actual_start) == _at(LAST_SAT, 8)
-    assert job.to_dict()["needsReplan"] is False
-    assert _double_bookings() == []
-
-
-def test_redo_that_cannot_be_placed_marks_the_job_needs_replan(client, shop):
-    job = _job(shop, status=JobOrderStatus.IN_PROGRESS)
-    done = _completed(job, shop["rina"], unit=shop["laser1"])
-    _booked(job, 2, shop["omar"], _at(MON, 8), _at(MON, 10))
-    db.session.add(MachineDowntime(
-        machine_unit_id=shop["laser1"].id, started_at=_at(LAST_SAT, 11),
-        category=DowntimeCategory.MECHANICAL_FAILURE, reason="Lens cracked",
-        reported_by_id=shop["admin"].id,
-    ))
-    db.session.commit()
-    _rework(client, shop, done)
-
-    job = db.session.get(JobOrder, job.id)
-    redo = next(op for op in job.operations if op.rework_of_operation_id == done.id)
-    assert redo.scheduled_start is None
-    nxt = next(op for op in job.operations if op.assigned_worker_id == shop["omar"].id)
-    assert ensure_utc(nxt.scheduled_start) == _at(MON, 8)
-
-    headers = _headers(shop["admin"])
-    page = client.get(f"/api/v1/job-orders/{job.id}", headers=headers).get_json()
-    assert page["needsReplan"] is True
-    assert "Laser #1 is down with no expected repair date" in page["needsReplanReason"]
-    listed = {j["id"]: j for j in client.get("/api/v1/job-orders", headers=headers).get_json()}
-    assert listed[job.id]["needsReplan"] is True
-    alerts = StaffAlert.query.filter_by(kind=StaffAlertKind.NEEDS_REPLAN, job_order_id=job.id).all()
-    assert [a.recipient_id for a in alerts] == [shop["admin"].id]
-
-    # Once the laser is back, the Admin re-plans and the mark goes away.
-    MachineDowntime.query.update({MachineDowntime.ended_at: datetime.now(timezone.utc)})
-    db.session.commit()
-    p = _propose(client, shop, job, anchor=_next_quarter_hour())
-    assert p["problems"] == []
-    res = client.post(
-        f"/api/v1/job-orders/{job.id}/schedule/apply",
-        json={"operations": [
-            {"id": o["id"], "scheduledStart": o["scheduledStart"], "machineUnitId": o["machineUnitId"]}
-            for o in p["operations"] if o["sequenceNo"] > 1
-        ]},
-        headers=headers,
-    )
-    assert res.status_code == 200, res.get_json()
-    assert res.get_json()["needsReplan"] is False
 
 
 # ---- Overrunning work keeps its machine and crew ------------------------------

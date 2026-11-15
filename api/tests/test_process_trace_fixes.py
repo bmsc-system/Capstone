@@ -106,104 +106,10 @@ def _ops_by_seq(job_id):
     return JobOperation.query.filter_by(job_order_id=job_id).order_by(JobOperation.sequence_no).all()
 
 
-# ---- Item 1: redo --------------------------------------------------------
+# ---- Item 1: assigning a pending operation ---------------------------------
 
 
-def test_redo_goes_right_after_original_with_original_worker(client, shop):
-    job = _job(shop, status=JobOrderStatus.IN_PROGRESS)
-    cutting = _op(job, 1, "Cutting", status=OperationStatus.COMPLETED, worker=shop["worker"])
-    _op(job, 2, "Welding", worker=shop["other"])
-    _op(job, 3, "Finishing", worker=shop["other"])
-    db.session.commit()
-
-    res = client.post(
-        f"/api/v1/operations/{cutting.id}/rework",
-        json={"category": "OPERATOR_ERROR"},
-        headers=_headers(shop["admin"]),
-    )
-    assert res.status_code == 201, res.get_json()
-    redo = res.get_json()
-    assert redo["sequenceNo"] == 2
-    assert redo["assignedWorkerId"] == shop["worker"].id
-
-    names = [(o.sequence_no, o.operation_name) for o in _ops_by_seq(job.id)]
-    assert names == [(1, "Cutting"), (2, "Cutting"), (3, "Welding"), (4, "Finishing")]
-
-
-def test_redo_on_a_completed_job_adds_only_the_redo_and_reopens_it(client, shop):
-    job = _job(shop, status=JobOrderStatus.COMPLETED)
-    cutting = _op(job, 1, "Cutting", status=OperationStatus.COMPLETED, worker=shop["worker"])
-    _op(job, 2, "Finishing", status=OperationStatus.COMPLETED, worker=shop["other"])
-    db.session.commit()
-
-    res = client.post(
-        f"/api/v1/operations/{cutting.id}/rework",
-        json={"category": "DIMENSION_OUT_OF_TOLERANCE", "reason": "OD undersize"},
-        headers=_headers(shop["admin"]),
-    )
-    assert res.status_code == 201, res.get_json()
-
-    ops = _ops_by_seq(job.id)
-    assert [(o.sequence_no, o.operation_name) for o in ops] == [
-        (1, "Cutting"),
-        (2, "Cutting"),
-        (3, "Finishing"),
-    ]
-    assert ops[1].rework_of_operation_id == cutting.id
-    assert ops[1].status != OperationStatus.COMPLETED
-    db.session.refresh(job)
-    assert job.status != JobOrderStatus.COMPLETED
-
-
-def test_redo_of_finishing_goes_after_it(client, shop):
-    job = _job(shop, status=JobOrderStatus.COMPLETED)
-    _op(job, 1, "Cutting", status=OperationStatus.COMPLETED, worker=shop["worker"])
-    finishing = _op(job, 2, "Finishing", status=OperationStatus.COMPLETED, worker=shop["other"])
-    db.session.commit()
-
-    res = client.post(
-        f"/api/v1/operations/{finishing.id}/rework",
-        json={"category": "OPERATOR_ERROR"},
-        headers=_headers(shop["admin"]),
-    )
-    assert res.status_code == 201, res.get_json()
-    assert [o.operation_name for o in _ops_by_seq(job.id)] == ["Cutting", "Finishing", "Finishing"]
-    db.session.refresh(job)
-    assert job.status != JobOrderStatus.COMPLETED
-
-
-def test_redo_unassigned_when_original_worker_gone(client, shop):
-    job = _job(shop, status=JobOrderStatus.IN_PROGRESS)
-    cutting = _op(job, 1, "Cutting", status=OperationStatus.COMPLETED, worker=shop["worker"])
-    shop["worker"].status = UserStatus.DISABLED
-    shop["worker"].active = False
-    db.session.commit()
-
-    res = client.post(
-        f"/api/v1/operations/{cutting.id}/rework",
-        json={"category": "OPERATOR_ERROR"},
-        headers=_headers(shop["admin"]),
-    )
-    assert res.status_code == 201, res.get_json()
-    assert res.get_json()["assignedWorkerId"] is None
-    assert res.get_json()["status"] == "PENDING"
-
-
-def test_redo_refused_once_delivered(client, shop):
-    job = _job(shop, status=JobOrderStatus.DELIVERED)
-    cutting = _op(job, 1, "Cutting", status=OperationStatus.COMPLETED, worker=shop["worker"])
-    db.session.commit()
-
-    res = client.post(
-        f"/api/v1/operations/{cutting.id}/rework",
-        json={"category": "OPERATOR_ERROR"},
-        headers=_headers(shop["admin"]),
-    )
-    assert res.status_code == 409
-    assert len(_ops_by_seq(job.id)) == 1
-
-
-def test_admin_assigns_redo_to_worker_busy_elsewhere(client, shop):
+def test_admin_assigns_pending_op_to_worker_busy_elsewhere(client, shop):
     """Assigning with no window must not fail because the worker is mid-job elsewhere."""
     busy_job = _job(shop, status=JobOrderStatus.IN_PROGRESS)
     _op(
@@ -216,11 +122,11 @@ def test_admin_assigns_redo_to_worker_busy_elsewhere(client, shop):
     )
     job = _job(shop, status=JobOrderStatus.IN_PROGRESS)
     _op(job, 1, "Cutting", status=OperationStatus.COMPLETED, worker=shop["worker"])
-    redo = _op(job, 2, "Cutting", status=OperationStatus.PENDING)
+    pending = _op(job, 2, "Cutting", status=OperationStatus.PENDING)
     db.session.commit()
 
     res = client.patch(
-        f"/api/v1/operations/{redo.id}/assign",
+        f"/api/v1/operations/{pending.id}/assign",
         json={"assignedWorkerId": shop["other"].id},
         headers=_headers(shop["admin"]),
     )

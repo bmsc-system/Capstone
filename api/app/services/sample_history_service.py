@@ -1304,32 +1304,6 @@ def _place_operations(rng, shop, ledger, job, plan, not_before, horizon, admin, 
             return []
         placed.append(result)
         cursor = result["end"]
-        if (
-            not in_progress
-            and result["actual_end"] is not None
-            # About 3 in 100 operations need redoing, spread through the year.
-            and rng.random() < 0.03
-        ):
-            redo = _place_one(
-                rng,
-                shop,
-                ledger,
-                job,
-                op_type,
-                take_seq(),
-                max(1.5, min(2.5, estimated)),
-                result["actual_end"],
-                shop.future_end,
-                admin,
-                counters,
-                in_progress=False,
-                pause=False,
-                rework_of=result,
-                take_seq=take_seq,
-            )
-            if redo is not None:
-                placed.append(redo)
-                cursor = redo["end"]
         _remember_work(shop, result)
     return placed
 
@@ -1755,8 +1729,9 @@ def _hand_outs(rng, shop, ledger, counters, tool, arrivals, every, office):
 
 def _consumables(rng, shop, ledger, counters):
     """Consumable purchases and hand-outs. Most items are bought in cash and
-    recorded by the office, and about one in ten goes on a supplier order; the
-    office then hands them to workers for their operations. Each item has its
+    recorded by the office; only the items marked Ordered from a supplier
+    (cutting oil) go on a supplier order. The office then hands them to
+    workers for their operations. Each item has its
     own rhythm so the forecasts differ."""
     office = shop.office or shop.admins[0]
     names = sorted(shop.consumables, key=lambda t: t.name.lower())
@@ -1776,7 +1751,7 @@ def _consumables(rng, shop, ledger, counters):
         while day <= shop.end:
             qty = Decimal(max(1, round(amount * rng.uniform(0.6, 1.4))))
             supplier = home[tool.id]
-            if supplier is not None and rng.random() < 0.1:
+            if supplier is not None and tool.ordered_from_supplier:
                 _order, received, _packed = _stock_po(
                     rng, shop, ledger, supplier, day, [(tool, qty)], office, counters
                 )

@@ -39,8 +39,8 @@ import './reportsPrint.css';
 const CAUSE_TYPE: Record<string, string> = {
   PAUSE: 'Pause',
   DOWNTIME: 'Downtime',
-  REWORK: 'Rework',
   MATERIAL: 'Material',
+  OUTSOURCED: 'Outside work',
 };
 
 type EffRow = {
@@ -197,14 +197,6 @@ export default function EfficiencyReportPage() {
                   label: 'Average variance vs. target hours',
                   value: signedPct(overview?.efficiency.averageVariancePct),
                   remark: 'A negative value means faster than target.',
-                },
-                {
-                  label: 'Redo share of worked hours',
-                  value:
-                    overview?.rework.shareOfTotalWorkedHoursPct == null
-                      ? '—'
-                      : `${num(overview.rework.shareOfTotalWorkedHoursPct)}%`,
-                  remark: `${formatInt(overview?.rework.count)} redo operation${overview?.rework.count === 1 ? '' : 's'}`,
                 },
                 {
                   label: 'Hours lost to delays',

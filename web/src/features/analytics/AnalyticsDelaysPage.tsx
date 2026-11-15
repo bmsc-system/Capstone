@@ -15,7 +15,6 @@ const REASON_LABEL: Record<string, string> = {
   EMERGENCY: 'Emergency (had to leave)',
   OTHER: 'Other',
   MACHINE_DOWNTIME: 'Machine downtime',
-  REWORK: 'Rework',
 };
 
 function reasonLabel(reason: string) {
@@ -50,7 +49,7 @@ const SOURCE_WORD: Record<string, string> = {
 };
 
 /** Under the Pareto chart: each cause with its biggest source, one line each.
- *  The cards below break breakdowns, redo and material delays down further. */
+ *  The cards below break breakdowns and material delays down further. */
 function CauseDetails({ causes, vitalFew }: { causes: CauseRow[]; vitalFew: number }) {
   return (
     <div className="ana-causes">
@@ -125,7 +124,6 @@ export default function AnalyticsDelaysPage() {
   const top = causes[0];
   const downtime = data.machineDowntime.filter((d) => (d.totalDowntimeHours ?? 0) > 0 || d.openCount > 0);
   const downNow = data.machineDowntime.filter((d) => d.openCount > 0).length;
-  const rework = (data.reworkByReason ?? []).filter((r) => r.count > 0);
   const material = data.materialDelays ?? [];
   const lateJobs = data.lateJobs ?? [];
   const excluded = data.excludedNonWorkingPauses;
@@ -177,7 +175,7 @@ export default function AnalyticsDelaysPage() {
           info={
             <div style={{ maxWidth: 340, display: 'grid', gap: 6 }}>
               <div>
-                Working hours lost to late materials, pause reasons, machine breakdowns and redo work, largest first.
+                Working hours lost to late materials, pause reasons, machine breakdowns and outside work, largest first.
                 The line is the running share; causes up to the {threshold}% line are the few to fix first.
               </div>
               <div>
@@ -217,7 +215,7 @@ export default function AnalyticsDelaysPage() {
 
         <Card
           title="Breakdowns by machine"
-          span={4}
+          span={6}
           takeaway={
             downtime[0] ? (
               <>
@@ -247,38 +245,8 @@ export default function AnalyticsDelaysPage() {
         </Card>
 
         <Card
-          title="Redo by reason"
-          span={4}
-          takeaway={
-            rework[0] ? (
-              <>
-                <strong>{rework[0].label}</strong> · {rework[0].count} redo{rework[0].count === 1 ? '' : 's'}
-              </>
-            ) : (
-              'No redo work'
-            )
-          }
-          info="Redo operations finished in this period, by the reason recorded when the work was sent back, with the hours spent redoing it."
-        >
-          {rework.length ? (
-            <SortedBars
-              rows={rework.map((r) => ({
-                key: r.reason,
-                label: r.label,
-                value: r.hours ?? 0,
-                display: `${fmtNum(r.hours, 1)} h`,
-                sub: `${r.count}×`,
-              }))}
-              limit={8}
-            />
-          ) : (
-            <ChartEmpty title="No redo work in this period" />
-          )}
-        </Card>
-
-        <Card
           title="Material delays"
-          span={4}
+          span={6}
           takeaway={
             material.length ? (
               <>

@@ -267,7 +267,7 @@ def _shop_date(dt) -> date | None:
 
 def ran_over_target(operations) -> tuple[float, int]:
     """(hours, operations): worked hours beyond target hours on the job's own
-    operations. Redo operations are left out; they count under Redo."""
+    operations. Redo operations from older records are left out."""
     hours = 0.0
     count = 0
     for o in operations:
@@ -367,16 +367,6 @@ def late_jobs(period_from: date, period_to: date) -> list[dict]:
                 {"cause": reason, "label": pause_reason_label(reason), "hours": hrs, "detail": None}
             )
 
-        redo = [o for o in job.operations if o.rework_of_operation_id is not None]
-        if redo:
-            causes.append(
-                {
-                    "cause": "REDO",
-                    "label": "Redo",
-                    "hours": float(sum(float(o.actual_worked_hours or 0) for o in redo)),
-                    "detail": f"{len(redo)} redo operation{'s' if len(redo) != 1 else ''}",
-                }
-            )
 
         over_hours, over_ops = ran_over_target(job.operations)
         if over_hours > 0:

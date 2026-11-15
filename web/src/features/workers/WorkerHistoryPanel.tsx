@@ -66,7 +66,6 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
   const pct = (v: number | null | undefined) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v}%`);
   const ranged = Boolean(range[0] || range[1]);
   const total = s.operationsTotal ?? data.operations.total;
-  const firstTime = s.operationsCompleted;
   const hoursRatio =
     s.enoughHistory && s.totalEstimatedHours && s.totalActualHours != null
       ? Math.min(s.totalActualHours / s.totalEstimatedHours, 2)
@@ -108,7 +107,7 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
           <span className="wh-score__label">Completed</span>
           <span className="wh-score__value">{total}</span>
           <span className="wh-score__hint">
-            {s.reworkCount ? `${firstTime} first-time · ${s.reworkCount} redo` : 'operations'}
+            operations
           </span>
         </div>
         <div className="wh-score__item wh-score__item--wide">
@@ -152,11 +151,6 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
             {s.enoughHistory && s.onEstimateRatePct != null ? `${s.onEstimateRatePct}%` : '—'}
           </span>
           <span className="wh-score__hint">of operations</span>
-        </div>
-        <div className="wh-score__item">
-          <span className="wh-score__label">Rework</span>
-          <span className={`wh-score__value${s.reworkCount ? ' is-warn' : ''}`}>{s.reworkCount}</span>
-          <span className="wh-score__hint">redone</span>
         </div>
       </section>
       {s.message ? <Text type="secondary" className="wh-note">{s.message}</Text> : null}
@@ -220,7 +214,6 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
                   <span className="wh-op">
                     <span className="wh-op__name">{r.operationName}</span>
                     {r.machineUnitLabel ? <span className="wh-op__machine">{r.machineUnitLabel}</span> : null}
-                    {r.isRework ? <span className="wh-tag wh-tag--amber">Redo</span> : null}
                     {r.isCrew ? (
                       <Tooltip title={(r.crew || []).map((m) => m.fullName).join(', ')}>
                         <span className="wh-tag">

@@ -58,7 +58,6 @@ export function SkillRecord({ ev }: { ev?: SkillEvidenceRow }) {
     : null;
   const line = ev.leadOps ? `Led ${ev.leadOps}` : `Helped ${ev.helperOps}`;
   const pace = paceText(ev.speedVsPeersPct);
-  const redoBad = Boolean(ev.operatorRedoPct && ev.operatorRedoPct > 10);
   const details = [
     ev.leadOps
       ? `Led ${plural(ev.leadOps, 'operation')}${ev.helperOps ? `, helped on ${ev.helperOps}` : ''}`
@@ -66,7 +65,6 @@ export function SkillRecord({ ev }: { ev?: SkillEvidenceRow }) {
     ev.lastDoneAt ? `Last used ${formatShop(ev.lastDoneAt, 'MMM D, YYYY')}` : null,
     ev.leadOps && pace ? `Pace: ${pace === 'Average pace' ? 'average' : pace.toLowerCase()}` : null,
     ev.leadOps && ev.onTargetPct != null ? `On target: ${Math.round(ev.onTargetPct)}%` : null,
-    ev.leadOps ? `Redone for his own error: ${ev.operatorRedos ? `${ev.operatorRedos}×` : 'none'}` : null,
   ].filter(Boolean);
   return (
     <Tooltip
@@ -81,7 +79,6 @@ export function SkillRecord({ ev }: { ev?: SkillEvidenceRow }) {
       <span className="ws-record">
         {line}
         {last ? <span className="ws-record__sub"> · last {last}</span> : null}
-        {redoBad ? <ExclamationCircleOutlined className="ws-record__flag" aria-label="Many redos" /> : null}
       </span>
     </Tooltip>
   );

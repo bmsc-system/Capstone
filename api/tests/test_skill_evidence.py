@@ -6,36 +6,32 @@ from decimal import Decimal
 from app.extensions import db
 from app.models.job_order import JobOrder, JobOrderStatus
 from app.models.machine import MachineType
-from app.models.operation import JobOperation, OperationStatus, ReworkReasonCategory
+from app.models.operation import JobOperation, OperationStatus
 from app.models.user import User, UserRole
 from app.models.worker_skill import WorkerSkill
 from app.services.skill_evidence_service import suggest_level, worker_skill_evidence
 
 
 def test_no_suggestion_below_minimum_history():
-    level, reason = suggest_level(4, 0, 110.0, 0.0)
+    level, reason = suggest_level(4, 0, 110.0)
     assert level is None
     assert "Not enough history" in reason
 
 
 def test_helper_only_suggests_level_one():
-    assert suggest_level(0, 6, None, None)[0] == 1
+    assert suggest_level(0, 6, None)[0] == 1
 
 
 def test_volume_sets_the_ceiling():
-    assert suggest_level(5, 0, 100.0, 0.0)[0] == 3
-    assert suggest_level(15, 0, 100.0, 0.0)[0] == 4
-    assert suggest_level(30, 0, 100.0, 0.0)[0] == 5
-
-
-def test_operator_redo_caps_at_two():
-    assert suggest_level(30, 0, 110.0, 12.0)[0] == 2
+    assert suggest_level(5, 0, 100.0)[0] == 3
+    assert suggest_level(15, 0, 100.0)[0] == 4
+    assert suggest_level(30, 0, 100.0)[0] == 5
 
 
 def test_speed_against_peers_places_the_level():
-    assert suggest_level(15, 0, 90.0, 0.0)[0] == 3
-    assert suggest_level(15, 0, 80.0, 0.0)[0] == 2
-    assert suggest_level(5, 0, 90.0, 0.0)[0] == 2
+    assert suggest_level(15, 0, 90.0)[0] == 3
+    assert suggest_level(15, 0, 80.0)[0] == 2
+    assert suggest_level(5, 0, 90.0)[0] == 2
 
 
 def _setup(app):
@@ -81,11 +77,10 @@ def _setup(app):
     return admin, worker, mt, job
 
 
-def test_evidence_counts_lead_redo_and_flags(app):
+def test_evidence_counts_lead_ops_and_flags(app):
     admin, worker, mt, job = _setup(app)
     db.session.add(WorkerSkill(worker_id=worker.id, machine_type_id=mt.id, proficiency=5, is_primary=True))
     now = datetime.now(timezone.utc)
-    originals = []
     for i in range(6):
         op = JobOperation(
             job_order_id=job.id,
@@ -100,30 +95,14 @@ def test_evidence_counts_lead_redo_and_flags(app):
             status=OperationStatus.COMPLETED,
         )
         db.session.add(op)
-        originals.append(op)
-    db.session.flush()
-    for i, cat in enumerate((ReworkReasonCategory.OPERATOR_ERROR, ReworkReasonCategory.MACHINE_FAULT)):
-        db.session.add(
-            JobOperation(
-                job_order_id=job.id,
-                sequence_no=20 + i,
-                operation_name="Turning (redo)",
-                machine_type_id=mt.id,
-                status=OperationStatus.PENDING,
-                rework_of_operation_id=originals[i].id,
-                rework_reason_category=cat,
-            )
-        )
     db.session.commit()
 
     ev = worker_skill_evidence(worker.id)
     row = next(m for m in ev["machineTypes"] if m["machineTypeId"] == mt.id)
     assert row["leadOps"] == 6
     assert row["rated"] == 5
-    # Only the operator-error redo counts; the machine fault is not his doing.
-    assert row["operatorRedos"] == 1
-    assert row["operatorRedoPct"] == round(100 / 6, 1)
-    assert row["suggestedLevel"] == 2
+    # Six lead operations put the ceiling at 3; rated 5 is two away.
+    assert row["suggestedLevel"] == 3
     assert any(f["kind"] == "mismatch" for f in row["flags"])
     # Saved skills show when they were last reviewed.
     assert ev["lastReviewed"] is not None

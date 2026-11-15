@@ -972,22 +972,8 @@ def delays(from_s=None, to_s=None):
             }
         )
 
-    # Rework split by the category recorded when the rework was raised.
-    rework_by_category = (
-        db.session.query(
-            JobOperation.rework_reason_category,
-            func.coalesce(func.sum(JobOperation.actual_worked_hours), 0),
-            func.count(JobOperation.id),
-        )
-        .filter(
-            *_completed_in_period_filters(start_utc, end_utc),
-            JobOperation.rework_of_operation_id.isnot(None),
-        )
-        .group_by(JobOperation.rework_reason_category)
-        .all()
-    )
-
-    # Pareto causes: pause reasons + machine downtime + rework.
+    # Pareto causes: pause reasons, machine downtime, late materials and
+    # outside work.
     # Breaks and end-of-shift are normal non-working time, not delays.
     cause_rows = []
     excluded_pause_hours = {
@@ -1039,19 +1025,6 @@ def delays(from_s=None, to_s=None):
                 "occurrenceCount": len(late_back),
             }
         )
-    for category, hrs, count in rework_by_category:
-        if not (float(hrs or 0) > 0 or int(count or 0) > 0):
-            continue
-        key = category.value if category else "UNCATEGORISED"
-        cause_rows.append(
-            {
-                "cause": f"REWORK:{key}",
-                "causeType": "REWORK",
-                "label": f"Rework — {_REWORK_CATEGORY_LABEL.get(key, key)}",
-                "hours": float(hrs or 0),
-                "occurrenceCount": int(count or 0),
-            }
-        )
     _attach_cause_details(
         cause_rows,
         pauses=pauses,
@@ -1061,7 +1034,6 @@ def delays(from_s=None, to_s=None):
         dt_open=dt_open,
         material=material,
         late_back=late_back,
-        rework_ops=_rework_ops(start_utc, end_utc),
     )
     # A row that rounds to 0.0 h (e.g. Machine down pauses fully covered by a
     # downtime record) explains no delay.
@@ -1082,22 +1054,6 @@ def delays(from_s=None, to_s=None):
     payload["paretoThresholdPct"] = PARETO_THRESHOLD_PCT
     payload["vitalFewCount"] = vital_few_count(pareto)
     payload["totalDelayHours"] = _num(total_cause_hours)
-    payload["reworkByReason"] = sorted(
-        (
-            {
-                "reason": (category.value if category else "UNCATEGORISED"),
-                "label": _REWORK_CATEGORY_LABEL.get(
-                    category.value if category else "UNCATEGORISED",
-                    category.value if category else "UNCATEGORISED",
-                ),
-                "count": int(count or 0),
-                "hours": _num(float(hrs or 0)),
-            }
-            for category, hrs, count in rework_by_category
-            if int(count or 0) > 0
-        ),
-        key=lambda r: (-r["count"], -(r["hours"] or 0), r["label"]),
-    )
     payload["materialDelays"] = [
         {**r, "hours": _num(r["hours"])} for r in material
     ]
@@ -1116,18 +1072,6 @@ def delays(from_s=None, to_s=None):
 
 PARETO_THRESHOLD_PCT = 80.0
 CAUSE_DETAIL_LIMIT = 5
-
-
-def _rework_ops(start_utc, end_utc):
-    """Each redo operation finished in the period: where it ran and how long."""
-    return (
-        JobOperation.query.options(joinedload(JobOperation.job_order))
-        .filter(
-            *_completed_in_period_filters(start_utc, end_utc),
-            JobOperation.rework_of_operation_id.isnot(None),
-        )
-        .all()
-    )
 
 
 def _detail_rows(groups, limit=CAUSE_DETAIL_LIMIT):
@@ -1152,12 +1096,11 @@ def _detail_rows(groups, limit=CAUSE_DETAIL_LIMIT):
 
 
 def _attach_cause_details(cause_rows, *, pauses, overlap_by_unit, dt_hours, dt_counts, dt_open,
-                          material, late_back, rework_ops):
+                          material, late_back):
     """Add ``details`` to each Pareto cause: which machine, supplier, outside shop
     or operation the lost hours came from, so the cause can be acted on.
     The chart itself is unchanged; the details are read under it."""
     unit_ids = {p["machineUnitId"] for p in pauses if p["machineUnitId"]} | set(dt_hours)
-    unit_ids |= {op.machine_unit_id for op in rework_ops if op.machine_unit_id}
     units = (
         {u.id: u for u in MachineUnit.query.filter(MachineUnit.id.in_(list(unit_ids))).all()}
         if unit_ids
@@ -1218,18 +1161,6 @@ def _attach_cause_details(cause_rows, *, pauses, overlap_by_unit, dt_hours, dt_c
         g["count"] += 1
         g["jobs"].add(r["jobNumber"])
 
-    # Redo: by operation and machine, per recorded category.
-    by_rework = defaultdict(group)
-    for op in rework_ops:
-        key = op.rework_reason_category.value if op.rework_reason_category else "UNCATEGORISED"
-        label = op.operation_name or "Operation"
-        if op.machine_unit_id:
-            label = f"{label} on {unit_label(op.machine_unit_id)}"
-        g = by_rework[key][label]
-        g["hours"] += float(op.actual_worked_hours or 0)
-        g["count"] += 1
-        g["jobs"].add(op.job_order.job_number if op.job_order else None)
-
     reverse_material = {v: k for k, v in PARETO_CAUSE.items()}
     for row in cause_rows:
         kind, cause = row["causeType"], row["cause"]
@@ -1246,9 +1177,6 @@ def _attach_cause_details(cause_rows, *, pauses, overlap_by_unit, dt_hours, dt_c
         elif kind == "OUTSOURCED":
             row["details"], row["moreDetails"] = _detail_rows(outsourced)
             row["detailBy"] = "outside shop"
-        elif kind == "REWORK":
-            row["details"], row["moreDetails"] = _detail_rows(by_rework.get(cause.split(":", 1)[1], {}))
-            row["detailBy"] = "operation"
         else:
             row["details"], row["moreDetails"] = [], 0
             row["detailBy"] = None
@@ -1280,17 +1208,6 @@ def vital_few_count(rows, threshold=PARETO_THRESHOLD_PCT):
 NON_WORKING_PAUSE_REASONS = frozenset(
     {OperationPauseReason.BREAK.value, OperationPauseReason.END_OF_SHIFT.value}
 )
-
-
-_REWORK_CATEGORY_LABEL = {
-    "DIMENSION_OUT_OF_TOLERANCE": "Dimension out of tolerance",
-    "SURFACE_FINISH": "Surface finish",
-    "WRONG_MATERIAL": "Wrong material",
-    "MACHINE_FAULT": "Machine fault",
-    "OPERATOR_ERROR": "Operator error",
-    "OTHER": "Other",
-    "UNCATEGORISED": "Uncategorised",
-}
 
 
 # --- Sales / demand forecasting (read-only) ---

@@ -90,15 +90,6 @@ export default function AnalyticsProductionPage() {
           }`}
         />
         <Kpi
-          label="Redo rate"
-          value={overview.rework.redoRatePct == null ? '—' : fmtNum(overview.rework.redoRatePct, 1)}
-          unit={overview.rework.redoRatePct == null ? undefined : '%'}
-          delta={ptsChange(overview.rework.redoRatePct, prev?.rework.redoRatePct ?? null)}
-          deltaUnit="pts"
-          better="down"
-          info="Finished redo operations ÷ all finished operations."
-        />
-        <Kpi
           label="Machines down"
           value={fmtNum(overview.downtime.openCount)}
           valueTone={overview.downtime.openCount ? 'red' : undefined}

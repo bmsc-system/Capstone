@@ -911,7 +911,7 @@ def _apply_job_update(job, data, role):
         if not is_draft:
             raise AppError(
                 "Operations can only be replaced while the job is pending. "
-                "This job has been released; reassign, reschedule, or add rework "
+                "This job has been released; reassign or reschedule "
                 "to individual operations instead.",
                 "OPERATIONS_LOCKED",
                 409,
@@ -1643,90 +1643,6 @@ def list_schedule_moves(job_id: str) -> list:
         .all()
     )
     return [row.to_dict() for row in rows]
-
-
-def replan_after_redo(job_id, redo_id) -> bool:
-    """Schedule a new redo on a released job right away: it goes directly after
-    its original, the operations after it move later only as needed, every
-    worker stays, nothing moves earlier and started work never moves. When it
-    can't be placed within the horizon nothing moves; the job is marked Needs
-    re-plan and the Admin is told. Commits; True when the redo was placed."""
-    import logging
-
-    from app.services.schedule_service import propose_schedule, schedule_problems
-
-    try:
-        lock_schedule()
-        job = db.session.get(JobOrder, job_id)
-        redo = db.session.get(JobOperation, redo_id)
-        if job is None or redo is None or job.status == JobOrderStatus.DRAFT:
-            db.session.rollback()
-            return False
-        reason = _place_redo(job, redo, propose_schedule, schedule_problems)
-        if reason is None:
-            job.needs_replan_reason = None
-            db.session.commit()
-            return True
-    except Exception:
-        db.session.rollback()
-        logging.getLogger(__name__).exception("Re-plan after redo failed for job %s", job_id)
-        reason = "the redo could not be placed automatically"
-    _mark_needs_replan(job_id, reason)
-    return False
-
-
-def _place_redo(job, redo, propose_schedule, schedule_problems) -> str | None:
-    """Apply the re-plan to the job's unstarted operations; the reason it can't
-    be placed instead (nothing changed then)."""
-    from app.services.schedule_calendar import ensure_utc
-
-    ops = sorted(job.operations, key=lambda o: o.sequence_no or 0)
-    proposal = propose_schedule(
-        ops,
-        job.due_date,
-        exclude_job_id=job.id,
-        anchor_utc=_next_quarter_hour(),
-        lock_before_sequence=redo.sequence_no,
-        never_earlier=True,
-        honor_machine_pins=True,
-        suggest_faster_units=False,
-    )
-    rows = proposal["operations"]
-    failed = [r for r in rows if not r.get("scheduled")]
-    if failed:
-        return "; ".join(
-            f"#{r['sequenceNo']} {r.get('operationName') or 'Operation'}: {r.get('message')}"
-            for r in failed
-        )
-    by_id = {op.id: op for op in ops}
-    for row in rows:
-        op = by_id.get(row.get("id"))
-        if op is None or op.status in _STARTED_OPERATION_STATUSES or op.actual_start is not None:
-            continue
-        start = _parse_datetime(row["scheduledStart"])
-        if op.scheduled_start and ensure_utc(start) < ensure_utc(op.scheduled_start):
-            db.session.rollback()
-            return f"#{op.sequence_no} {op.operation_name} would have moved earlier"
-        op.scheduled_start = start
-        op.scheduled_end = _parse_datetime(row["scheduledEnd"])
-        if row.get("machineUnitId"):
-            op.machine_unit_id = row["machineUnitId"]
-        if op.status == OperationStatus.PENDING and op.assigned_worker_id:
-            op.status = OperationStatus.SCHEDULED
-    db.session.flush()
-    problems = schedule_problems(ops, exclude_job_id=job.id)
-    if problems:
-        db.session.rollback()
-        return "; ".join(p["message"] for p in problems)
-    return None
-
-
-def _mark_needs_replan(job_id, reason: str) -> None:
-    job = db.session.get(JobOrder, job_id)
-    if job is None:
-        return
-    mark_needs_replan(job, reason, f"A redo could not be scheduled: {reason}")
-    db.session.commit()
 
 
 def mark_needs_replan(job: JobOrder, reason: str, message: str, dedupe_key: str | None = None) -> None:

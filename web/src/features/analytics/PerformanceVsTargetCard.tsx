@@ -91,7 +91,7 @@ export default function PerformanceVsTargetCard({ span = 7 }: { span?: Span }) {
           </>
         ) : undefined
       }
-      info={`Average of (hours worked − target hours) ÷ target over finished operations in the period, redo work left out. Needs at least ${minOps} finished operations each. This is the "past performance" input to worker recommendations.`}
+      info={`Average of (hours worked − target hours) ÷ target over finished operations in the period. Needs at least ${minOps} finished operations each. This is the "past performance" input to worker recommendations.`}
       controls={
         <Segmented
           size="small"

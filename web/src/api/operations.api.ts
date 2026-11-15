@@ -9,7 +9,6 @@ import type {
   Operation,
   OperationPauseReason,
   OperationReplacements,
-  ReworkReasonCategory,
   WorkerJobMaterials,
 } from '../types';
 import type { DowntimeCategory } from '../constants/downtimeReasons';
@@ -34,14 +33,6 @@ export const operationsApi = {
     apiClient.post<Operation>(`/operations/${id}/resume`, { timestamp }),
   complete: (id: string, timestamp?: string) =>
     apiClient.post<Operation>(`/operations/${id}/complete`, { timestamp }),
-  rework: (
-    id: string,
-    data: { category: ReworkReasonCategory; reason?: string; note?: string }
-  ) =>
-    apiClient.post<Operation>(`/operations/${id}/rework`, {
-      category: data.category,
-      reason: data.reason ?? data.note,
-    }),
   assign: (id: string, assignedWorkerId: string, helperIds?: string[]) =>
     apiClient.patch<Operation>(`/operations/${id}/assign`, {
       assignedWorkerId,

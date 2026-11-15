@@ -9,10 +9,7 @@ records say, so a rating has a basis besides memory:
   usually take for the same operation type (their target hours over their
   actual hours) are compared with the hours he took, so generous targets or
   an easy job mix do not make him look better than he is;
-* how often he finishes within 10% of target or faster;
-* redo caused by the operator: completed operations he led that were sent
-  back for operator error, out-of-tolerance dimensions, or surface finish.
-  Machine faults and wrong material are not his doing and are left out.
+* how often he finishes within 10% of target or faster.
 
 Suggested level (never applied by itself):
 
@@ -20,7 +17,6 @@ Suggested level (never applied by itself):
                                       helped on that machine (5 or more times)
   volume sets the ceiling           -> 5+ lead ops: up to 3, 15+: up to 4,
                                       30+: up to 5
-  quality caps it                   -> operator redo above 10%: at most 2
   speed against peers places it     -> 95% or more of peers' speed: the
                                       ceiling; 85-95%: one below; slower: 2
 
@@ -43,7 +39,6 @@ from app.models.operation import (
     JobOperation,
     OperationHelper,
     OperationStatus,
-    ReworkReasonCategory,
 )
 from app.models.user import User
 from app.models.worker_skill import WorkerSkill
@@ -53,18 +48,9 @@ WINDOW_DAYS = 365
 MIN_LEAD_OPS = 5
 HELPER_ONLY_MIN = 5
 CEILINGS = ((30, 5), (15, 4), (MIN_LEAD_OPS, 3))
-REDO_CAP_PCT = 10.0
-REDO_CAP_LEVEL = 2
 ON_TARGET_BAND = 1.10
 STALE_DAYS = 180
 MIN_PEER_OPS = 3
-
-OPERATOR_REDO = (
-    ReworkReasonCategory.OPERATOR_ERROR,
-    ReworkReasonCategory.DIMENSION_OUT_OF_TOLERANCE,
-    ReworkReasonCategory.SURFACE_FINISH,
-)
-
 
 def _actual_hours(op: JobOperation) -> float | None:
     if op.actual_worked_hours is not None:
@@ -90,7 +76,6 @@ def suggest_level(
     lead_ops: int,
     helper_ops: int,
     speed_pct: float | None,
-    redo_pct: float | None,
 ) -> tuple[int | None, str]:
     """(suggested level or None, plain reason)."""
     if lead_ops < MIN_LEAD_OPS:
@@ -99,9 +84,6 @@ def suggest_level(
         return None, f"Not enough history: has led {lead_ops} of the {MIN_LEAD_OPS} operations needed"
 
     ceiling = next(level for need, level in CEILINGS if lead_ops >= need)
-    if redo_pct is not None and redo_pct > REDO_CAP_PCT:
-        return REDO_CAP_LEVEL, f"{redo_pct:.0f}% of his operations needed redo for his own errors"
-
     if speed_pct is None or speed_pct >= 95:
         level = ceiling
     elif speed_pct >= 85:
@@ -179,18 +161,6 @@ def worker_skill_evidence(worker_id: str, now: datetime | None = None) -> dict:
     lead = [op for op in ops if op.assigned_worker_id == worker_id]
     helped = [op for op in ops if op.assigned_worker_id != worker_id]
 
-    redone: set[str] = set()
-    if lead:
-        redo_rows = (
-            db.session.query(JobOperation.rework_of_operation_id)
-            .filter(
-                JobOperation.rework_of_operation_id.in_([op.id for op in lead]),
-                JobOperation.rework_reason_category.in_(OPERATOR_REDO),
-            )
-            .all()
-        )
-        redone = {r[0] for r in redo_rows}
-
     peers = _peer_ratios({op.operation_type_id for op in lead if op.operation_type_id}, worker_id, since)
     skills = {s.machine_type_id: s for s in WorkerSkill.query.filter_by(worker_id=worker_id).all()}
 
@@ -226,8 +196,6 @@ def worker_skill_evidence(worker_id: str, now: datetime | None = None) -> dict:
                 actual += a
         speed = expected / actual * 100 if actual else None
 
-        redo_count = sum(1 for op in lead_ops if op.id in redone)
-        redo_pct = redo_count / len(lead_ops) * 100 if lead_ops else None
         last_done = max((op.actual_end for op in lead_ops + helper_ops if op.actual_end), default=None)
 
         # Judge on the rounded figures the Administrator sees.
@@ -235,7 +203,6 @@ def worker_skill_evidence(worker_id: str, now: datetime | None = None) -> dict:
             len(lead_ops),
             len(helper_ops),
             round(speed) if speed is not None else None,
-            round(redo_pct, 1) if redo_pct is not None else None,
         )
 
         flags = []
@@ -265,8 +232,6 @@ def worker_skill_evidence(worker_id: str, now: datetime | None = None) -> dict:
                 "efficiencyPct": round(efficiency, 1) if efficiency is not None else None,
                 "speedVsPeersPct": round(speed, 1) if speed is not None else None,
                 "onTargetPct": round(on_target, 1) if on_target is not None else None,
-                "operatorRedos": redo_count,
-                "operatorRedoPct": round(redo_pct, 1) if redo_pct is not None else None,
                 "suggestedLevel": level,
                 "suggestionReason": reason,
                 "flags": flags,

@@ -207,25 +207,6 @@ def return_operation(operation_id):
     return jsonify(operation.to_dict())
 
 
-@operations_bp.route("/<operation_id>/rework", methods=["POST"])
-@jwt_required()
-@require_roles(UserRole.ADMIN)
-def rework_operation(operation_id):
-    operation = JobOperation.query.get(operation_id)
-    if not operation:
-        raise AppError("Operation not found", "NOT_FOUND", 404)
-
-    data = request.get_json() or {}
-    follow = op_service.create_rework_operation(
-        operation,
-        get_current_user_id(),
-        get_current_user_role(),
-        reason=data.get("reason") or data.get("note"),
-        category=data.get("category") or data.get("reworkReasonCategory"),
-    )
-    return jsonify(follow.to_dict()), 201
-
-
 @operations_bp.route("/machine-units/status", methods=["GET"])
 @jwt_required()
 @require_roles(UserRole.ADMIN)

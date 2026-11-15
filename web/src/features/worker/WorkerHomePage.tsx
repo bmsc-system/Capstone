@@ -5,7 +5,6 @@ import {
   CaretRightFilled,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  ExclamationCircleOutlined,
   RightOutlined,
   StarFilled,
   ToolOutlined,
@@ -563,15 +562,6 @@ export default function WorkerHomePage() {
                   <div className="w-trend__line">
                     <ClockCircleOutlined />
                     <span>{words.hours}.</span>
-                  </div>
-                )}
-                {summary && summary.thisWeek.redoOperations > 0 && (
-                  <div className="w-trend__line">
-                    <ExclamationCircleOutlined />
-                    <span>
-                      {summary.thisWeek.redoOperations} of them{' '}
-                      {summary.thisWeek.redoOperations === 1 ? 'was a redo' : 'were redos'}.
-                    </span>
                   </div>
                 )}
               </div>

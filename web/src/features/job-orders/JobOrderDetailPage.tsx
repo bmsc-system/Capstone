@@ -11,7 +11,6 @@ import {
   Modal,
   Progress,
   Row,
-  Select,
   Space,
   Spin,
   Tooltip,
@@ -29,7 +28,6 @@ import {
   ReloadOutlined,
   StopOutlined,
   InboxOutlined,
-  RedoOutlined,
 } from '@ant-design/icons';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -39,7 +37,6 @@ import { isJobFinished, isJobReleasedForDelivery, nextDeliveryStep } from './job
 import MarkDeliveredModal from './MarkDeliveredModal';
 import BookletGuide from './BookletGuide';
 import { jobOrdersApi } from '../../api/jobOrders.api';
-import { operationsApi } from '../../api/operations.api';
 import { notificationsApi } from '../../api/notifications.api';
 import { getErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
@@ -60,7 +57,6 @@ import type {
   NotificationLog,
   Operation,
   OperationStatus,
-  ReworkReasonCategory,
   ScheduleMove,
 } from '../../types';
 import { formatDifferenceFromTarget } from '../analytics/analyticsFormat';
@@ -92,20 +88,6 @@ const { Text } = Typography;
 
 const STATUS_PILL = JOB_STATUS as Record<JobOrderStatus, StatusDef>;
 const OP_STATUS = OPERATION_STATUS as Record<OperationStatus, StatusDef>;
-
-const REWORK_CATEGORY_OPTIONS: { value: ReworkReasonCategory; label: string }[] = [
-  { value: 'DIMENSION_OUT_OF_TOLERANCE', label: 'Dimension out of tolerance' },
-  { value: 'SURFACE_FINISH', label: 'Surface finish' },
-  { value: 'WRONG_MATERIAL', label: 'Wrong material' },
-  { value: 'MACHINE_FAULT', label: 'Machine fault' },
-  { value: 'OPERATOR_ERROR', label: 'Operator error' },
-  { value: 'OTHER', label: 'Other' },
-];
-
-function reworkCategoryLabel(cat: string | null | undefined) {
-  if (!cat) return null;
-  return REWORK_CATEGORY_OPTIONS.find((o) => o.value === cat)?.label || cat;
-}
 
 const GREEN = '#16a34a';
 const NAVY = '#0f1c2e';
@@ -282,7 +264,6 @@ function JobOrderDetailView() {
 
   const [job, setJob] = useState<JobOrder | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reworkLoading, setReworkLoading] = useState<string | null>(null);
   const [delivering, setDelivering] = useState(false);
   const [deliveredOpen, setDeliveredOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationLog[] | null>(null);
@@ -420,46 +401,6 @@ function JobOrderDetailView() {
   const backTo = isWorker
     ? '/my-assignments'
     : jobOrdersListPath(job?.status);
-
-  const [reworkOp, setReworkOp] = useState<Operation | null>(null);
-  const [reworkCategory, setReworkCategory] = useState<ReworkReasonCategory | undefined>();
-  const [reworkNote, setReworkNote] = useState('');
-  const [reworkSaving, setReworkSaving] = useState(false);
-
-  const handleRework = (op: Operation) => {
-    setReworkCategory(undefined);
-    setReworkNote('');
-    setReworkOp(op);
-  };
-
-  const submitRework = async () => {
-    const op = reworkOp;
-    if (!op) return;
-    if (!reworkCategory) {
-      message.error('Category is required');
-      return;
-    }
-    if (reworkCategory === 'OTHER' && !reworkNote.trim()) {
-      message.error('Note is required when category is Other');
-      return;
-    }
-    setReworkSaving(true);
-    setReworkLoading(op.id);
-    try {
-      await operationsApi.rework(op.id, {
-        category: reworkCategory,
-        reason: reworkNote.trim() || undefined,
-      });
-      message.success('Redo operation created');
-      setReworkOp(null);
-      await fetchJob();
-    } catch (err) {
-      message.error(getErrorMessage(err));
-    } finally {
-      setReworkSaving(false);
-      setReworkLoading(null);
-    }
-  };
 
   const openRecordInvoice = () => {
     if (!job) return;
@@ -1095,18 +1036,6 @@ function JobOrderDetailView() {
                         </div>
                         )}
 
-                        {op.reworkReasonCategory || op.reworkReason ? (
-                          <div className="op-card__note">
-                            Redo reason
-                            {op.reworkReasonCategory
-                              ? `: ${reworkCategoryLabel(op.reworkReasonCategory)}`
-                              : ''}
-                            {op.reworkReason
-                              ? `${op.reworkReasonCategory ? ' — ' : ': '}${op.reworkReason}`
-                              : ''}
-                          </div>
-                        ) : null}
-
                         {op.isOutsourced ? null : (
                         <Collapse
                           size="small"
@@ -1147,16 +1076,6 @@ function JobOrderDetailView() {
                         )}
 
 
-                        {isAdmin && !isDraft && !isInvoicedOrDelivered && op.status === 'COMPLETED' && (
-                          <Button
-                            size="small"
-                            style={{ marginTop: 8 }}
-                            loading={reworkLoading === op.id}
-                            onClick={() => handleRework(op)}
-                          >
-                            Send for redo
-                          </Button>
-                        )}
                       </div>
                     </div>
                   );
@@ -1395,41 +1314,6 @@ function JobOrderDetailView() {
           ) : null}
         </Col>
       </Row>
-
-      <FormModal
-        open={!!reworkOp}
-        icon={<RedoOutlined />}
-        title="Send for redo"
-        subtitle={
-          reworkOp
-            ? `${reworkOp.operationName} failed inspection. A redo operation is added to this job.`
-            : undefined
-        }
-        onCancel={() => setReworkOp(null)}
-        onOk={submitRework}
-        okText="Create redo operation"
-        confirmLoading={reworkSaving}
-        destroyOnHidden
-      >
-        <Form scrollToFirstError={{ block: 'center' }} layout="vertical">
-          <Form.Item label="Category" required>
-            <Select
-              placeholder="Why does it need to be redone?"
-              options={REWORK_CATEGORY_OPTIONS}
-              value={reworkCategory}
-              onChange={(v: ReworkReasonCategory) => setReworkCategory(v)}
-            />
-          </Form.Item>
-          <Form.Item label={reworkCategory === 'OTHER' ? 'Note' : 'Note (optional)'} required={reworkCategory === 'OTHER'}>
-            <Input.TextArea
-              rows={3}
-              placeholder="Extra detail"
-              value={reworkNote}
-              onChange={(e) => setReworkNote(e.target.value)}
-            />
-          </Form.Item>
-        </Form>
-      </FormModal>
 
       <FormModal
         open={invoiceMode !== null}

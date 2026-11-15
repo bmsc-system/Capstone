@@ -23,8 +23,6 @@ export interface SkillEvidenceRow {
   efficiencyPct: number | null;
   speedVsPeersPct: number | null;
   onTargetPct: number | null;
-  operatorRedos: number;
-  operatorRedoPct: number | null;
   suggestedLevel: number | null;
   suggestionReason: string;
   flags: { kind: 'mismatch' | 'unused'; text: string }[];
@@ -1741,7 +1739,7 @@ export interface AnalyticsDelays extends AnalyticsPeriodMeta {
   paretoThresholdPct?: number;
   /** Causes up to and including the one that reaches the threshold. */
   vitalFewCount?: number;
-  reworkByReason?: AnalyticsReworkReasonRow[];
+
   materialDelays?: AnalyticsMaterialDelayRow[];
   breakdownOverlapHours?: number | null;
   lateJobs?: AnalyticsLateJobRow[];

@@ -1,4 +1,4 @@
-"""Tests for operation time logs, variance, rework, and machine downtime."""
+"""Tests for operation time logs, variance, and machine downtime."""
 
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -7,13 +7,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.models.job_order import JobOrderStatus
-from app.models.operation import JobOperation, OperationStatus, ReworkReasonCategory
 from app.models.operation_time import OperationTimeEvent
-from app.models.user import UserRole
 from app.services.operation_service import (
     compute_worked_hours,
-    create_rework_operation,
     open_downtime_intervals_by_unit,
     recompute_variance,
 )
@@ -88,54 +84,6 @@ def test_variance_positive_negative_and_null():
     recompute_variance(op)
     assert op.variance_hours is None
     assert op.variance_pct is None
-
-
-def test_rework_creates_new_operation_leaves_original(monkeypatch):
-    """Rework appends a PENDING follow-on and keeps the original COMPLETED."""
-    import app.services.operation_service as svc
-
-    original = SimpleNamespace(
-        id="op-1",
-        sequence_no=1,
-        status=OperationStatus.COMPLETED,
-        actual_start=None,
-        operation_name="Turning",
-        operation_type_id="ot-1",
-        machine_type_id="mt-1",
-        assigned_worker_id=None,
-        estimated_hours=Decimal("4"),
-        rework_reason=None,
-    )
-    job = SimpleNamespace(
-        id="job-1",
-        operations=[original],
-        status=JobOrderStatus.COMPLETED,
-        sales_invoice=None,
-        delivered_at=None,
-    )
-    original.job_order = job
-
-    monkeypatch.setattr(svc, "check_job_access", lambda *a, **k: True)
-    monkeypatch.setattr(svc, "derive_job_status", lambda j: JobOrderStatus.SCHEDULED)
-    monkeypatch.setattr(svc.db, "session", MagicMock())
-    monkeypatch.setattr("app.services.job_order_service.replan_after_redo", lambda *a: True)
-
-    follow = create_rework_operation(
-        original, "admin-1", UserRole.ADMIN.value, "surface finish fail", "SURFACE_FINISH"
-    )
-
-    assert original.status == OperationStatus.COMPLETED
-    assert original.rework_reason == "surface finish fail"
-    assert follow.rework_reason_category == ReworkReasonCategory.SURFACE_FINISH
-    assert isinstance(follow, JobOperation)
-    assert follow.rework_of_operation_id == "op-1"
-    assert follow.status == OperationStatus.PENDING
-    assert follow.sequence_no == 2
-    assert follow.operation_name == "Turning"
-    assert follow.estimated_hours == Decimal("4")
-    assert follow.operation_type_id == "ot-1"
-    assert follow.machine_type_id == "mt-1"
-    svc.db.session.commit.assert_called()
 
 
 def test_open_machine_downtime_blocks_unit_in_scheduler(monkeypatch):
