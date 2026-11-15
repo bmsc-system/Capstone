@@ -89,8 +89,13 @@ def pause_intervals(start_utc, end_utc, job_ids=None) -> list[dict]:
             out.append(
                 {
                     "operationId": op.id,
+                    "operationName": op.operation_name,
                     "jobOrderId": op.job_order_id,
                     "machineUnitId": op.machine_unit_id,
+                    "logId": log.id,
+                    "workerId": log.worker_id,
+                    "note": log.note,
+                    "originalReason": log.original_reason,
                     "reason": log.reason.value,
                     "start": s,
                     "end": e,

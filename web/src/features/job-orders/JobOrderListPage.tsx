@@ -285,7 +285,13 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
     setSelectedKeys((keys) =>
       keys.includes(jobId) ? keys.filter((k) => k !== jobId) : [...keys, jobId]
     );
-  const { isAdmin, canOfficeWrite } = useAuth();
+  const { isAdmin, canOfficeWrite, user } = useAuth();
+  // Office Staff see their own encoded job orders first; the rest of the
+  // office's work stays one click away.
+  const ownerFilterShown = canOfficeWrite && !isAdmin;
+  const [ownerFilter, setOwnerFilter] = useState<'mine' | 'all'>(() =>
+    canOfficeWrite && !isAdmin && tabFromSearch(searchParams.get('tab')) === 'drafts' ? 'mine' : 'all'
+  );
   const isPhone = useIsPhone();
   const wideList = useMediaQuery(WIDE_LIST_QUERY);
   const midList = useMediaQuery(MID_LIST_QUERY);
@@ -309,6 +315,7 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
     setListTab(tab);
     setStatusFilter([]);
     setAwaitingMaterialOnly(false);
+    setOwnerFilter(ownerFilterShown && tab === 'drafts' ? 'mine' : 'all');
     setSelectedKeys([]);
     if (tab === 'drafts') setSearchParams({ tab: 'drafts' }, { replace: true });
     else setSearchParams({}, { replace: true });
@@ -370,10 +377,11 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
         if (q && !jobSearchHaystack(job).includes(q)) return false;
         if (statusFilter.length && !statusFilter.includes(job.status)) return false;
         if (clientFilter.length && !clientFilter.includes(job.clientName || '')) return false;
+        if (ownerFilter === 'mine' && user && job.createdById !== user.id) return false;
         return true;
       })
       .sort(compareOpenFirst);
-  }, [jobs, search, statusFilter, clientFilter]);
+  }, [jobs, search, statusFilter, clientFilter, ownerFilter, user]);
 
   const selectedJobs = useMemo(
     () => filtered.filter((j) => selectedKeys.includes(j.id)),
@@ -913,6 +921,18 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
             onChange={setClientFilter}
             options={clientOptions}
           />
+          {ownerFilterShown && (
+            <Select
+              aria-label="Encoded by"
+              className="jo-list-filter jo-list-filter--sm"
+              value={ownerFilter}
+              onChange={setOwnerFilter}
+              options={[
+                { value: 'mine', label: 'Encoded by me' },
+                { value: 'all', label: 'All office staff' },
+              ]}
+            />
+          )}
         </div>
         <div className="jo-list-actions">
           <Dropdown

@@ -408,7 +408,7 @@ def _register_cli(app):
 
         Keeps users, machines, clients, suppliers, the catalog, tools and
         settings, except that only the sample list's 18 consumables stay
-        offered (the rest become Not offered). Works on a hosted database
+        in use (the rest are archived). Works on a hosted database
         too: take a backup first.
         --apply asks you to type the database host before it commits.
         """

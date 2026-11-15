@@ -542,6 +542,8 @@ export function ParetoChart({
   valueLabel = 'Hours',
   valueFormat = (v: number) => fmtNum(v, 1),
   vitalLabel = 'top causes',
+  onSelect,
+  integerAxis = false,
 }: {
   rows: ParetoRow[];
   threshold?: number;
@@ -550,6 +552,10 @@ export function ParetoChart({
   valueLabel?: string;
   valueFormat?: (v: number) => string;
   vitalLabel?: string;
+  /** Clicking a bar opens what is behind it. */
+  onSelect?: (index: number) => void;
+  /** Counts (such as late jobs): whole numbers on the axis. */
+  integerAxis?: boolean;
 }) {
   // Many bars on a phone: names would overlap, so they move to the tooltip.
   const phone = useMediaQuery(PHONE_QUERY);
@@ -578,6 +584,7 @@ export function ParetoChart({
             />
             <YAxis
               yAxisId="h"
+              allowDecimals={!integerAxis}
               tick={AXIS_TICK}
               tickLine={false}
               axisLine={false}
@@ -621,7 +628,15 @@ export function ParetoChart({
                 );
               }}
             />
-            <Bar yAxisId="h" dataKey="hours" radius={[3, 3, 0, 0]} maxBarSize={56} isAnimationActive={false}>
+            <Bar
+              yAxisId="h"
+              dataKey="hours"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={56}
+              isAnimationActive={false}
+              cursor={onSelect ? 'pointer' : undefined}
+              onClick={onSelect ? (_: unknown, i: number) => onSelect(i) : undefined}
+            >
               {rows.map((_, i) => (
                 <Cell key={i} fill={i < vitalFew ? PALETTE.primary : PALETTE.muted} />
               ))}

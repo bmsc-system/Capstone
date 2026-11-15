@@ -75,7 +75,7 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
       if (typeFilter === 'CONSUMABLE' && r.kind !== 'CONSUMABLE') return false;
       if (summaryKey === 'materials' && r.kind !== 'MATERIAL') return false;
       if (summaryKey === 'consumables' && r.kind !== 'CONSUMABLE') return false;
-      if (summaryKey === 'not_offered' && r.active) return false;
+      if (summaryKey === 'archived' && r.active) return false;
       return catalogMatches(r, query);
     });
   }, [rows, query, typeFilter, summaryKey]);
@@ -83,11 +83,11 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
   const catalogCards: InventorySummaryCard[] = useMemo(() => {
     const materials = rows.filter((r) => r.kind === 'MATERIAL').length;
     const consumables = rows.filter((r) => r.kind === 'CONSUMABLE').length;
-    const notOffered = rows.filter((r) => !r.active).length;
+    const archived = rows.filter((r) => !r.active).length;
     return [
       { key: 'materials', label: 'Materials', value: materials, icon: Layers, tone: 'blue' },
       { key: 'consumables', label: 'Consumables', value: consumables, icon: Package, tone: 'slate' },
-      { key: 'not_offered', label: 'Not offered', value: notOffered, icon: BookOpen, tone: 'red' },
+      { key: 'archived', label: 'Archived', value: archived, icon: BookOpen, tone: 'red' },
     ];
   }, [rows]);
 
@@ -171,7 +171,7 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
     r.gradesOrSizes?.length ? r.gradesOrSizes : r.grades || (r.sizeSpec ? [r.sizeSpec] : []);
 
   const statusCell = (r: CatalogItem) => {
-    const label = r.active ? 'Offered' : 'Not offered';
+    const label = r.active ? 'In use' : 'Archived';
     const color = r.active ? 'green' : 'gray';
     return (
       <div className="catalog-status">
@@ -487,7 +487,12 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
               </Col>
             ) : null}
             <Col xs={isMaterial ? 24 : 12} md={isMaterial ? 6 : 8}>
-              <Form.Item name="active" label="Offered" valuePropName="checked">
+              <Form.Item
+                name="active"
+                label="In use"
+                valuePropName="checked"
+                tooltip="Turn off to archive an item the shop no longer buys. It leaves the pickers and lists, and past records keep it."
+              >
                 <Switch checkedChildren="Yes" unCheckedChildren="No" />
               </Form.Item>
             </Col>

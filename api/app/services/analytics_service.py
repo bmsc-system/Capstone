@@ -14,6 +14,7 @@ from app.models.job_order import JobOrder, JobOrderStatus
 from app.models.machine import MachineType, MachineUnit
 from app.models.operation import JobOperation, OperationStatus
 from app.models.operation_time import (
+    DOWNTIME_CATEGORY_LABELS,
     MachineDowntime,
     OperationPauseReason,
     OperationTimeEvent,
@@ -32,7 +33,7 @@ from app.services.delay_analysis_service import (
     outsourced_delays,
     pause_intervals,
 )
-from app.services import forecast_service, scoring_service
+from app.services import forecast_service, pareto_insights, scoring_service
 from app.services.schedule_calendar import (
     SHOP_TZ,
     derive_working_segments,
@@ -908,11 +909,25 @@ def delays(from_s=None, to_s=None):
     dt_intervals = defaultdict(list)
     dt_counts = defaultdict(int)
     dt_open = defaultdict(int)
+    downtime_records = []
     for row in dts:
         clip_start = max(ensure_utc(row.started_at), start_utc)
         clip_end = min(ensure_utc(row.ended_at), end_utc) if row.ended_at else open_end
         if clip_end > clip_start:
             dt_intervals[row.machine_unit_id].append((clip_start, clip_end))
+            downtime_records.append(
+                {
+                    "machineUnitId": row.machine_unit_id,
+                    "jobOrderId": row.job_order_id,
+                    "start": clip_start,
+                    "end": clip_end,
+                    "open": row.ended_at is None,
+                    "hours": shop_working_hours([(clip_start, clip_end)]),
+                    "label": " · ".join(
+                        x for x in (DOWNTIME_CATEGORY_LABELS.get(row.category), row.note or row.reason) if x
+                    ),
+                }
+            )
         dt_counts[row.machine_unit_id] += 1
         if row.ended_at is None:
             dt_open[row.machine_unit_id] += 1
@@ -1047,7 +1062,24 @@ def delays(from_s=None, to_s=None):
         row["shareOfTotalPct"] = _num(row["shareOfTotalPct"])
         row["cumulativePct"] = _num(row["cumulativePct"])
 
+    lost_pauses = [p for p in pauses if p["reason"] not in NON_WORKING_PAUSE_REASONS]
+    pareto_insights.attach_incidents(
+        pareto, pauses=lost_pauses, downtimes=downtime_records, material=material, late_back=late_back
+    )
+    late = late_jobs(period_from, period_to)
+
     payload = _period_meta(period_from, period_to, excluded)
+    payload["otherShare"] = pareto_insights.other_share(pareto, lost_pauses)
+    payload["lateJobCauses"] = pareto_insights.late_job_causes(late)
+    payload["weeklyTrend"] = pareto_insights.weekly_trend(
+        pareto,
+        pauses=lost_pauses,
+        downtimes=downtime_records,
+        material=material,
+        late_back=late_back,
+        period_from=period_from,
+        period_to=period_to,
+    )
     payload["pauseReasons"] = pause_breakdown
     payload["machineDowntime"] = downtime_breakdown
     payload["causes"] = pareto
@@ -1061,7 +1093,7 @@ def delays(from_s=None, to_s=None):
         {**r, "hours": _num(r["hours"])} for r in late_back
     ]
     payload["breakdownOverlapHours"] = _num(overlap_hours)
-    payload["lateJobs"] = late_jobs(period_from, period_to)
+    payload["lateJobs"] = late
     payload["excludedNonWorkingPauses"] = {
         "breakHours": _num(excluded_pause_hours[OperationPauseReason.BREAK.value]),
         "endOfShiftHours": _num(excluded_pause_hours[OperationPauseReason.END_OF_SHIFT.value]),

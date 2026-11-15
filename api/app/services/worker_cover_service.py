@@ -320,7 +320,7 @@ def cover(worker: User, start: datetime, end: datetime, *, cause: str, emergency
                 op,
                 worker.id,
                 now,
-                OperationPauseReason.EMERGENCY if emergency else OperationPauseReason.OTHER,
+                OperationPauseReason.EMERGENCY if emergency else OperationPauseReason.WORKER_AWAY,
                 cause,
             )
             helpers = [h for h in op.helper_ids if h not in away_worker_ids(win_start, win_end)]

@@ -31,13 +31,17 @@ import {
 } from './operationActions';
 
 const PAUSE_REASONS: { value: OperationPauseReason; label: string }[] = [
-  { value: 'END_OF_SHIFT', label: 'End of shift' },
-  { value: 'BREAK', label: 'Break' },
   { value: 'MACHINE_DOWN', label: 'Machine breakdown' },
   { value: 'WAITING_MATERIAL', label: 'Waiting for material' },
+  { value: 'WAITING_TOOL', label: 'Waiting for a tool' },
+  { value: 'WAITING_INSTRUCTIONS', label: 'Waiting for drawing or instructions' },
   { value: 'WAITING_PRIOR_OPERATION', label: 'Waiting on prior operation' },
+  { value: 'MOVED_TO_OTHER_JOB', label: 'Moved to another job' },
+  { value: 'POWER_INTERRUPTION', label: 'Power interruption' },
+  { value: 'BREAK', label: 'Break' },
+  { value: 'END_OF_SHIFT', label: 'End of shift' },
   { value: 'EMERGENCY', label: 'Emergency (I have to leave)' },
-  { value: 'OTHER', label: 'Other' },
+  { value: 'OTHER', label: 'Other (add a note)' },
 ];
 
 
@@ -119,6 +123,8 @@ export default function AssignmentDetailPage() {
   const [pauseForOp, setPauseForOp] = useState<Operation | null>(null);
   const [reportForOp, setReportForOp] = useState<Operation | null>(null);
   const [reportNote, setReportNote] = useState('');
+  // "Other" asks for a short note so the delay analysis can tell what it was.
+  const [otherNote, setOtherNote] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const pauseArmed = useArmed(pauseForOp !== null);
   const reportArmed = useArmed(reportForOp !== null);
@@ -231,7 +237,12 @@ export default function AssignmentDetailPage() {
     }
   };
 
-  const confirmPause = async (reason: OperationPauseReason) => {
+  const closePause = () => {
+    setPauseForOp(null);
+    setOtherNote(null);
+  };
+
+  const confirmPause = async (reason: OperationPauseReason, note?: string) => {
     if (!pauseForOp || !pauseArmed || !claim(pauseForOp.id)) return;
     const opId = pauseForOp.id;
     setActionLoading(opId);
@@ -239,10 +250,15 @@ export default function AssignmentDetailPage() {
       const reasonLabel = PAUSE_REASONS.find((r) => r.value === reason)?.label || reason;
       await recordAction(
         pauseForOp,
-        { kind: 'pause', reason, label: `${labelFor(pauseForOp, 'Pause')}: ${reasonLabel}` },
+        {
+          kind: 'pause',
+          reason,
+          note: note?.trim() || undefined,
+          label: `${labelFor(pauseForOp, 'Pause')}: ${reasonLabel}`,
+        },
         'Operation paused'
       );
-      setPauseForOp(null);
+      closePause();
     } catch (err) {
       message.error(getErrorMessage(err));
     } finally {
@@ -929,7 +945,7 @@ export default function AssignmentDetailPage() {
               alignItems: 'flex-end',
               justifyContent: 'center',
             }}
-            onClick={() => pauseArmed && setPauseForOp(null)}
+            onClick={() => pauseArmed && closePause()}
           >
             <div
               style={{
@@ -947,6 +963,43 @@ export default function AssignmentDetailPage() {
               <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>
                 Why are you pausing {pauseForOp.operationName || 'this operation'}?
               </div>
+              {otherNote !== null ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <textarea
+                    autoFocus
+                    value={otherNote}
+                    onChange={(e) => setOtherNote(e.target.value)}
+                    placeholder="What stopped the work? (required)"
+                    rows={2}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      padding: '10px 12px',
+                      borderRadius: 10,
+                      border: `1px solid ${colors.cardBorder}`,
+                      background: colors.inputBg || colors.card,
+                      color: colors.text,
+                      fontSize: 14,
+                      fontFamily: 'inherit',
+                      resize: 'none',
+                    }}
+                  />
+                  <Button
+                    block
+                    size="large"
+                    type="primary"
+                    disabled={!otherNote.trim()}
+                    loading={actionLoading === pauseForOp.id}
+                    onClick={() => confirmPause('OTHER', otherNote)}
+                    style={{ height: 48, fontWeight: 700 }}
+                  >
+                    Pause
+                  </Button>
+                  <Button block size="large" onClick={() => setOtherNote(null)} style={{ height: 48 }}>
+                    Back
+                  </Button>
+                </div>
+              ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {PAUSE_REASONS.map((r) => (
                   <Button
@@ -955,7 +1008,9 @@ export default function AssignmentDetailPage() {
                     size="large"
                     loading={actionLoading === pauseForOp.id}
                     onClick={() =>
-                      r.value === 'EMERGENCY'
+                      r.value === 'OTHER'
+                        ? setOtherNote('')
+                        : r.value === 'EMERGENCY'
                         ? confirmAction({
                             title: 'Pause for an emergency?',
                             content:
@@ -970,10 +1025,11 @@ export default function AssignmentDetailPage() {
                     {r.label}
                   </Button>
                 ))}
-                <Button block size="large" onClick={() => setPauseForOp(null)} style={{ height: 48 }}>
+                <Button block size="large" onClick={closePause} style={{ height: 48 }}>
                   Cancel
                 </Button>
               </div>
+              )}
             </div>
           </div>
         )}
