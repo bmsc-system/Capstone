@@ -15,6 +15,7 @@ from app.services.schedule_calendar import (
     place_duration,
     place_unbroken,
     shop_local_to_utc,
+    utc_to_shop,
     subtract_intervals,
 )
 from app.services.schedule_service import (
@@ -98,8 +99,9 @@ def test_place_duration_spans_multiple_working_days():
     assert (finish - start).total_seconds() == pytest.approx(20 * 3600, rel=1e-6)
 
 
-def test_six_hour_op_from_1400_finishes_next_day_no_outside_hours_warning(monkeypatch):
-    """6h from 14:00 on Mon–Sat 08–17 finishes next working day; two segments; validate clean."""
+def test_six_hour_op_from_1400_waits_for_next_morning_instead_of_splitting(monkeypatch):
+    """6h from 14:00 on Mon–Sat 08–17 fits in one day, so it is not split across
+    Monday and Tuesday: it starts Tuesday 08:00 and finishes Tuesday; validate clean."""
     schedule_by_dow = _mon_sat_schedule_by_dow()
     worker_id = "worker-1"
     monkeypatch.setattr(
@@ -137,24 +139,11 @@ def test_six_hour_op_from_1400_finishes_next_day_no_outside_hours_warning(monkey
     assert op["scheduled"] is True
     start = datetime.fromisoformat(op["scheduledStart"]).astimezone(SHOP)
     finish = datetime.fromisoformat(op["scheduledEnd"]).astimezone(SHOP)
-    assert start.date() == date(2026, 8, 10)
-    assert start.hour == 14
-    # 14:00–17:00 = 3h, then Tue 08:00–11:00 = 3h
+    assert start.date() == date(2026, 8, 11)
+    assert (start.hour, start.minute) == (8, 0)
     assert finish.date() == date(2026, 8, 11)
-    assert finish.hour == 11
-    assert finish.minute == 0
-
-    segments = op["segments"]
-    assert len(segments) == 2
-    seg0 = datetime.fromisoformat(segments[0]["start"]).astimezone(SHOP)
-    seg0e = datetime.fromisoformat(segments[0]["end"]).astimezone(SHOP)
-    seg1 = datetime.fromisoformat(segments[1]["start"]).astimezone(SHOP)
-    seg1e = datetime.fromisoformat(segments[1]["end"]).astimezone(SHOP)
-    assert (seg0.hour, seg0.minute) == (14, 0)
-    assert (seg0e.hour, seg0e.minute) == (17, 0)
-    assert seg1.date() == date(2026, 8, 11)
-    assert (seg1.hour, seg1.minute) == (8, 0)
-    assert (seg1e.hour, seg1e.minute) == (11, 0)
+    segment_days = {datetime.fromisoformat(s["start"]).astimezone(SHOP).date() for s in op["segments"]}
+    assert segment_days == {date(2026, 8, 11)}
 
     validation = validate_schedule(
         [
@@ -507,10 +496,38 @@ def test_place_unbroken_still_pauses_overnight():
     end = anchor + timedelta(days=7)
     windows = build_worker_working_windows(schedule_by_dow, {}, anchor, end)
 
-    start, finish, _ = place_unbroken(windows, [], timedelta(hours=4), anchor, end)
+    start, finish, _ = place_unbroken(windows, [], timedelta(hours=4), anchor, end, tidy=False)
 
     assert start == _mon(15)
     assert finish == shop_local_to_utc(date(2026, 8, 11), time(10, 0))
+
+
+def test_tidy_placement_starts_on_the_half_hour_and_keeps_a_short_job_in_one_day():
+    schedule_by_dow = _mon_sat_schedule_by_dow()
+    anchor = shop_local_to_utc(date(2026, 8, 10), time(9, 26))
+    end = anchor + timedelta(days=7)
+    windows = build_worker_working_windows(schedule_by_dow, {}, anchor, end)
+
+    start, finish, _ = place_unbroken(windows, [], timedelta(hours=1.3), anchor, end)
+    assert start == shop_local_to_utc(date(2026, 8, 10), time(9, 30))
+    # 1.3 h is booked as 1.5 h.
+    assert finish == shop_local_to_utc(date(2026, 8, 10), time(11, 0))
+
+    late = shop_local_to_utc(date(2026, 8, 10), time(15, 0))
+    start, finish, _ = place_unbroken(windows, [], timedelta(hours=4), late, end)
+    assert start == shop_local_to_utc(date(2026, 8, 11), time(8, 0))
+    assert utc_to_shop(finish).date() == date(2026, 8, 11)
+
+
+def test_tidy_placement_still_splits_work_longer_than_a_day():
+    schedule_by_dow = _mon_sat_schedule_by_dow()
+    anchor = shop_local_to_utc(date(2026, 8, 10), time(14, 0))
+    end = anchor + timedelta(days=7)
+    windows = build_worker_working_windows(schedule_by_dow, {}, anchor, end)
+
+    start, finish, _ = place_unbroken(windows, [], timedelta(hours=12), anchor, end)
+    assert start == anchor
+    assert utc_to_shop(finish).date() > date(2026, 8, 10)
 
 
 def test_proposal_never_straddles_another_jobs_machine_booking(schedule_patches, monkeypatch):
@@ -915,9 +932,12 @@ def test_holiday_gets_no_work(monkeypatch):
     }
     assert tuesday not in segment_days
     finish = datetime.fromisoformat(op["scheduledEnd"]).astimezone(SHOP)
-    # 3h Monday, Tuesday closed, remaining 3h Wednesday 08:00–11:00.
+    # 6h fits in one day: not 3h Monday + 3h Wednesday (Tuesday is closed),
+    # but Wednesday from 08:00.
+    assert monday not in segment_days
     assert finish.date() == date(2026, 8, 12)
-    assert (finish.hour, finish.minute) == (11, 0)
+    start = datetime.fromisoformat(op["scheduledStart"]).astimezone(SHOP)
+    assert (start.hour, start.minute) == (8, 0)
 
 
 def test_gap_between_closing_and_overtime_is_not_working(monkeypatch):
