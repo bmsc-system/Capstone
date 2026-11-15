@@ -1000,7 +1000,7 @@ export default function AssignmentDetailPage() {
                   </Button>
                 </div>
               ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {PAUSE_REASONS.map((r) => (
                   <Button
                     key={r.value}
@@ -1020,12 +1020,21 @@ export default function AssignmentDetailPage() {
                           })
                         : confirmPause(r.value)
                     }
-                    style={{ height: 48, fontWeight: 700, textAlign: 'left' }}
+                    style={{
+                      height: 'auto',
+                      minHeight: 52,
+                      padding: '6px 10px',
+                      fontWeight: 700,
+                      fontSize: 14,
+                      lineHeight: 1.25,
+                      whiteSpace: 'normal',
+                      gridColumn: r.value === 'OTHER' ? '1 / -1' : undefined,
+                    }}
                   >
                     {r.label}
                   </Button>
                 ))}
-                <Button block size="large" onClick={closePause} style={{ height: 48 }}>
+                <Button block size="large" onClick={closePause} style={{ height: 48, gridColumn: '1 / -1' }}>
                   Cancel
                 </Button>
               </div>

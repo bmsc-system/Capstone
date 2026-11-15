@@ -183,7 +183,7 @@ def suggested_action(row) -> str | None:
         OperationPauseReason.WAITING_INSTRUCTIONS.value: "Confirm drawings and instructions with the client before the job is released{at}.",
         OperationPauseReason.WAITING_TOOL.value: "Tools were not ready{at}: check the tool borrow log and keep common tools at the machine.",
         OperationPauseReason.WAITING_MATERIAL.value: "Work started before its material was at the machine{at}: check material before starting.",
-        OperationPauseReason.POWER_INTERRUPTION.value: "Record outage times{at}; plan backup power for the machines that cannot stop.",
+        OperationPauseReason.POWER_INTERRUPTION.value: "Record outage times, and plan backup power for the machines that cannot stop.",
         OperationPauseReason.MOVED_TO_OTHER_JOB.value: "Workers were pulled to other jobs{at}: put rush jobs on the schedule so the move is planned.",
         OperationPauseReason.WORKER_AWAY.value: "Work stopped when a worker was away: mark leave ahead so the work is given to others earlier.",
         OperationPauseReason.EMERGENCY.value: "Work stopped for emergencies: hand the work over sooner so the operation keeps moving.",
