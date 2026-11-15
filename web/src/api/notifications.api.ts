@@ -7,11 +7,8 @@ export const notificationsApi = {
     clientId?: string;
     status?: string;
     limit?: number;
-    /** One or more events, comma-separated (PASSWORD_RESET, INVITATION, TEST, or a milestone). */
+    /** One or more events, comma-separated (PASSWORD_RESET, INVITATION, or a milestone). */
     event?: string;
   }) =>
     apiClient.get<NotificationLog[]>('/notifications', { params }),
-  /** Admin only. Respects NOTIFICATIONS_ENABLED and NOTIFY_ALLOWLIST; returns the log row. */
-  sendTest: (channel: 'email', to: string) =>
-    apiClient.post<NotificationLog>('/admin/notifications/test', { channel, to }),
 };

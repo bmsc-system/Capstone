@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Input, message } from 'antd';
-import { MailOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, message } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import { getErrorMessage } from '../../api/client';
 import { notificationsApi } from '../../api/notifications.api';
 import StatusPill from '../../components/StatusPill';
@@ -10,7 +10,6 @@ import { formatShop } from '../../utils/shopTime';
 const KIND: Record<string, string> = {
   PASSWORD_RESET: 'Password reset',
   INVITATION: 'Account setup link',
-  TEST: 'Test email',
 };
 
 const STATUS: Record<string, { label: string; color: 'green' | 'red' | 'amber' }> = {
@@ -22,17 +21,14 @@ const STATUS: Record<string, { label: string; color: 'green' | 'red' | 'amber' }
 /**
  * Admin: why an account email did not arrive. Lists the latest password-reset
  * and setup-link emails with whether each was sent and, when it was not, the
- * reason; and sends a test email through the same path.
+ * reason.
  */
 export default function EmailCheckCard() {
   const [rows, setRows] = useState<NotificationLog[] | null>(null);
-  const [to, setTo] = useState('');
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<NotificationLog | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const { data } = await notificationsApi.list({ event: 'PASSWORD_RESET,INVITATION,TEST', limit: 15 });
+      const { data } = await notificationsApi.list({ event: 'PASSWORD_RESET,INVITATION', limit: 15 });
       setRows(data);
     } catch (err) {
       setRows([]);
@@ -44,21 +40,6 @@ export default function EmailCheckCard() {
     void load();
   }, [load]);
 
-  const sendTest = async () => {
-    if (!to.trim()) return;
-    setSending(true);
-    setResult(null);
-    try {
-      const { data } = await notificationsApi.sendTest('email', to.trim());
-      setResult(data);
-      await load();
-    } catch (err) {
-      message.error(getErrorMessage(err));
-    } finally {
-      setSending(false);
-    }
-  };
-
   return (
     <section className="sd-card" style={{ marginTop: 16, padding: 20 }}>
       <header className="sd-section__head">
@@ -69,32 +50,9 @@ export default function EmailCheckCard() {
         </p>
       </header>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
-        <Input
-          style={{ maxWidth: 320 }}
-          prefix={<MailOutlined />}
-          placeholder="Send a test email to…"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          onPressEnter={sendTest}
-        />
-        <Button type="primary" loading={sending} disabled={!to.trim()} onClick={sendTest}>
-          Send test email
-        </Button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '12px 0' }}>
         <Button icon={<ReloadOutlined />} onClick={() => void load()} aria-label="Refresh the list" />
       </div>
-      {result ? (
-        <Alert
-          style={{ marginBottom: 12 }}
-          showIcon
-          type={result.status === 'SENT' ? 'success' : 'warning'}
-          message={
-            result.status === 'SENT'
-              ? `Sent to ${result.recipient}. If it is not in the inbox in a minute, check Spam.`
-              : `Not sent: ${result.errorMessage || 'no reason given'}`
-          }
-        />
-      ) : null}
 
       {rows === null ? (
         <div style={{ color: '#94a3b8' }}>Loading…</div>

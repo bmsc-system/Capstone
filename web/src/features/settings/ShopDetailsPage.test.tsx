@@ -31,7 +31,6 @@ vi.mock('../../api/shopDetails.api', () => ({
 
 vi.mock('../../api/notifications.api', () => ({
   notificationsApi: {
-    sendTest: () => Promise.resolve({ data: { status: 'SENT' } }),
     list: () => Promise.resolve({ data: [] }),
   },
 }));

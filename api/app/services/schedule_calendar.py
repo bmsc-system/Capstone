@@ -163,8 +163,8 @@ def place_duration(
     return None, None, placeable_hours
 
 
-# Proposed starts fall on the half hour and bookings run in half-hour blocks,
-# so a plan reads 8:00 AM - 1:30 PM, not 8:26 AM - 1:44 PM.
+# Sample-history plans start on the half hour and run in half-hour blocks, so
+# a seeded plan reads 8:00 AM - 1:30 PM, not 8:26 AM - 1:44 PM.
 BOOKING_MINUTES = 30
 
 
@@ -208,7 +208,7 @@ def place_unbroken(
     duration: timedelta,
     not_before: datetime,
     end_utc: datetime,
-    tidy: bool = True,
+    tidy: bool = False,
 ) -> tuple[datetime | None, datetime | None, float]:
     """
     Earliest placement of `duration` across working `windows` that never touches
@@ -216,9 +216,9 @@ def place_unbroken(
     booking: only the start and end are stored, and every working moment between
     them counts as booked. Returns (start_utc, end_utc, free_hours_within_horizon).
 
-    With ``tidy`` (the default) the start falls on the half hour, the booking
-    runs in half-hour blocks, and an operation that fits in one working day is
-    not split across two: it waits for the next day's start instead.
+    With ``tidy`` (used for the sample history) the start falls on the half
+    hour, the booking runs in half-hour blocks, and an operation that fits in
+    one working day is not split across two: it waits for the next day's start.
     """
     windows = merge_intervals(windows)
     busy = merge_intervals(busy)

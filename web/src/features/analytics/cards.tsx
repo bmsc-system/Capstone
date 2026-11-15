@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Segmented, Skeleton } from 'antd';
+import { Segmented, Select, Skeleton } from 'antd';
 import { Link } from 'react-router-dom';
 import StatusPill from '../../components/StatusPill';
 import type { Tone } from '../../theme/tokens';
@@ -155,14 +155,34 @@ function exportForecast(name: string, f: MovingAverageForecast) {
   ]);
 }
 
+/** How far ahead a forecast looks: 1, 3 or 6 months. */
+const FORECAST_MONTHS = [1, 3, 6] as const;
+
+function AheadSelect({ value, onChange }: { value: number; onChange: (m: number) => void }) {
+  return (
+    <Select
+      size="small"
+      aria-label="Forecast range"
+      value={value}
+      onChange={onChange}
+      style={{ width: 128 }}
+      options={FORECAST_MONTHS.map((m) => ({ value: m, label: `Next ${m} month${m > 1 ? 's' : ''}` }))}
+    />
+  );
+}
+
 export function SalesForecastCard({
   data,
   span = 6,
   height = 240,
+  months,
+  onMonthsChange,
 }: {
   data: AnalyticsSalesForecast | null;
   span?: Span;
   height?: number;
+  months?: number;
+  onMonthsChange?: (m: number) => void;
 }) {
   const f = data?.salesForecast;
   const take = f ? forecastTakeaway(f, fmtPesoCompact, 'expected') : null;
@@ -173,6 +193,9 @@ export function SalesForecastCard({
       chip="Monthly"
       takeaway={take?.text}
       takeawayTone={take?.tone}
+      controls={
+        onMonthsChange ? <AheadSelect value={months ?? 3} onChange={onMonthsChange} /> : undefined
+      }
       info={
         f ? (
           <ForecastInfo
@@ -194,11 +217,15 @@ export function DemandForecastCard({
   span = 6,
   height = 240,
   compact,
+  months,
+  onMonthsChange,
 }: {
   data: AnalyticsDemandForecast | null;
   span?: Span;
   height?: number;
   compact?: boolean;
+  months?: number;
+  onMonthsChange?: (m: number) => void;
 }) {
   const [type, setType] = useState<string>('ALL');
   const series: MovingAverageForecast | undefined =
@@ -214,16 +241,21 @@ export function DemandForecastCard({
       takeaway={take?.text}
       takeawayTone={take?.tone}
       controls={
-        !compact && types.length > 1 ? (
-          <Segmented
-            size="small"
-            value={type}
-            onChange={(v) => setType(String(v))}
-            options={[
-              { label: 'All', value: 'ALL' },
-              ...types.map((t) => ({ label: JOB_TYPE_LABEL[t.jobType] ?? t.jobType, value: t.jobType })),
-            ]}
-          />
+        (!compact && types.length > 1) || onMonthsChange ? (
+          <>
+            {!compact && types.length > 1 ? (
+              <Segmented
+                size="small"
+                value={type}
+                onChange={(v) => setType(String(v))}
+                options={[
+                  { label: 'All', value: 'ALL' },
+                  ...types.map((t) => ({ label: JOB_TYPE_LABEL[t.jobType] ?? t.jobType, value: t.jobType })),
+                ]}
+              />
+            ) : null}
+            {onMonthsChange ? <AheadSelect value={months ?? 3} onChange={onMonthsChange} /> : null}
+          </>
         ) : undefined
       }
       info={

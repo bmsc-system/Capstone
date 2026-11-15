@@ -43,9 +43,10 @@ export const analyticsApi = {
     apiClient.get<AnalyticsDelays>('/analytics/delays', { params }),
   salesSummary: (params?: AnalyticsDateParams) =>
     apiClient.get<AnalyticsSalesSummary>('/analytics/sales/summary', { params }),
-  salesForecast: (params?: AnalyticsDateParams) =>
+  salesForecast: (params?: AnalyticsDateParams & { months?: number }) =>
     apiClient.get<AnalyticsSalesForecast>('/analytics/sales/forecast', { params }),
-  demandForecast: () => apiClient.get<AnalyticsDemandForecast>('/analytics/demand/forecast'),
+  demandForecast: (params?: { months?: number }) =>
+    apiClient.get<AnalyticsDemandForecast>('/analytics/demand/forecast', { params }),
   consumableReplenishment: () =>
     apiClient.get<ConsumableReplenishment>('/analytics/consumables/replenishment'),
   demandCapacity: (params?: AnalyticsDateParams) =>

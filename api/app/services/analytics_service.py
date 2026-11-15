@@ -1363,7 +1363,7 @@ def sales_summary(from_s=None, to_s=None):
     return payload
 
 
-def sales_forecast(from_s=None, to_s=None):
+def sales_forecast(from_s=None, to_s=None, months=None):
     """Committed pipeline (fact) plus the monthly moving-average sales estimate.
 
     Both use all history, not the analytics period; from/to are accepted for
@@ -1409,12 +1409,14 @@ def sales_forecast(from_s=None, to_s=None):
 
     return {
         "committedPipeline": committed,
-        "salesForecast": forecast_service.sales_forecast(),
+        "salesForecast": forecast_service.sales_forecast(
+            horizon=forecast_service.horizon_months(months)
+        ),
     }
 
 
-def demand_forecast():
-    return forecast_service.demand_forecast()
+def demand_forecast(months=None):
+    return forecast_service.demand_forecast(horizon=forecast_service.horizon_months(months))
 
 
 def consumable_replenishment():

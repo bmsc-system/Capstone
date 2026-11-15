@@ -83,6 +83,7 @@ from app.services.schedule_calendar import (
     intersect_intervals,
     load_calendar_exceptions,
     load_worker_schedule_maps_many,
+    place_duration,
     place_unbroken,
     shop_local_to_utc,
     shop_working_hours,
@@ -1358,6 +1359,7 @@ def _place_one(
             timedelta(hours=duration_hours),
             not_before,
             horizon,
+            tidy=True,
         )
         if start is not None:
             unit, worker = unit_try, worker_try
@@ -1369,7 +1371,13 @@ def _place_one(
 
     worked_hours = worked if not in_progress else None
     actual_start = start
-    actual_end = None if in_progress else end
+    actual_end = None
+    if not in_progress:
+        # The plan runs in half-hour blocks; the work itself ends when its
+        # hours are done.
+        actual_end = place_duration(
+            shop.windows[worker.id], timedelta(hours=duration_hours), start, end
+        )[1] or end
     status = OperationStatus.IN_PROGRESS if in_progress else OperationStatus.COMPLETED
     if rework_of is None and in_progress is False and actual_end and utc_to_shop(start).date() > shop.end and job.status == JobOrderStatus.DELIVERED:
         status = OperationStatus.COMPLETED
@@ -1505,6 +1513,7 @@ def _downtime(rng, shop, ledger, op, worker, started, ended, counters, admin, ta
         timedelta(hours=1),
         ended,
         shop.future_end,
+        tidy=True,
     )
     if start is None:
         return

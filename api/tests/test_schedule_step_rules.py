@@ -250,8 +250,7 @@ def test_moving_start_later_pushes_next_operation(client, shop):
     result = _propose(client, shop, job, {"operations": ops, "pinSequence": 1, "lockBeforeSequence": 1})
     first, second = result["operations"]
     assert _parse(first["scheduledEnd"]) == _at(MON, 16)
-    # A 2 h operation is not split over Monday evening and Tuesday morning.
-    assert _parse(second["scheduledStart"]) == _at(TUE, 8)
+    assert _parse(second["scheduledStart"]) == _at(MON, 16)
     assert second["assignedWorkerId"] == shop["other"].id
     assert result["problems"] == []
 

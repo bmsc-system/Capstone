@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PageSkeleton } from '../../components/ui';
 import { exportCsv } from '../../utils/csvExport';
 import { fmtMonth, fmtNum, fmtPeso, fmtPesoCompact, JOB_TYPE_LABEL, pctChange } from './format';
@@ -11,8 +12,10 @@ export default function AnalyticsSalesPage() {
   const salesPrev = useSalesSummary(previous).data;
   const jobs = useJobOrders(period).data;
   const jobsPrev = useJobOrders(previous).data;
-  const forecast = useSalesForecast().data;
-  const demand = useDemandForecast().data;
+  const [salesMonths, setSalesMonths] = useState(3);
+  const [demandMonths, setDemandMonths] = useState(3);
+  const forecast = useSalesForecast(salesMonths).data;
+  const demand = useDemandForecast(demandMonths).data;
 
   if (!sales) return <PageSkeleton variant="cards" />;
 
@@ -56,8 +59,8 @@ export default function AnalyticsSalesPage() {
       </Kpis>
 
       <Grid>
-        <SalesForecastCard data={forecast} />
-        <DemandForecastCard data={demand} />
+        <SalesForecastCard data={forecast} months={salesMonths} onMonthsChange={setSalesMonths} />
+        <DemandForecastCard data={demand} months={demandMonths} onMonthsChange={setDemandMonths} />
 
         <Card
           title="Pipeline by month"

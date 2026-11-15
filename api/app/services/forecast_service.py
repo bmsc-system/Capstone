@@ -32,6 +32,19 @@ MONTHLY_WINDOW = 3
 # 3 months to fit the first forecast plus 3 back-tested months to compare methods.
 MIN_FORECAST_MONTHS = fm.MIN_TRAIN + 3
 FORECAST_HORIZON_MONTHS = 3
+# Months ahead a user can ask the sales and demand forecasts for.
+FORECAST_HORIZON_CHOICES = (1, 3, 6)
+
+
+def horizon_months(value) -> int:
+    """A forecast horizon from a query string; anything else gives the default."""
+    try:
+        months = int(value)
+    except (TypeError, ValueError):
+        return FORECAST_HORIZON_MONTHS
+    return months if months in FORECAST_HORIZON_CHOICES else FORECAST_HORIZON_MONTHS
+
+
 STOCKTAKE_WINDOW = 3
 NOT_ENOUGH_HISTORY = "Not enough history yet"
 NOT_ENOUGH_DATA = "Not enough data"
@@ -257,7 +270,7 @@ def _job_received_date(job) -> date:
     return job.created_at.astimezone(SHOP_TZ).date()
 
 
-def sales_forecast(today: date | None = None):
+def sales_forecast(today: date | None = None, horizon: int = FORECAST_HORIZON_MONTHS):
     """Monthly income from finished jobs (Completed, For Delivery, Delivered), by completion month."""
     jobs = (
         JobOrder.query.options(joinedload(JobOrder.operations))
@@ -276,11 +289,11 @@ def sales_forecast(today: date | None = None):
     return {
         "label": "salesForecast",
         "description": "Monthly income from finished jobs (Completed, For Delivery or Delivered), by completion month.",
-        **monthly_forecast(dated, today),
+        **monthly_forecast(dated, today, horizon=horizon),
     }
 
 
-def demand_forecast(today: date | None = None):
+def demand_forecast(today: date | None = None, horizon: int = FORECAST_HORIZON_MONTHS):
     """Monthly job orders received (PO date, else creation date), overall and by job type.
 
     Every job type uses the overall start of the history, so a type with no
@@ -297,12 +310,14 @@ def demand_forecast(today: date | None = None):
     result = {
         "label": "demandForecast",
         "description": "Job orders received per month, by PO date (creation date when there is none).",
-        **monthly_forecast(overall, today, places=1, history_start=start),
+        **monthly_forecast(overall, today, places=1, history_start=start, horizon=horizon),
     }
     result["byJobType"] = [
         {
             "jobType": jt.value,
-            **monthly_forecast(by_type.get(jt.value, []), today, places=1, history_start=start),
+            **monthly_forecast(
+                by_type.get(jt.value, []), today, places=1, history_start=start, horizon=horizon
+            ),
         }
         for jt in JobType
     ]
