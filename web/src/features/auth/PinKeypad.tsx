@@ -54,12 +54,18 @@ export default function PinKeypad({
 }: PinKeypadProps) {
   const [digits, setDigits] = useState('');
   const [shaking, setShaking] = useState(false);
+  // The digits typed so far, kept in a ref so a fast tap never reads a stale
+  // render, and so the PIN is handed over once, from the tap that finished it.
+  const digitsRef = useRef('');
   const completingRef = useRef(false);
-  const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
+
+  const setTyped = (next: string) => {
+    digitsRef.current = next;
+    setDigits(next);
+  };
 
   const clearDigits = (withShake: boolean) => {
-    setDigits('');
+    setTyped('');
     completingRef.current = false;
     if (!withShake) return;
     setShaking(true);
@@ -76,19 +82,20 @@ export default function PinKeypad({
     clearDigits(true);
   }, [failSignal]);
 
-  useEffect(() => {
-    if (digits.length !== PIN_LENGTH || completingRef.current || busy) return;
-    completingRef.current = true;
-    onCompleteRef.current(digits);
-  }, [digits, busy]);
-
   const press = (key: string) => {
     if (busy || completingRef.current) return;
+    const current = digitsRef.current;
     if (key === 'back') {
-      setDigits((d) => d.slice(0, -1));
+      setTyped(current.slice(0, -1));
       return;
     }
-    setDigits((d) => (d.length >= PIN_LENGTH ? d : d + key));
+    if (current.length >= PIN_LENGTH) return;
+    const next = current + key;
+    setTyped(next);
+    if (next.length === PIN_LENGTH) {
+      completingRef.current = true;
+      onComplete(next);
+    }
   };
 
   return (

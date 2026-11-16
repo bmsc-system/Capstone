@@ -29,8 +29,13 @@ export function fmtNum(value: number | null | undefined, digits = 0): string {
 export function fmtCompact(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return '—';
   const abs = Math.abs(value);
-  if (abs >= 1e6) return `${(value / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}M`;
-  if (abs >= 1e3) return `${Math.round(value / 1e3)}k`;
+  const sign = value < 0 ? '-' : '';
+  // Decide the unit after rounding, so 999,800 reads "1.0M", never "1000k".
+  if (abs >= 999_500) {
+    const m = abs / 1e6;
+    return `${sign}${m.toFixed(m >= 9.95 ? 0 : 1)}M`;
+  }
+  if (abs >= 999.5) return `${sign}${Math.round(abs / 1e3)}k`;
   return String(Math.round(value * 10) / 10);
 }
 
