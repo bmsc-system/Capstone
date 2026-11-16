@@ -1,18 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input, Segmented, Select } from 'antd';
-import { ProfileOutlined, SearchOutlined } from '@ant-design/icons';
+import { CaretRightFilled, ClockCircleOutlined, ProfileOutlined, SearchOutlined, ToolOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { WorkerPageHeader } from '../../layouts/WorkerLayout';
 import SyncChip from '../../offline/SyncChip';
 import { EmptyState, PageSkeleton, StatusPill } from '../../components/ui';
-import { opStatusPill } from './opStatus';
+import { useOffline } from '../../offline/OfflineProvider';
+import { formatHoursMinutes } from '../../utils/duration';
+import type { Operation } from '../../types';
+import { machineLabel, opStatusPill } from './opStatus';
 import { useMyOperations } from './useMyOperations';
+import { announceRecorded, operationActionLabel, showActionError } from './operationActions';
 import {
   SORT_OPTIONS,
+  activeWhen,
+  dateTile,
   filterChips,
   filterOps,
+  groupOps,
   sortOps,
-  whenLine,
   type AssignmentSort,
   type AssignmentTab,
 } from './assignmentList';
@@ -24,6 +30,32 @@ export default function MyAssignmentsPage() {
   const [sort, setSort] = useState<AssignmentSort>('newest');
   const navigate = useNavigate();
   const { operations, loading, error } = useMyOperations();
+  const { online, record } = useOffline();
+  const [resuming, setResuming] = useState<string | null>(null);
+  // A ref, not only state: a second tap can arrive before the re-render.
+  const actingRef = useRef(false);
+
+  const resume = async (op: Operation) => {
+    if (actingRef.current) return;
+    actingRef.current = true;
+    setResuming(op.id);
+    try {
+      const outcome = await record({
+        kind: 'resume',
+        label: operationActionLabel(op, 'Resume', op.jobNumber),
+        operationId: op.id,
+        jobOrderId: op.jobOrderId,
+      });
+      announceRecorded(outcome, online, 'Operation resumed');
+    } catch (err) {
+      showActionError(err);
+    } finally {
+      setResuming(null);
+      window.setTimeout(() => {
+        actingRef.current = false;
+      }, 1500);
+    }
+  };
 
   const active = useMemo(() => operations.filter((o) => o.status !== 'COMPLETED'), [operations]);
   const completed = useMemo(() => operations.filter((o) => o.status === 'COMPLETED'), [operations]);
@@ -125,36 +157,83 @@ export default function MyAssignmentsPage() {
             description={!query && chip === 'all' && tab === 'active' ? 'New assignments show up here.' : undefined}
           />
         ) : (
-          shown.map((op) => {
-            const pill = opStatusPill(op);
-            const line = whenLine(op);
-            const job = [op.jobNumber || op.jobOrderId.slice(0, 8).toUpperCase(), op.clientName || op.jobTitle]
-              .filter(Boolean)
-              .join(' · ');
-            return (
-              <button
-                key={op.id}
-                type="button"
-                className="w-card w-card--flush w-job"
-                onClick={() => navigate(`/my-assignments/${op.jobOrderId}`)}
-              >
-                <div className="w-job__head">
-                  <span className="w-job__name">{op.operationName || op.name || 'Operation'}</span>
-                  <span className="w-job__pills">
-                    {op.syncState && <SyncChip state={op.syncState} />}
-                    {/* Every card on the Completed tab is completed: no pill there. */}
-                    {tab === 'active' ? (
-                      <StatusPill tone={pill.tone} compact>
-                        {pill.label}
-                      </StatusPill>
+          groupOps(shown, tab).map((group) => (
+            <section key={group.key} className="w-jobs">
+              <div className="w-jobs__head">
+                <span>{group.label}</span>
+                {group.note ? <span>{group.note}</span> : null}
+              </div>
+              {group.ops.map((op) => {
+                const pill = opStatusPill(op);
+                const tile = dateTile(op);
+                const machine = machineLabel(op);
+                const when = tab === 'active' ? activeWhen(op) : null;
+                const paused = op.status === 'IN_PROGRESS' && op.isPaused;
+                return (
+                  <div key={op.id} className={`w-job2 w-job2--${pill.tone}`}>
+                    <button
+                      type="button"
+                      className="w-job2__main"
+                      onClick={() => navigate(`/my-assignments/${op.jobOrderId}`)}
+                    >
+                      <span className="w-job2__tile" aria-hidden="true">
+                        <b>{tile?.day ?? '—'}</b>
+                        {tile ? <i>{tile.label}</i> : null}
+                      </span>
+                      <span className="w-job2__body">
+                        <span className="w-job2__head">
+                          <span className="w-job2__name">{op.operationName || op.name || 'Operation'}</span>
+                          <span className="w-job__pills">
+                            {op.syncState && <SyncChip state={op.syncState} />}
+                            {/* Every card on the Completed tab is completed: no pill there. */}
+                            {tab === 'active' ? (
+                              <StatusPill tone={pill.tone} compact>
+                                {pill.label}
+                              </StatusPill>
+                            ) : null}
+                          </span>
+                        </span>
+                        <span className="w-job2__jo">
+                          <code>{op.jobNumber || op.jobOrderId.slice(0, 8).toUpperCase()}</code>
+                          <span>{op.clientName || op.jobTitle}</span>
+                        </span>
+                        {when || machine ? (
+                          <span className="w-job2__meta">
+                            {when ? (
+                              <span>
+                                <ClockCircleOutlined /> {when}
+                              </span>
+                            ) : null}
+                            {machine ? (
+                              <span>
+                                <ToolOutlined /> {machine}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </span>
+                      {tab === 'completed' && op.actualWorkedHours != null ? (
+                        <span className="w-job2__hours">
+                          <b>{formatHoursMinutes(op.actualWorkedHours)}</b>
+                          <i>worked</i>
+                        </span>
+                      ) : null}
+                    </button>
+                    {paused ? (
+                      <button
+                        type="button"
+                        className="w-job2__cta"
+                        disabled={resuming === op.id}
+                        onClick={() => resume(op)}
+                      >
+                        <CaretRightFilled /> {resuming === op.id ? 'Resuming…' : 'Tap to resume'}
+                      </button>
                     ) : null}
-                  </span>
-                </div>
-                <div className="w-job__client">{job}</div>
-                {line ? <div className="w-job__when">{line}</div> : null}
-              </button>
-            );
-          })
+                  </div>
+                );
+              })}
+            </section>
+          ))
         )}
       </div>
     </div>

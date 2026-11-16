@@ -33,6 +33,7 @@ import {
 } from '../my-assignments/operationActions';
 import { machineLabel, opStatusPill, opTitle } from '../my-assignments/opStatus';
 import { useMyOperations } from '../my-assignments/useMyOperations';
+import { workedMsSoFar } from '../my-assignments/workedTime';
 import { TOOLS_CHANGED } from './toolsEvents';
 import { useMyProfile } from './useMyProfile';
 import { formatRange, greeting, summarizeSchedule, weekInWords } from './workerFormat';
@@ -277,87 +278,72 @@ export default function WorkerHomePage() {
     const pillAddsInfo = !['Paused', 'In progress', 'Scheduled', 'Pending'].includes(pill.label);
     const next = hero.segments?.[0]?.start || hero.scheduledStart;
 
+    const steps = jobOps ? [...jobOps].sort((a, b) => a.sequenceNo - b.sequenceNo) : null;
+    const stepNo = steps ? steps.findIndex((o) => o.id === hero.id) + 1 : 0;
+    const stateLabel = running ? 'Working on' : paused ? 'Paused' : 'Up next';
+    const target = Number(hero.estimatedHours) || 0;
+    const workedH = running || paused ? workedMsSoFar(hero, nowMs) / 3_600_000 : 0;
+    const machine = machineLabel(hero);
+    const due = hero.dueDate ? `Due ${formatShop(hero.dueDate, 'MMM D')}` : null;
+
     return (
-      <div className={`w-card w-hero${running ? ' w-hero--running' : ''}`}>
-        <div className="w-hero__state">
-          <span>{running ? 'Working on' : paused ? 'Paused' : 'Up next'}</span>
-          {running ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textTransform: 'none' }}>
-              {hero.syncState && <SyncChip state={hero.syncState} />}
-              <span className="w-hero__timer">{since ? elapsed(since, nowMs) : 'Running'}</span>
-            </span>
-          ) : (
-            <span style={{ display: 'inline-flex', gap: 4, letterSpacing: 0, textTransform: 'none' }}>
-              {hero.syncState && <SyncChip state={hero.syncState} />}
-              {pillAddsInfo && (
-                <StatusPill tone={pill.tone} compact>
-                  {pill.label}
-                </StatusPill>
-              )}
-            </span>
-          )}
+      <div className={`w-hero2${running ? ' w-hero2--running' : ''}`}>
+        <div className="w-hero2__state">
+          <span>
+            {stateLabel}
+            {steps && stepNo ? ` · Step ${stepNo} of ${steps.length}` : ''}
+          </span>
+          <span className="w-hero2__chips">
+            {hero.syncState && <SyncChip state={hero.syncState} />}
+            {running ? (
+              <span className="w-hero2__timer">{since ? elapsed(since, nowMs) : 'Running'}</span>
+            ) : pillAddsInfo ? (
+              <StatusPill tone={pill.tone} compact>
+                {pill.label}
+              </StatusPill>
+            ) : null}
+          </span>
         </div>
-        <div className="w-hero__title">{opTitle(hero)}</div>
-        <div className="w-hero__job">
-          {[hero.jobNumber, hero.clientName].filter(Boolean).join(' · ')}
-        </div>
-        <div className="w-facts">
-          <div>
-            <div className="w-fact__label">Machine</div>
-            <div className="w-fact__value">{machineLabel(hero) || '—'}</div>
-          </div>
-          <div>
-            <div className="w-fact__label">Target</div>
-            <div className="w-fact__value">
-              {formatHoursMinutes(hero.estimatedHours)}
+        <div className="w-hero2__title">{hero.operationName || hero.name || opTitle(hero)}</div>
+        <div className="w-hero2__job">{[hero.jobNumber, hero.clientName].filter(Boolean).join(' · ')}</div>
+        {running || paused ? (
+          <>
+            {target ? (
+              <div className="w-hero2__bar" aria-hidden="true">
+                <i style={{ width: `${Math.min(100, (workedH / target) * 100)}%` }} />
+              </div>
+            ) : null}
+            <div className="w-hero2__meta">
+              <span>
+                {formatHoursMinutes(workedH)}
+                {target ? ` of ${formatHoursMinutes(target)} target` : ' worked'}
+              </span>
+              <span>{[machine, due].filter(Boolean).join(' · ')}</span>
             </div>
+          </>
+        ) : (
+          <div className="w-hero2__meta w-hero2__meta--plain">
+            <span>{next ? `Planned ${formatShop(next, 'ddd h:mm A')}` : 'Not scheduled yet'}</span>
+            <span>{[machine, target ? `${formatHoursMinutes(target)} target` : null].filter(Boolean).join(' · ')}</span>
           </div>
-          <div>
-            <div className="w-fact__label">{running || paused ? 'Due' : 'Planned'}</div>
-            <div className="w-fact__value">
-              {running || paused
-                ? hero.dueDate
-                  ? formatShop(hero.dueDate, 'MMM D')
-                  : '—'
-                : next
-                  ? formatShop(next, 'ddd h:mm A')
-                  : '—'}
-            </div>
-          </div>
-        </div>
+        )}
         {paused ? (
-          <Button
-            type="primary"
-            block
-            className="w-action"
-            icon={<CaretRightFilled />}
-            loading={acting}
-            onClick={() => act(hero, 'resume')}
-          >
+          <Button block className="w-hero2__action" icon={<CaretRightFilled />} loading={acting} onClick={() => act(hero, 'resume')}>
             Resume
           </Button>
         ) : startable ? (
-          <Button
-            type="primary"
-            block
-            className="w-action"
-            icon={<CaretRightFilled />}
-            loading={acting}
-            onClick={() => act(hero, 'start')}
-          >
+          <Button block className="w-hero2__action" icon={<CaretRightFilled />} loading={acting} onClick={() => act(hero, 'start')}>
             Start
           </Button>
         ) : (
-          <Button block className="w-action" type={running ? 'primary' : 'default'} onClick={() => openJob(hero)}>
+          <Button block className="w-hero2__action" onClick={() => openJob(hero)}>
             Open job
           </Button>
         )}
-        {running && <div className="w-hero__hint">Pause or mark complete on the job page.</div>}
-        {blockedBy && (
-          <div className="w-hero__hint">Starts after Op {blockedBy.sequenceNo} is finished.</div>
-        )}
+        {running && <div className="w-hero2__hint">Pause or mark complete on the job page.</div>}
+        {blockedBy && <div className="w-hero2__hint">Starts after Op {blockedBy.sequenceNo} is finished.</div>}
         {(paused || startable) && (
-          <button type="button" className="w-link w-hero__details" onClick={() => openJob(hero)}>
+          <button type="button" className="w-hero2__details" onClick={() => openJob(hero)}>
             Job details <RightOutlined style={{ fontSize: 10 }} />
           </button>
         )}

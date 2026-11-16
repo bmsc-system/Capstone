@@ -113,3 +113,57 @@ export function whenLine(op: Op): string {
   }
   return [lead, machine].filter(Boolean).join(' · ');
 }
+
+/** The day shown in the tile on the left of a card: when it was done, started or starts. */
+export function dateTile(op: Op, today: Dayjs = shopToday()): { day: string; label: string } | null {
+  const iso = op.status === 'COMPLETED' ? op.actualEnd : op.actualStart ?? op.scheduledStart;
+  if (!iso) return null;
+  const d = toShopDayjs(iso);
+  return { day: d.format('D'), label: d.isSame(today, 'day') ? 'TODAY' : d.format('MMM').toUpperCase() };
+}
+
+/** Active work splits into what is under way (Now) and what is still to start
+ *  (Coming up); finished work groups by the month it was done, with the hours. */
+export function groupOps<T extends Op>(
+  ops: readonly T[],
+  tab: AssignmentTab
+): { key: string; label: string; note?: string; ops: T[] }[] {
+  if (tab === 'active') {
+    const now = ops.filter((o) => o.status === 'IN_PROGRESS');
+    const next = ops.filter((o) => o.status !== 'IN_PROGRESS');
+    return [
+      { key: 'now', label: 'Now', ops: now },
+      { key: 'next', label: 'Coming up', ops: next },
+    ].filter((g) => g.ops.length);
+  }
+  const groups: { key: string; label: string; note?: string; ops: T[] }[] = [];
+  for (const op of ops) {
+    const key = op.actualEnd ? toShopDayjs(op.actualEnd).format('YYYY-MM') : 'none';
+    let g = groups.find((x) => x.key === key);
+    if (!g) {
+      g = { key, label: op.actualEnd ? toShopDayjs(op.actualEnd).format('MMMM YYYY') : 'No date', ops: [] };
+      groups.push(g);
+    }
+    g.ops.push(op);
+  }
+  for (const g of groups) {
+    const hours = g.ops.reduce((sum, o) => sum + (Number(o.actualWorkedHours) || 0), 0);
+    g.note = `${g.ops.length} ${g.ops.length === 1 ? 'job' : 'jobs'}${hours ? ` · ${formatHoursMinutes(hours)}` : ''}`;
+  }
+  return groups;
+}
+
+/** The short "when" on an active card: today's start time, or the day and time. */
+export function activeWhen(op: Op, today: Dayjs = shopToday()): string | null {
+  if (op.actualStart) {
+    const d = toShopDayjs(op.actualStart);
+    return `Started ${d.isSame(today, 'day') ? d.format('h:mm A') : d.format('MMM D, h:mm A')}`;
+  }
+  if (op.scheduledStart) {
+    const d = toShopDayjs(op.scheduledStart);
+    if (d.isSame(today, 'day')) return `Today, ${d.format('h:mm A')}`;
+    if (d.isSame(today.add(1, 'day'), 'day')) return `Tomorrow, ${d.format('h:mm A')}`;
+    return d.diff(today, 'day') < 7 ? d.format('ddd, h:mm A') : d.format('MMM D, h:mm A');
+  }
+  return null;
+}
