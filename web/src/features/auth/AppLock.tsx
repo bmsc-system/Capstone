@@ -128,40 +128,40 @@ export default function AppLock() {
     setBusy(true);
     setError('');
     try {
-      const local = await checkPinLocally(pin);
-      if (local === true) {
-        unlock();
-        return;
+      if (navigator.onLine) {
+        // Online, the server decides: the PIN may have been changed on another phone.
+        try {
+          const { data } = await authApi.unlockWithPin(pin);
+          if (data.user.id !== user.id) {
+            signOut(false);
+            return;
+          }
+          localStorage.setItem('accessToken', data.accessToken);
+          localStorage.setItem('refreshToken', data.refreshToken);
+          await savePinCheck(pin);
+          unlock();
+          return;
+        } catch (err) {
+          if (!axios.isAxiosError(err) || err.response) {
+            const code = getErrorCode(err);
+            if (code === 'PIN_LOCKED' || code === 'PIN_DEVICE_UNKNOWN') {
+              signOut(true);
+              return;
+            }
+            setError(getErrorMessage(err));
+            setFailSignal((n) => n + 1);
+            return;
+          }
+          // No answer: fall through to the copy kept on this phone.
+        }
       }
+      const local = await checkPinLocally(pin);
       if (local === false) {
         wrong();
         return;
       }
-      // No check stored on this phone yet (PIN set before this update): ask the server.
-      try {
-        const { data } = await authApi.unlockWithPin(pin);
-        if (data.user.id !== user.id) {
-          signOut(false);
-          return;
-        }
-        localStorage.setItem('accessToken', data.accessToken);
-        localStorage.setItem('refreshToken', data.refreshToken);
-        await savePinCheck(pin);
-        unlock();
-      } catch (err) {
-        if (axios.isAxiosError(err) && !err.response) {
-          // Offline and nothing to check against: let the worker keep working.
-          unlock();
-          return;
-        }
-        const code = getErrorCode(err);
-        if (code === 'PIN_LOCKED' || code === 'PIN_DEVICE_UNKNOWN') {
-          signOut(true);
-          return;
-        }
-        setError(getErrorMessage(err));
-        setFailSignal((n) => n + 1);
-      }
+      // Right, or nothing to check against offline: let the worker keep working.
+      unlock();
     } finally {
       setBusy(false);
     }

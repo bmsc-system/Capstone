@@ -30,7 +30,7 @@ export default function PinOfferModal() {
     await authApi.setPin(pin);
     localStorage.setItem(PIN_HINT_KEY, '1');
     localStorage.removeItem(DISMISS_KEY);
-    message.success('PIN saved for this device');
+    message.success('PIN saved');
     setOpen(false);
   };
 
@@ -45,7 +45,7 @@ export default function PinOfferModal() {
       width={400}
     >
       <p style={{ color: '#475569', marginBottom: 16, textAlign: 'center' }}>
-        A 4-digit PIN for this phone only.
+        A 4-digit PIN to open the app. It works on every phone you sign in on.
       </p>
       <PinSetupKeypad
         onSave={onSave}
