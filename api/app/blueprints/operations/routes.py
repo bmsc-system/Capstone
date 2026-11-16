@@ -369,3 +369,16 @@ def list_unit_downtime(unit_id):
         .all()
     )
     return jsonify([r.to_dict() for r in rows])
+
+
+@operations_bp.route("/time-logs/<log_id>/reason", methods=["PATCH"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
+def relabel_pause_reason(log_id):
+    """The Admin corrects the reason of a pause (for example an "Other" pause
+    that was really a wait for a tool). The first reason is kept."""
+    from app.services.pareto_insights import relabel_pause
+
+    data = request.get_json() or {}
+    log = relabel_pause(log_id, data.get("reason"), get_current_user_id())
+    return jsonify(log.to_dict())

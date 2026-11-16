@@ -611,6 +611,11 @@ export type OperationPauseReason =
   | 'WAITING_MATERIAL'
   | 'WAITING_PRIOR_OPERATION'
   | 'EMERGENCY'
+  | 'WAITING_TOOL'
+  | 'WAITING_INSTRUCTIONS'
+  | 'POWER_INTERRUPTION'
+  | 'MOVED_TO_OTHER_JOB'
+  | 'WORKER_AWAY'
   | 'OTHER';
 
 export interface OperationTimeLog {
@@ -1679,6 +1684,36 @@ export interface AnalyticsDelayCauseRow {
   details?: AnalyticsDelayCauseDetail[];
   moreDetails?: number;
   detailBy?: 'machine' | 'supplier' | 'job' | 'outside shop' | 'operation' | null;
+  /** The pauses, breakdowns, late materials or late outside work behind the bar (newest first, up to 60). */
+  incidents?: AnalyticsDelayIncident[];
+  incidentCount?: number;
+  /** What to look at first, from the cause and its biggest source. */
+  action?: string | null;
+}
+
+export interface AnalyticsDelayIncident {
+  kind: 'PAUSE' | 'DOWNTIME' | 'MATERIAL' | 'OUTSOURCED';
+  logId?: string;
+  jobOrderId: string | null;
+  jobNumber: string | null;
+  operation?: string | null;
+  machine?: string | null;
+  worker?: string | null;
+  supplier?: string | null;
+  start: string | null;
+  end?: string | null;
+  hours: number;
+  note: string | null;
+  originalReason?: string | null;
+}
+
+export interface AnalyticsLateJobCauseRow {
+  cause: string;
+  label: string;
+  jobs: number;
+  jobNumbers: string[];
+  shareOfTotalPct: number;
+  cumulativePct: number;
 }
 
 export interface AnalyticsDowntimeRow {
@@ -1743,6 +1778,12 @@ export interface AnalyticsDelays extends AnalyticsPeriodMeta {
   materialDelays?: AnalyticsMaterialDelayRow[];
   breakdownOverlapHours?: number | null;
   lateJobs?: AnalyticsLateJobRow[];
+  /** Late jobs ranked by the cause that cost each of them the most hours. */
+  lateJobCauses?: AnalyticsLateJobCauseRow[];
+  /** Hours per week for the top three causes. */
+  weeklyTrend?: { weeks: string[]; series: { cause: string; label: string; hours: number[] }[] };
+  /** How much of the lost time is still "Other". */
+  otherShare?: { hours: number; pct: number; withoutNote: number };
   excludedNonWorkingPauses?: {
     breakHours: number | null;
     endOfShiftHours: number | null;

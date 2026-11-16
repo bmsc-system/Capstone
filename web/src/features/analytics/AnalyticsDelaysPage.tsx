@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Segmented } from 'antd';
 import { PageSkeleton } from '../../components/ui';
-import type { AnalyticsDelayCauseDetail, AnalyticsLateJobCause } from '../../types';
+import type { AnalyticsDelayCauseDetail, AnalyticsDelayCauseRow, AnalyticsLateJobCause } from '../../types';
 import { exportCsv } from '../../utils/csvExport';
+import DelayCauseDrawer from './DelayCauseDrawer';
 import { fmtDay, fmtNum, pctChange } from './format';
-import { Card, ChartEmpty, Grid, Kpi, Kpis, PALETTE, ParetoChart, SortedBars } from './kit';
-import { useDelays, usePeriods } from './sources';
+import { Card, ChartEmpty, Grid, Kpi, Kpis, LineTrend, PALETTE, ParetoChart, SortedBars } from './kit';
+import { useDelays, useIsAdmin, usePeriods } from './sources';
 
 const REASON_LABEL: Record<string, string> = {
   END_OF_SHIFT: 'End of shift',
@@ -13,6 +16,11 @@ const REASON_LABEL: Record<string, string> = {
   WAITING_MATERIAL: 'Waiting for material',
   WAITING_PRIOR_OPERATION: 'Waiting on prior operation',
   EMERGENCY: 'Emergency (had to leave)',
+  WAITING_TOOL: 'Waiting for a tool',
+  WAITING_INSTRUCTIONS: 'Waiting for drawing or instructions',
+  POWER_INTERRUPTION: 'Power interruption',
+  MOVED_TO_OTHER_JOB: 'Moved to another job',
+  WORKER_AWAY: 'Worker away',
   OTHER: 'Other',
   MACHINE_DOWNTIME: 'Machine downtime',
 };
@@ -38,6 +46,8 @@ type CauseRow = {
   details: AnalyticsDelayCauseDetail[];
   moreDetails: number;
   detailBy: string | null;
+  action: string | null;
+  incidentCount: number;
 };
 
 const SOURCE_WORD: Record<string, string> = {
@@ -50,10 +60,18 @@ const SOURCE_WORD: Record<string, string> = {
 
 /** Under the Pareto chart: each cause with its biggest source, one line each.
  *  The cards below break breakdowns and material delays down further. */
-function CauseDetails({ causes, vitalFew }: { causes: CauseRow[]; vitalFew: number }) {
+function CauseDetails({
+  causes,
+  vitalFew,
+  onOpen,
+}: {
+  causes: CauseRow[];
+  vitalFew: number;
+  onOpen: (index: number) => void;
+}) {
   return (
     <div className="ana-causes">
-      <div className="ana-causes__title">Biggest source of each cause</div>
+      <div className="ana-causes__title">Biggest source of each cause · click a cause to see its records</div>
       <ol className="ana-causes__list">
         {causes.map((c, i) => {
           const [top, ...rest] = c.details;
@@ -63,7 +81,9 @@ function CauseDetails({ causes, vitalFew }: { causes: CauseRow[]; vitalFew: numb
             <li key={c.label} className={`ana-causes__row${i < vitalFew ? ' is-vital' : ''}`}>
               <span className="ana-causes__rank">{i + 1}</span>
               <span className="ana-causes__cause">
-                <span className="ana-causes__name">{c.label}</span>
+                <button type="button" className="ana-causes__name ana-causes__open" onClick={() => onOpen(i)}>
+                  {c.label}
+                </button>
                 <span className="ana-causes__hours">
                   {fmtNum(c.hours, 1)} h · {fmtNum(c.shareOfTotalPct)}%
                 </span>
@@ -92,6 +112,7 @@ function CauseDetails({ causes, vitalFew }: { causes: CauseRow[]; vitalFew: numb
                   <span className="ana-muted">No detail recorded</span>
                 )}
               </span>
+              {c.action ? <span className="ana-causes__action">{c.action}</span> : null}
             </li>
           );
         })}
@@ -102,8 +123,12 @@ function CauseDetails({ causes, vitalFew }: { causes: CauseRow[]; vitalFew: numb
 
 export default function AnalyticsDelaysPage() {
   const { period, previous } = usePeriods();
-  const data = useDelays(period).data;
+  const [rev, setRev] = useState(0);
+  const data = useDelays(period, rev).data;
   const prev = useDelays(previous).data;
+  const isAdmin = useIsAdmin();
+  const [view, setView] = useState<'hours' | 'jobs'>('hours');
+  const [openCause, setOpenCause] = useState<string | null>(null);
 
   if (!data) return <PageSkeleton variant="cards" />;
 
@@ -119,7 +144,33 @@ export default function AnalyticsDelaysPage() {
       details: c.details ?? [],
       moreDetails: c.moreDetails ?? 0,
       detailBy: c.detailBy ?? null,
+      action: c.action ?? null,
+      incidentCount: c.incidentCount ?? 0,
+      cause: c.cause,
     }));
+  const rawCauses = data.causes.filter((c) => (c.hours ?? 0) > 0);
+  const opened: AnalyticsDelayCauseRow | null = rawCauses.find((c) => c.cause === openCause) ?? null;
+  const lateCauses = (data.lateJobCauses ?? []).map((c) => ({
+    label: c.label || reasonLabel(c.cause),
+    hours: c.jobs,
+    cumulativePct: c.cumulativePct,
+    shareOfTotalPct: c.shareOfTotalPct,
+    jobNumbers: c.jobNumbers,
+  }));
+  const lateVital = Math.max(
+    1,
+    Math.min(lateCauses.findIndex((c) => c.cumulativePct >= threshold) + 1 || lateCauses.length, lateCauses.length)
+  );
+  const other = data.otherShare;
+  const trend = data.weeklyTrend;
+  const trendColors = [PALETTE.primary, PALETTE.warn, PALETTE.good];
+  const trendRows = (trend?.weeks ?? []).map((w, i) => {
+    const row: Record<string, number | string | null> = { label: fmtDay(w), tipLabel: `Week of ${fmtDay(w)}` };
+    trend?.series.forEach((sr, k) => {
+      row[`s${k}`] = sr.hours[i] ?? 0;
+    });
+    return row;
+  });
   const vitalFew = Math.min(data.vitalFewCount ?? 1, causes.length);
   const top = causes[0];
   const downtime = data.machineDowntime.filter((d) => (d.totalDowntimeHours ?? 0) > 0 || d.openCount > 0);
@@ -161,8 +212,26 @@ export default function AnalyticsDelaysPage() {
         <Card
           title="Delay causes (Pareto)"
           span={12}
+          controls={
+            <Segmented
+              size="small"
+              value={view}
+              onChange={(v) => setView(v as 'hours' | 'jobs')}
+              options={[
+                { label: 'Hours lost', value: 'hours' },
+                { label: 'Late jobs', value: 'jobs' },
+              ]}
+            />
+          }
           takeaway={
-            !top ? undefined : vitalFew === 1 ? (
+            view === 'jobs' ? (
+              lateCauses[0] ? (
+                <>
+                  <strong>{lateCauses[0].label}</strong> cost the most hours on {lateCauses[0].hours} of{' '}
+                  {lateJobs.length} late job{lateJobs.length === 1 ? '' : 's'}
+                </>
+              ) : undefined
+            ) : !top ? undefined : vitalFew === 1 ? (
               <>
                 <strong>{top.label}</strong> alone is {fmtNum(top.shareOfTotalPct)}% of delay hours
               </>
@@ -203,13 +272,87 @@ export default function AnalyticsDelaysPage() {
             ])
           }
         >
-          {causes.length ? (
+          {view === 'jobs' ? (
+            lateCauses.length ? (
+              <>
+                <ParetoChart
+                  rows={lateCauses}
+                  threshold={threshold}
+                  vitalFew={lateVital}
+                  height={300}
+                  valueLabel="Late jobs"
+                  valueFormat={(v) => fmtNum(v)}
+                  integerAxis
+                />
+                <div className="ana-causes">
+                  <div className="ana-causes__title">Each late job counted once, under the cause that cost it the most hours</div>
+                  <ol className="ana-causes__list">
+                    {lateCauses.map((c, i) => (
+                      <li key={c.label} className={`ana-causes__row${i < lateVital ? ' is-vital' : ''}`}>
+                        <span className="ana-causes__rank">{i + 1}</span>
+                        <span className="ana-causes__cause">
+                          <span className="ana-causes__name">{c.label}</span>
+                          <span className="ana-causes__hours">
+                            {c.hours} job{c.hours === 1 ? '' : 's'} · {fmtNum(c.shareOfTotalPct)}%
+                          </span>
+                        </span>
+                        <span className="ana-causes__from ana-muted">
+                          {c.jobNumbers.slice(0, 4).join(', ')}
+                          {c.jobNumbers.length > 4 ? ` and ${c.jobNumbers.length - 4} more` : ''}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </>
+            ) : (
+              <ChartEmpty title="No jobs delivered late in this period" height={220} />
+            )
+          ) : causes.length ? (
             <>
-              <ParetoChart rows={causes} threshold={threshold} vitalFew={vitalFew} height={300} />
-              <CauseDetails causes={causes} vitalFew={vitalFew} />
+              <ParetoChart
+                rows={causes}
+                threshold={threshold}
+                vitalFew={vitalFew}
+                height={300}
+                onSelect={(i) => setOpenCause(causes[i]?.cause ?? null)}
+              />
+              {other && other.hours > 0 ? (
+                <div className={`ana-note${other.pct >= 10 ? ' ana-note--warn' : ''}`}>
+                  "Other" is {fmtNum(other.pct)}% of lost hours
+                  {other.withoutNote ? ` · ${other.withoutNote} pause${other.withoutNote === 1 ? '' : 's'} without a note` : ''}
+                  {isAdmin ? ' · open it to give each pause its real reason' : ''}
+                </div>
+              ) : null}
+              <CauseDetails causes={causes} vitalFew={vitalFew} onOpen={(i) => setOpenCause(causes[i]?.cause ?? null)} />
             </>
           ) : (
             <ChartEmpty title="No delay hours in this period" height={220} />
+          )}
+        </Card>
+
+        <Card
+          title="Top causes by week"
+          span={12}
+          takeaway={
+            trend?.series.length ? (
+              <>
+                Weekly hours lost to the <strong>{trend.series.length}</strong> biggest cause{trend.series.length === 1 ? '' : 's'}
+              </>
+            ) : undefined
+          }
+          info="Hours lost each week (Monday to Sunday) to the top causes of the period, to see whether a fix is working."
+        >
+          {trend && trend.series.length && trendRows.length > 1 ? (
+            <LineTrend
+              rows={trendRows}
+              series={trend.series.map((sr, k) => ({ key: `s${k}`, label: sr.label, color: trendColors[k] }))}
+              height={220}
+              yFormat={(v) => fmtNum(v)}
+              tipFormat={(_, v) => `${fmtNum(v, 1)} h`}
+            />
+          ) : (
+            <ChartEmpty title="Choose a period of two weeks or more to see a trend" height={160} />
           )}
         </Card>
 
@@ -361,6 +504,12 @@ export default function AnalyticsDelaysPage() {
           )}
         </Card>
       </Grid>
+      <DelayCauseDrawer
+        cause={opened}
+        onClose={() => setOpenCause(null)}
+        isAdmin={isAdmin}
+        onRelabeled={() => setRev((r) => r + 1)}
+      />
     </div>
   );
 }

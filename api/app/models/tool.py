@@ -57,7 +57,7 @@ class Tool(db.Model):
     minimum_stock = db.Column(db.Numeric(12, 2), nullable=True)
     size_spec = db.Column(db.String(64), nullable=True)
     shop_term = db.Column(db.String(100), nullable=True)
-    # Offered: shown on the catalog and orderable on a PO. Not offered hides it.
+    # In use: listed and orderable. Off means archived: hidden from pickers and lists, kept on past records.
     active = db.Column(
         db.Boolean, nullable=False, default=True, server_default=db.text("true")
     )

@@ -137,6 +137,11 @@ const PAUSE_REASON_LABEL: Record<string, string> = {
   WAITING_MATERIAL: 'Waiting for material',
   WAITING_PRIOR_OPERATION: 'Waiting on prior operation',
   EMERGENCY: 'Emergency (had to leave)',
+  WAITING_TOOL: 'Waiting for a tool',
+  WAITING_INSTRUCTIONS: 'Waiting for drawing or instructions',
+  POWER_INTERRUPTION: 'Power interruption',
+  MOVED_TO_OTHER_JOB: 'Moved to another job',
+  WORKER_AWAY: 'Worker away',
   OTHER: 'Other',
 };
 

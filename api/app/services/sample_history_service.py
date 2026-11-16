@@ -189,8 +189,12 @@ PLATE_PARTS = ("plate", "bracket", "flange", "cover", "rail", "cam", "key")
 # a job across lunch. Waiting-for-material pauses are omitted: supplier
 # lateness is recorded as a short material move instead.
 PAUSE_TARGETS = (
-    (OperationPauseReason.OTHER, 0.32, 1.0, "Waiting for instruction"),
-    (OperationPauseReason.WAITING_PRIOR_OPERATION, 0.20, 1.0, "Waiting on the prior operation"),
+    (OperationPauseReason.WAITING_PRIOR_OPERATION, 0.16, 1.0, "Waiting on the prior operation"),
+    (OperationPauseReason.WAITING_INSTRUCTIONS, 0.14, 1.0, "Waiting for the drawing to be confirmed"),
+    (OperationPauseReason.WAITING_TOOL, 0.08, 1.0, "Waiting for the boring bar"),
+    (OperationPauseReason.MOVED_TO_OTHER_JOB, 0.07, 1.0, "Pulled to a rush job"),
+    (OperationPauseReason.POWER_INTERRUPTION, 0.04, 1.0, "Brownout in the shop"),
+    (OperationPauseReason.OTHER, 0.03, 1.0, "Cleaning chips out of the machine"),
 )
 
 REWORK_WEIGHTS = (
@@ -402,7 +406,7 @@ def _keep_monthly_sales_in_band(rng, plans, start, end):
 
 # The consumables the sample shop keeps on its list (by catalog code): the
 # everyday cutting, grinding, welding and safety items. A reset marks every
-# other consumable Not offered, so the list stays about a page long.
+# other consumable archived, so the list stays about a page long.
 SAMPLE_CONSUMABLE_CODES = (
     "INV-OIL-CUT-PAIL",  # Cutting oil
     "INV-COOLANT",  # Soluble coolant
@@ -426,7 +430,7 @@ SAMPLE_CONSUMABLE_CODES = (
 
 
 def _trim_consumables():
-    """Offer only the sample list's consumables; mark the rest Not offered.
+    """Keep only the sample list's consumables in use; archive the rest.
 
     Returns (offered, hidden). Refuses to touch anything when most of the
     list's codes are missing, since that means a different catalog.
@@ -840,8 +844,8 @@ def format_summary(summary):
     lines.append(f"Stock snapshots: {summary['stockSnapshots']}")
     if "consumablesOffered" in summary:
         lines.append(
-            f"Consumables offered: {summary['consumablesOffered']}; "
-            f"set to Not offered: {summary['consumablesHidden']}"
+            f"Consumables in use: {summary['consumablesOffered']}; "
+            f"archived: {summary['consumablesHidden']}"
         )
     if summary.get("salesByMonth"):
         values = list(summary["salesByMonth"].values())

@@ -34,7 +34,7 @@ const dayValue = (v?: string | null) => (v ? dayjs(v).valueOf() : Number.POSITIV
 
 export default function SupplierOrdersPage() {
   const navigate = useNavigate();
-  const { canOfficeWrite } = useAuth();
+  const { canOfficeWrite, isAdmin, user } = useAuth();
   const cards = useMediaQuery(NARROW_QUERY);
   const phone = useMediaQuery(PHONE_QUERY);
   const [rows, setRows] = useState<SupplierOrder[]>([]);
@@ -45,6 +45,12 @@ export default function SupplierOrdersPage() {
   const [supplierFilter, setSupplierFilter] = useState<string | undefined>();
   const [printedFilter, setPrintedFilter] = useState<PrintedFilter | undefined>();
   const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
+  // Office Staff open their own drafts first; every order stays one click away.
+  const officeOnly = canOfficeWrite && !isAdmin;
+  const [preparedFilter, setPreparedFilter] = useState<'mine' | undefined>();
+  useEffect(() => {
+    if (officeOnly) setPreparedFilter(filter === 'DRAFT' ? 'mine' : undefined);
+  }, [filter, officeOnly]);
   const [jobsByOrder, setJobsByOrder] = useState<Record<string, string[]>>({});
   useOverdueCheck();
 
@@ -99,7 +105,8 @@ export default function SupplierOrdersPage() {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [all, rows]);
 
-  const activeFilters = (supplierFilter ? 1 : 0) + (printedFilter ? 1 : 0) + (range ? 1 : 0);
+  const activeFilters =
+    (supplierFilter ? 1 : 0) + (printedFilter ? 1 : 0) + (range ? 1 : 0) + (preparedFilter ? 1 : 0);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -107,6 +114,7 @@ export default function SupplierOrdersPage() {
     const to = range?.[1].endOf('day').valueOf();
     return rows.filter((o) => {
       if (supplierFilter && o.supplierId !== supplierFilter) return false;
+      if (preparedFilter === 'mine' && user && o.preparedById !== user.id) return false;
       if (printedFilter === 'printed' && !o.printedAt) return false;
       if (printedFilter === 'not' && o.printedAt) return false;
       if (from != null && to != null) {
@@ -118,7 +126,7 @@ export default function SupplierOrdersPage() {
       const hay = [o.poNumber, o.supplierName, ...(jobsByOrder[o.id] || [])].filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search, supplierFilter, printedFilter, range, jobsByOrder]);
+  }, [rows, search, supplierFilter, printedFilter, range, jobsByOrder, preparedFilter, user]);
 
   useEffect(() => {
     void fetchRows();
@@ -228,6 +236,7 @@ export default function SupplierOrdersPage() {
           setSupplierFilter(undefined);
           setPrintedFilter(undefined);
           setRange(null);
+          setPreparedFilter(undefined);
         }}
         filters={
           <>
@@ -240,6 +249,15 @@ export default function SupplierOrdersPage() {
               onChange={(v) => setSupplierFilter(v)}
               options={supplierOptions}
             />
+            {officeOnly && (
+              <FilterSelect<'mine'>
+                label="Prepared by"
+                allowClear
+                value={preparedFilter}
+                onChange={(v) => setPreparedFilter(v)}
+                options={[{ value: 'mine', label: 'Me' }]}
+              />
+            )}
             <FilterSelect<PrintedFilter>
               label="Printed"
               allowClear

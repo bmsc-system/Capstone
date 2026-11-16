@@ -73,7 +73,7 @@ def _move_stock(tool_id, delta: Decimal, user_id, event_type, when, note):
 def record_purchase(data: dict, user_id: str) -> ConsumablePurchase:
     tool = _consumable(data.get("toolId"))
     if not tool.active:
-        raise _bad(f"{tool.name} is no longer offered in the catalog.")
+        raise _bad(f"{tool.name} is archived in the catalog.")
     raw_day = data.get("purchasedOn")
     try:
         day = date.fromisoformat(str(raw_day)) if raw_day else shop_now().date()

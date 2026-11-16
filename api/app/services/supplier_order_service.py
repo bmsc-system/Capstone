@@ -282,7 +282,7 @@ def _build_consumable_line(supplier: Supplier, data: dict) -> MaterialPurchase:
         )
     if not tool.active:
         raise AppError(
-            f"{tool.name} is not offered. Mark it Offered on the catalog to order it.",
+            f"{tool.name} is archived. Mark it In use on the catalog to order it.",
             "VALIDATION_ERROR",
             400,
         )

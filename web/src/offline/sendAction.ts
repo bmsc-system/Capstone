@@ -32,7 +32,11 @@ export function postAction(a: QueuedAction) {
     case 'complete':
       return apiClient.post(`/operations/${a.operationId}/${a.kind}`, body, opts);
     case 'pause':
-      return apiClient.post(`/operations/${a.operationId}/pause`, { ...body, reason: a.reason }, opts);
+      return apiClient.post(
+        `/operations/${a.operationId}/pause`,
+        { ...body, reason: a.reason, ...(a.note ? { note: a.note } : {}) },
+        opts
+      );
     case 'breakdown':
       return apiClient.post(
         `/operations/machine-units/${a.machineUnitId}/downtime`,

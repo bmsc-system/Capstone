@@ -23,8 +23,9 @@ export const useOverview = (p: Period | null) =>
   useAnalyticsData(p ? key('overview', p) : null, () => analyticsApi.overview(p!));
 export const useTrend = (p: Period | null) =>
   useAnalyticsData(p ? key('trend', p) : null, () => analyticsApi.trend(p!));
-export const useDelays = (p: Period | null) =>
-  useAnalyticsData(p ? key('delays', p) : null, () => analyticsApi.delays(p!));
+/** ``rev`` bumps after a pause is re-labelled so the page loads fresh figures. */
+export const useDelays = (p: Period | null, rev = 0) =>
+  useAnalyticsData(p ? `${key('delays', p)}#${rev}` : null, () => analyticsApi.delays(p!));
 export const useSalesSummary = (p: Period | null) =>
   useAnalyticsData(p ? key('sales', p) : null, () => analyticsApi.salesSummary(p!));
 export const useJobOrders = (p: Period | null) =>

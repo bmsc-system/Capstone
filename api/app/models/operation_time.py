@@ -30,6 +30,12 @@ class OperationPauseReason(enum.Enum):
     WAITING_PRIOR_OPERATION = "WAITING_PRIOR_OPERATION"
     # The worker has to leave; their remaining work is handed over or moved.
     EMERGENCY = "EMERGENCY"
+    WAITING_TOOL = "WAITING_TOOL"
+    WAITING_INSTRUCTIONS = "WAITING_INSTRUCTIONS"
+    POWER_INTERRUPTION = "POWER_INTERRUPTION"
+    MOVED_TO_OTHER_JOB = "MOVED_TO_OTHER_JOB"
+    # Set by the system when the Admin marks the worker away mid-operation.
+    WORKER_AWAY = "WORKER_AWAY"
     OTHER = "OTHER"
 
 
@@ -40,6 +46,11 @@ PAUSE_REASON_LABELS = {
     OperationPauseReason.WAITING_MATERIAL.value: "Waiting for material",
     OperationPauseReason.WAITING_PRIOR_OPERATION.value: "Waiting on prior operation",
     OperationPauseReason.EMERGENCY.value: "Emergency (had to leave)",
+    OperationPauseReason.WAITING_TOOL.value: "Waiting for a tool",
+    OperationPauseReason.WAITING_INSTRUCTIONS.value: "Waiting for drawing or instructions",
+    OperationPauseReason.POWER_INTERRUPTION.value: "Power interruption",
+    OperationPauseReason.MOVED_TO_OTHER_JOB.value: "Moved to another job",
+    OperationPauseReason.WORKER_AWAY.value: "Worker away",
     OperationPauseReason.OTHER.value: "Other",
 }
 
@@ -94,6 +105,10 @@ class OperationTimeLog(db.Model):
         nullable=True,
     )
     note = db.Column(db.Text, nullable=True)
+    # When the Admin changes a pause's reason: the first reason, who, and when.
+    original_reason = db.Column(db.String(40), nullable=True)
+    relabeled_by_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    relabeled_at = db.Column(db.DateTime(timezone=True), nullable=True)
     # event_at is when it happened on the phone; received_at is when the server
     # got it (null for records not sent by a worker's device).
     received_at = db.Column(db.DateTime(timezone=True), nullable=True)
@@ -116,6 +131,8 @@ class OperationTimeLog(db.Model):
             "receivedAt": self.received_at.isoformat() if self.received_at else None,
             "reason": self.reason.value if self.reason else None,
             "note": self.note,
+            "originalReason": self.original_reason,
+            "relabeledAt": self.relabeled_at.isoformat() if self.relabeled_at else None,
             "createdAt": self.created_at.isoformat() if self.created_at else None,
         }
 
