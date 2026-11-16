@@ -165,10 +165,12 @@ REPAIR_JOBS = (
 # suppliers quoted them in 2026: 1045 round bar 320mm dia x 170mmL at
 # PHP 15,685 is about PHP 146 a kilo. Matched on words in the catalog name.
 STOCK_PRICES = (
-    (("stainless", "sus", "304", "316"), 285, 7.9),
-    (("4140", "alloy"), 195, 7.85),
+    (("engineering plastic",), 520, 1.41),
+    (("hydraulic",), 260, 7.85),
+    (("stainless", "sus", "304", "316", "ss pipe"), 285, 7.9),
+    (("4140", "4340", "alloy"), 195, 7.85),
     (("skd", "d2", "tool"), 480, 7.7),
-    (("1045", "s45c", "carbon"), 142, 7.85),
+    (("1045", "s45c", "carbon", "shafting"), 142, 7.85),
     (("a36", "ms", "mild", "iron", "plate", "steel"), 82, 7.85),
     (("6061", "5052", "alum"), 390, 2.7),
     (("brass",), 620, 8.5),
@@ -404,28 +406,23 @@ def _keep_monthly_sales_in_band(rng, plans, start, end):
             plan["amount"] = round(plan["amount"] * factor, 2)
 
 
-# The consumables the sample shop keeps on its list (by catalog code): the
-# everyday cutting, grinding, welding and safety items. A reset marks every
-# other consumable archived, so the list stays about a page long.
+# The consumables the sample shop keeps on its list (by catalog code), from
+# the shop's own list (app/constants/inventory_names.py): cutting and
+# grinding disks, fluids, drill bits, endmills, taps, sandpaper and bandsaw
+# blades. A reset marks every other consumable archived.
 SAMPLE_CONSUMABLE_CODES = (
-    "INV-OIL-CUT-PAIL",  # Cutting oil
-    "INV-COOLANT",  # Soluble coolant
-    "INV-HSSDRILL-6",
+    "INV-OIL-CUT-PAIL",  # Fluids: cutting oil
+    "INV-COOLANT",  # Fluids: soluble coolant
+    "INV-HSSDRILL-6",  # Drill Bits
     "INV-HSSDRILL-10",
-    "INV-HSSEM-10",
-    "INV-INS-CNMG",  # Carbide insert CNMG 120408
-    "INV-LATHEHSS-12",  # Lathe tool bit 1/2"
-    "INV-CTRDRILL-A",
-    "INV-TAP-M10",
-    "INV-GRIND-4",
-    "INV-CUT-14",
-    "INV-FLAP-4-G60",
-    "INV-RODE6013-25",
-    "INV-MIG-08",
-    "INV-GLOVES-WELD",
-    "INV-SAFETY-GLASS",
-    "INV-SAND-G120",
-    "INV-SHOP-RAGS",
+    "INV-CTRDRILL-A",  # Drill Bits: center drill
+    "INV-HSSEM-10",  # Endmills
+    "INV-TAP-M10",  # Handtaps
+    "INV-GRIND-4",  # Grinding Stone
+    "INV-CUT-14",  # Cutting Disk
+    "INV-FLAP-4-G60",  # Flap Disk
+    "INV-SAND-G120",  # Sandpaper
+    "INV-BANDSAW",  # Bandsaw Blade
 )
 
 
