@@ -1,6 +1,6 @@
 import { formatShop, shopToday } from '../../utils/shopTime';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Col, DatePicker, Drawer, Dropdown, Form, Input, InputNumber, Modal, Row, Select, Skeleton, Space, Typography, message } from 'antd';
+import { Alert, Button, Col, DatePicker, Drawer, Dropdown, Form, Input, InputNumber, Modal, Row, Select, Skeleton, Space, Typography, message } from 'antd';
 import type { MenuProps, TableColumnsType } from 'antd';
 import {
   AppstoreAddOutlined,
@@ -68,6 +68,8 @@ export default function ToolsAssetsPanel() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [onlyOut, setOnlyOut] = useState(false);
+  // Types whose units are all retired stay for their history, out of the way.
+  const [showRetired, setShowRetired] = useState(false);
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [unitsByType, setUnitsByType] = useState<Record<string, ToolUnit[]>>({});
   const [typeModal, setTypeModal] = useState(false);
@@ -134,6 +136,7 @@ export default function ToolsAssetsPanel() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return types.filter((t) => {
+      if (isRetiredType(t) !== showRetired) return false;
       if (summaryKey === 'borrowed' && !(t.outCount > 0)) return false;
       if (summaryKey === 'available' && !(t.availableCount > 0)) return false;
       if (
@@ -148,14 +151,15 @@ export default function ToolsAssetsPanel() {
       }
       return true;
     });
-  }, [types, query, summaryKey]);
+  }, [types, query, summaryKey, showRetired]);
 
   const toolCards: InventorySummaryCard[] = useMemo(() => {
-    const totalUnits = types.reduce((n, t) => n + (t.totalUnits || 0), 0);
+    const live = types.filter((t) => !isRetiredType(t));
+    const totalUnits = types.reduce((n, t) => n + labelUnits(t), 0);
     const available = types.reduce((n, t) => n + (t.availableCount || 0), 0);
     const borrowed = types.reduce((n, t) => n + (t.outCount || 0), 0);
     return [
-      { key: 'types', label: 'Tool types', value: types.length, icon: Wrench, tone: 'slate' },
+      { key: 'types', label: 'Tool types', value: live.length, icon: Wrench, tone: 'slate' },
       { key: 'units', label: 'Total units', value: totalUnits, icon: Package, tone: 'blue' },
       { key: 'available', label: 'Available', value: available, icon: Package, tone: 'green' },
       { key: 'borrowed', label: 'Borrowed out', value: borrowed, icon: Package, tone: 'amber' },
@@ -439,7 +443,7 @@ export default function ToolsAssetsPanel() {
             key: 'print-qr',
             icon: <PrinterOutlined />,
             label: 'Print QR labels',
-            disabled: !r.totalUnits,
+            disabled: !labelUnits(r),
             onClick: () => void openLabelsForTypes([r.id]),
           },
           { type: 'divider' },
@@ -530,11 +534,15 @@ export default function ToolsAssetsPanel() {
           />
           <Select
             className="std-list-filter std-list-filter--sm"
-            value={onlyOut ? 'out' : 'all'}
-            onChange={(v) => setOnlyOut(v === 'out')}
+            value={showRetired ? 'retired' : onlyOut ? 'out' : 'all'}
+            onChange={(v) => {
+              setOnlyOut(v === 'out');
+              setShowRetired(v === 'retired');
+            }}
             options={[
               { value: 'all', label: 'All types' },
               { value: 'out', label: 'With units out' },
+              ...(types.some(isRetiredType) || showRetired ? [{ value: 'retired', label: 'Retired types' }] : []),
             ]}
           />
         </div>
@@ -609,7 +617,7 @@ export default function ToolsAssetsPanel() {
             <Button
               icon={<PrinterOutlined />}
               onClick={() => {
-                setLabelPick(types.filter((t) => t.totalUnits > 0).map((t) => t.id));
+                setLabelPick(types.filter((t) => labelUnits(t) > 0).map((t) => t.id));
                 setLabelPickOpen(true);
               }}
             >
@@ -648,7 +656,9 @@ export default function ToolsAssetsPanel() {
         }
         onRow={compact ? (r) => rowOpenProps(() => openDetail(r)) : undefined}
         locale={{
-          emptyText: onlyOut
+          emptyText: showRetired
+            ? 'No retired tool types.'
+            : onlyOut
             ? 'No tool types currently have units out with workers.'
             : 'No tool types yet. Add a type, then add individual units with QR codes.',
         }}
@@ -928,7 +938,12 @@ export default function ToolsAssetsPanel() {
           >
             <Input placeholder="Auto-generated if empty (e.g. TYPE-001)" disabled={unitQty > 1} />
           </Form.Item>
-          <Form.Item name="notes" label="Notes" style={{ marginBottom: 14 }}>
+          <Form.Item
+            name="notes"
+            label="Notes"
+            extra={unitModalType?.description || undefined}
+            style={{ marginBottom: 14 }}
+          >
             <Input placeholder="Optional" />
           </Form.Item>
         </Form>
@@ -986,7 +1001,12 @@ export default function ToolsAssetsPanel() {
           >
             <Input />
           </Form.Item>
-          <Form.Item name="notes" label="Notes" style={{ marginBottom: 14 }}>
+          <Form.Item
+            name="notes"
+            label="Notes"
+            extra={unitModalType?.description || undefined}
+            style={{ marginBottom: 14 }}
+          >
             <Input placeholder="Optional" />
           </Form.Item>
         </Form>
@@ -1045,22 +1065,33 @@ export default function ToolsAssetsPanel() {
         onOk={() => void openLabelsForTypes(labelPick)}
         destroyOnHidden
       >
-        <div style={{ marginBottom: 8 }}>
-          Each unit of the chosen types gets a label.
-        </div>
-        <Select
-          mode="multiple"
-          allowClear
-          style={{ width: '100%' }}
-          placeholder="Tool types"
-          value={labelPick}
-          onChange={setLabelPick}
-          optionFilterProp="label"
-          maxTagCount="responsive"
-          options={types
-            .filter((t) => t.totalUnits > 0)
-            .map((t) => ({ value: t.id, label: `${t.name} (${t.totalUnits})` }))}
-        />
+        {types.some((t) => labelUnits(t) > 0) ? (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              Each unit of the chosen types gets a label.
+            </div>
+            <Select
+              mode="multiple"
+              allowClear
+              style={{ width: '100%' }}
+              placeholder="Tool types"
+              value={labelPick}
+              onChange={setLabelPick}
+              optionFilterProp="label"
+              maxTagCount="responsive"
+              options={types
+                .filter((t) => labelUnits(t) > 0)
+                .map((t) => ({ value: t.id, label: `${t.name} (${labelUnits(t)})` }))}
+            />
+          </>
+        ) : (
+          <Alert
+            type="info"
+            showIcon
+            title="No tool units to label yet"
+            description="A label is printed for each unit, so add the units first: open a tool type's menu and choose Add units. Each unit gets its own QR code."
+          />
+        )}
       </FormModal>
 
       <QrLabelPrintModal
@@ -1070,6 +1101,15 @@ export default function ToolsAssetsPanel() {
       />
     </div>
   );
+}
+
+/** Units that still get a label (retired ones do not). */
+function labelUnits(t: ToolType) {
+  return (t.totalUnits || 0) - (t.retiredCount || 0);
+}
+
+function isRetiredType(t: ToolType) {
+  return t.totalUnits > 0 && t.retiredCount === t.totalUnits;
 }
 
 function UnitQrImage({ unitId, code }: { unitId: string; code: string }) {

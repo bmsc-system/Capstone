@@ -4,16 +4,21 @@ The lists are in app/constants/inventory_names.py. For each kind:
 
 * A record already under the shop's name, or under an older spelling of it
   (an alias), is kept and renamed, so its stock and history stay with it.
-  Several sizes of the same consumable all take the name.
+  Several sizes of the same consumable all take the name. A second raw
+  material under another spelling of the same name is merged into the first.
 * A name on the list with no record yet is created (stock 0, no tool units:
   the Office adds units with their QR codes).
 * Anything else is a sample or test entry. It is deleted when nothing points
   at it. When it has history (hand-outs, purchases, PO lines, borrowing) it
   is archived instead: hidden from lists and pickers, kept on past records.
   A tool with borrowing history keeps its type and has its units retired.
+* Purchase lines bought under an older spelling take the shop's name.
 
 Preview (changes nothing):
     .venv\\Scripts\\python.exe scripts\\set_inventory_names.py
+
+A test tool with borrowing records (kept otherwise) can be removed fully:
+    .venv\\Scripts\\python.exe scripts\\set_inventory_names.py --remove-tool "Test tool"
 
 Save, refusing unless the number of changes equals --expect:
     .venv\\Scripts\\python.exe scripts\\set_inventory_names.py --apply --expect N
@@ -39,7 +44,7 @@ def _exact_first(rows, specs, match):
     return sorted(rows, key=key)
 
 
-def _plan(db, models, lists):
+def _plan(db, models, lists, remove_tools=()):
     """[(kind, action, text, apply_fn)] in the order they run."""
     Tool, ToolCategory, ToolType, ToolUnit, ToolUnitStatus, ToolEvent, ToolEventType, Catalog, MaterialPurchase, refs = models
     CONSUMABLES, TOOLS, MATERIALS, match = lists
@@ -99,11 +104,27 @@ def _plan(db, models, lists):
         label = f"{tt.name} ({len(units)} unit{'s' if len(units) != 1 else ''})"
         if spec and spec["name"] not in found:
             found.add(spec["name"])
+            changes = []
             if tt.name != spec["name"]:
-                steps.append(("Tool", "keep", f"{label}: name → {spec['name']}",
-                              lambda t=tt, s=spec: setattr(t, "name", s["name"])))
+                changes.append(("name", spec["name"]))
+            if spec.get("description") and not tt.description:
+                changes.append(("description", spec["description"]))
+            if changes:
+                text = ", ".join(f"{k} → {v}" for k, v in changes)
+                steps.append(("Tool", "keep", f"{label}: {text}",
+                              lambda t=tt, c=changes: [setattr(t, k, v) for k, v in c]))
             continue
         unit_ids = [u.id for u in units]
+        def _drop(t=tt, us=units):
+            ids = [u.id for u in us]
+            if ids:
+                ToolEvent.query.filter(ToolEvent.tool_unit_id.in_(ids)).delete(synchronize_session=False)
+            for u in us:
+                db.session.delete(u)
+            db.session.delete(t)
+        if tt.name.strip().lower() in remove_tools:
+            steps.append(("Tool", "delete", f"{label}: test entry, removed with its borrowing records", _drop))
+            continue
         borrowed = unit_ids and db.session.query(ToolEvent.id).filter(
             ToolEvent.tool_unit_id.in_(unit_ids),
             ToolEvent.type.in_([ToolEventType.BORROW, ToolEventType.RETURN]),
@@ -116,13 +137,6 @@ def _plan(db, models, lists):
                 steps.append(("Tool", "retire", f"{label}: has borrowing history, units retired",
                               lambda us=live: [setattr(u, "status", ToolUnitStatus.RETIRED) for u in us]))
         else:
-            def _drop(t=tt, us=units):
-                ids = [u.id for u in us]
-                if ids:
-                    ToolEvent.query.filter(ToolEvent.tool_unit_id.in_(ids)).delete(synchronize_session=False)
-                for u in us:
-                    db.session.delete(u)
-                db.session.delete(t)
             steps.append(("Tool", "delete", f"{label}: never borrowed", _drop))
     for spec in TOOLS:
         if spec["name"] in found:
@@ -132,15 +146,27 @@ def _plan(db, models, lists):
             code, n = f"{spec['code']}-{n}", n + 1
         taken_codes.add(code)
         steps.append(("Tool", "create", f"{spec['name']} ({code}, no units yet)",
-                      lambda s=spec, c=code: db.session.add(ToolType(name=s["name"], code=c, is_seed=False))))
+                      lambda s=spec, c=code: db.session.add(ToolType(
+                          name=s["name"], code=c, description=s.get("description"), is_seed=False))))
 
     # ---- raw materials -----------------------------------------------------
     found = set()
+    kept = {}
     for item in _exact_first(Catalog.query.order_by(Catalog.name).all(), MATERIALS, match):
         spec = match(MATERIALS, item.name)
         label = item.name
-        if spec and spec["name"] not in found:
+        if spec and spec["name"] in found:
+            # Another spelling of a material already kept: its purchase lines
+            # move to the kept one, then it goes.
+            def _merge(i=item, k=kept[spec["name"]]):
+                MaterialPurchase.query.filter(MaterialPurchase.material_catalog_id == i.id).update(
+                    {MaterialPurchase.material_catalog_id: k.id}, synchronize_session=False)
+                db.session.delete(i)
+            steps.append(("Material", "merge", f"{label}: same as {spec['name']}, lines moved to it", _merge))
+            continue
+        if spec:
             found.add(spec["name"])
+            kept[spec["name"]] = item
             changes = []
             if item.name != spec["name"]:
                 changes.append(("name", spec["name"]))
@@ -169,6 +195,18 @@ def _plan(db, models, lists):
                       lambda s=spec: db.session.add(Catalog(
                           name=s["name"], shop_term=s.get("shop_term"), grades=[], default_unit=s["default_unit"],
                           category=s["category"], active=True))))
+
+    # ---- purchase lines ----------------------------------------------------
+    # A line keeps the name it was bought under. When that is an older
+    # spelling of one of the shop's names, it takes the shop's name.
+    renames = {}
+    for line in MaterialPurchase.query.all():
+        spec = match(CONSUMABLES if line.tool_id else MATERIALS, line.material_name)
+        if spec and line.material_name != spec["name"]:
+            renames.setdefault((line.material_name, spec["name"]), []).append(line)
+    for (old, new), lines in sorted(renames.items()):
+        steps.append(("Purchase line", "rename", f"{old} → {new} ({len(lines)} line{'s' if len(lines) != 1 else ''})",
+                      lambda ls=lines, n=new: [setattr(x, "material_name", n) for x in ls]))
     return steps
 
 
@@ -176,6 +214,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--apply", action="store_true", help="Save the changes")
     parser.add_argument("--expect", type=int, help="Number of changes the preview showed")
+    parser.add_argument(
+        "--remove-tool", action="append", default=[], metavar="NAME",
+        help="A test tool to delete with its units and borrowing records (repeatable)",
+    )
     args = parser.parse_args()
 
     app, label = open_app()
@@ -210,9 +252,10 @@ def main():
 
     with app.app_context():
         print(f"Target database: {label}")
-        steps = _plan(db, models, (CONSUMABLES, TOOLS, MATERIALS, match))
+        remove = {n.strip().lower() for n in args.remove_tool}
+        steps = _plan(db, models, (CONSUMABLES, TOOLS, MATERIALS, match), remove)
         changes = [s for s in steps if s[3] is not None]
-        for kind in ("Consumable", "Tool", "Material"):
+        for kind in ("Consumable", "Tool", "Material", "Purchase line"):
             mine = [s for s in steps if s[0] == kind]
             print(f"\n{kind}s:")
             if not mine:

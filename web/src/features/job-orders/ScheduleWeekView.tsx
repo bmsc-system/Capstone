@@ -31,6 +31,7 @@ import {
   type RowDef,
   type RowMode,
 } from '../schedule/BoardGrid';
+import type { BoardState } from '../schedule/boardStates';
 import ScheduleExpandShell from '../schedule/ScheduleExpandShell';
 import {
   periodBounds,
@@ -286,19 +287,29 @@ export default function ScheduleWeekView({
     [data]
   ) as Map<string, ScheduleBoardDowntime[]>;
 
+  // Warnings show in the key only when they are on the board.
+  const [boardStates, setBoardStates] = useState<ReadonlySet<BoardState>>(new Set());
   const legend: LegendItem[] = useMemo(
     () => [
       { label: 'This job (proposed)', color: scheduleColor || THIS_JOB_COLOR },
       { label: 'Other booked work', color: OTHER_JOB_COLOR, border: '1px solid #cbd5e1' },
-      {
-        label: 'Machine breakdown',
-        pattern: 'repeating-linear-gradient(-45deg, #E8C5CB, #E8C5CB 3px, #F5E6E9 3px, #F5E6E9 6px)',
-        border: '1px solid #C45A6A',
-      },
-      { label: 'Clash (double-booked)', color: '#fff', border: `2px solid ${CLASH_COLOR}` },
-      { label: 'Booked on a down machine', color: '#fff', border: `2px dashed ${DOWN_COLOR}` },
+      ...(boardStates.has('breakdown')
+        ? [
+            {
+              label: 'Machine breakdown',
+              pattern: 'repeating-linear-gradient(-45deg, #E8C5CB, #E8C5CB 3px, #F5E6E9 3px, #F5E6E9 6px)',
+              border: '1px solid #C45A6A',
+            },
+          ]
+        : []),
+      ...(boardStates.has('clash')
+        ? [{ label: 'Clash (double-booked)', color: '#fff', border: `2px solid ${CLASH_COLOR}` }]
+        : []),
+      ...(boardStates.has('down')
+        ? [{ label: 'Booked on a down machine', color: '#fff', border: `2px dashed ${DOWN_COLOR}` }]
+        : []),
     ],
-    [scheduleColor]
+    [scheduleColor, boardStates]
   );
 
   if (!proposed.length) return null;
@@ -369,6 +380,7 @@ export default function ScheduleWeekView({
             pending={boardPending}
             highlightJobId={jobId}
             highlightColor={scheduleColor}
+            onStates={setBoardStates}
           />
         )}
       </ScheduleExpandShell>

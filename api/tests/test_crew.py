@@ -463,3 +463,26 @@ def test_finished_operation_keeps_its_instructions(client, shop):
     )
     assert res.status_code == 409
     assert res.get_json()["error"]["code"] == "OPERATION_FINISHED"
+
+
+def test_history_lists_consumables_handed_to_the_worker(shop):
+    from app.models.tool import Tool, ToolCategory
+    from app.models.tool_event import ToolEvent, ToolEventType
+
+    disk = Tool(name="Cutting Disk", code="T-CD-14", category=ToolCategory.CONSUMABLE, unit="pcs",
+                quantity_on_hand=Decimal("10"), size_spec='14"')
+    db.session.add(disk)
+    db.session.flush()
+    job = _job(shop)
+    kept = ToolEvent(tool_id=disk.id, worker_id=shop["ana"].id, type=ToolEventType.ISSUE,
+                     quantity=Decimal("2"), job_order_id=job.id)
+    undone = ToolEvent(tool_id=disk.id, worker_id=shop["ana"].id, type=ToolEventType.ISSUE,
+                       quantity=Decimal("1"), undone_at=datetime.now(timezone.utc))
+    other = ToolEvent(tool_id=disk.id, worker_id=shop["ben"].id, type=ToolEventType.ISSUE,
+                      quantity=Decimal("5"))
+    db.session.add_all([kept, undone, other])
+    db.session.commit()
+
+    used = worker_work_history(shop["ana"].id)["consumablesUsed"]
+    assert [(u["toolName"], u["toolSizeSpec"], u["quantity"]) for u in used] == [("Cutting Disk", '14"', 2)]
+    assert used[0]["jobNumber"].startswith("JO-")

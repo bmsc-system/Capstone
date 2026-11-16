@@ -282,19 +282,31 @@ a.wh-jobno:hover {
 
 .wh-op {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  align-items: center;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
 .wh-op__name {
+  overflow: hidden;
   font-weight: 600;
   color: var(--c-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.wh-op__machine {
+.wh-op__meta {
+  overflow: hidden;
   font-size: 12px;
   color: var(--c-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wh-ops .ant-table-tbody > tr > td {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+  vertical-align: middle;
 }
 
 .wh-tag {
@@ -357,6 +369,21 @@ a.wh-jobno:hover {
 .wh-tool-row__dot.is-out { background: var(--tone-amber-solid); }
 .wh-tool-row__dot.is-in { background: var(--tone-green-solid); }
 .wh-tool-row__dot.is-held { background: var(--tone-blue-solid); }
+.wh-tool-row__dot.is-used { background: var(--c-text-muted); }
+
+.wh-tool-row__spec {
+  font-weight: 400;
+  color: var(--c-text-muted);
+}
+
+.wh-tool-row__qty {
+  flex: none;
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-text);
+  white-space: nowrap;
+}
 
 .wh-tool-row__text {
   display: flex;
