@@ -2241,6 +2241,7 @@ export interface WorkerWorkHistory {
 
 /** Office Staff dashboard: office work waiting to be done. */
 export interface OfficeJobRef {
+  createdAt?: string | null;
   id: string;
   jobNumber: string | null;
   title: string;
@@ -2250,6 +2251,7 @@ export interface OfficeJobRef {
 }
 
 export interface OfficeDeliveryRef {
+  createdAt?: string | null;
   id: string;
   poNumber: string | null;
   supplierName: string | null;
