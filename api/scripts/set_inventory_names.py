@@ -15,6 +15,9 @@ The lists are in app/constants/inventory_names.py. For each kind:
 Preview (changes nothing):
     .venv\\Scripts\\python.exe scripts\\set_inventory_names.py
 
+A test tool with borrowing records (kept otherwise) can be removed fully:
+    .venv\\Scripts\\python.exe scripts\\set_inventory_names.py --remove-tool "ericka"
+
 Save, refusing unless the number of changes equals --expect:
     .venv\\Scripts\\python.exe scripts\\set_inventory_names.py --apply --expect N
 """
@@ -39,7 +42,7 @@ def _exact_first(rows, specs, match):
     return sorted(rows, key=key)
 
 
-def _plan(db, models, lists):
+def _plan(db, models, lists, remove_tools=()):
     """[(kind, action, text, apply_fn)] in the order they run."""
     Tool, ToolCategory, ToolType, ToolUnit, ToolUnitStatus, ToolEvent, ToolEventType, Catalog, MaterialPurchase, refs = models
     CONSUMABLES, TOOLS, MATERIALS, match = lists
@@ -104,6 +107,16 @@ def _plan(db, models, lists):
                               lambda t=tt, s=spec: setattr(t, "name", s["name"])))
             continue
         unit_ids = [u.id for u in units]
+        def _drop(t=tt, us=units):
+            ids = [u.id for u in us]
+            if ids:
+                ToolEvent.query.filter(ToolEvent.tool_unit_id.in_(ids)).delete(synchronize_session=False)
+            for u in us:
+                db.session.delete(u)
+            db.session.delete(t)
+        if tt.name.strip().lower() in remove_tools:
+            steps.append(("Tool", "delete", f"{label}: test entry, removed with its borrowing records", _drop))
+            continue
         borrowed = unit_ids and db.session.query(ToolEvent.id).filter(
             ToolEvent.tool_unit_id.in_(unit_ids),
             ToolEvent.type.in_([ToolEventType.BORROW, ToolEventType.RETURN]),
@@ -116,13 +129,6 @@ def _plan(db, models, lists):
                 steps.append(("Tool", "retire", f"{label}: has borrowing history, units retired",
                               lambda us=live: [setattr(u, "status", ToolUnitStatus.RETIRED) for u in us]))
         else:
-            def _drop(t=tt, us=units):
-                ids = [u.id for u in us]
-                if ids:
-                    ToolEvent.query.filter(ToolEvent.tool_unit_id.in_(ids)).delete(synchronize_session=False)
-                for u in us:
-                    db.session.delete(u)
-                db.session.delete(t)
             steps.append(("Tool", "delete", f"{label}: never borrowed", _drop))
     for spec in TOOLS:
         if spec["name"] in found:
@@ -176,6 +182,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--apply", action="store_true", help="Save the changes")
     parser.add_argument("--expect", type=int, help="Number of changes the preview showed")
+    parser.add_argument(
+        "--remove-tool", action="append", default=[], metavar="NAME",
+        help="A test tool to delete with its units and borrowing records (repeatable)",
+    )
     args = parser.parse_args()
 
     app, label = open_app()
@@ -210,7 +220,8 @@ def main():
 
     with app.app_context():
         print(f"Target database: {label}")
-        steps = _plan(db, models, (CONSUMABLES, TOOLS, MATERIALS, match))
+        remove = {n.strip().lower() for n in args.remove_tool}
+        steps = _plan(db, models, (CONSUMABLES, TOOLS, MATERIALS, match), remove)
         changes = [s for s in steps if s[3] is not None]
         for kind in ("Consumable", "Tool", "Material"):
             mine = [s for s in steps if s[0] == kind]
