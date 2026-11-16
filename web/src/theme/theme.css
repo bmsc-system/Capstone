@@ -13,6 +13,8 @@
   --c-primary-soft: #eff6ff;
 
   --c-page: #f3f5f9;
+  /* Faint grid behind pages (login, app, worker app). */
+  --c-grid-line: rgba(148, 163, 184, 0.14);
   --c-surface: #ffffff;
   --c-surface-muted: #f8fafc;
   --c-surface-sunken: #eef2f7;

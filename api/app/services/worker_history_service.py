@@ -171,6 +171,21 @@ def worker_work_history(worker_id, *, from_s=None, to_s=None, page=1, per_page=2
     )
     tool_events = [e.to_dict() for e in events]
 
+    # Consumables handed out to this worker (not undone), newest first.
+    issued = (
+        ToolEvent.query.filter_by(worker_id=worker_id, type=ToolEventType.ISSUE)
+        .filter(ToolEvent.tool_id.isnot(None))
+        .filter(ToolEvent.undone_at.is_(None))
+        .order_by(ToolEvent.created_at.desc())
+        .limit(30)
+        .all()
+    )
+    consumables_used = []
+    for e in issued:
+        row = e.to_dict()
+        row["jobNumber"] = _job_number(e.job_order)
+        consumables_used.append(row)
+
     return {
         "summary": summary,
         "operations": {
@@ -182,4 +197,5 @@ def worker_work_history(worker_id, *, from_s=None, to_s=None, page=1, per_page=2
         },
         "toolsHeld": tools_held,
         "toolEvents": tool_events,
+        "consumablesUsed": consumables_used,
     }

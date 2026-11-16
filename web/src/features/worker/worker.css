@@ -26,6 +26,12 @@
 
 /* One scroll area for the whole page, without a visible bar. */
 .w-main {
+  /* The login page's faint 28px grid, scrolling with the content. */
+  background-image:
+    linear-gradient(var(--c-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--c-grid-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-attachment: local;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -43,6 +49,7 @@
 .w-main--scan {
   padding-bottom: calc(var(--w-nav-h) + env(safe-area-inset-bottom, 0px));
   overflow: hidden;
+  background-image: none;
 }
 
 /* Offline / waiting / sending: a quiet pill in the bar. */

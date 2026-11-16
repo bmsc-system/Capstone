@@ -146,7 +146,7 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
           <span className="wh-score__hint">first-time operations</span>
         </div>
         <div className="wh-score__item">
-          <span className="wh-score__label">Close to target</span>
+          <span className="wh-score__label">On target</span>
           <span className="wh-score__value">
             {s.enoughHistory && s.onEstimateRatePct != null ? `${s.onEstimateRatePct}%` : '—'}
           </span>
@@ -191,7 +191,7 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
               {
                 title: 'Job',
                 dataIndex: 'jobNumber',
-                width: 120,
+                width: 136,
                 onCell: () => ({ className: 'wh-job-cell' }),
                 onHeaderCell: () => ({ className: 'wh-job-cell' }),
                 render: (v: string | null, r) =>
@@ -210,19 +210,21 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
               {
                 title: 'Operation',
                 key: 'op',
-                render: (_: unknown, r) => (
-                  <span className="wh-op">
-                    <span className="wh-op__name">{r.operationName}</span>
-                    {r.machineUnitLabel ? <span className="wh-op__machine">{r.machineUnitLabel}</span> : null}
-                    {r.isCrew ? (
-                      <Tooltip title={(r.crew || []).map((m) => m.fullName).join(', ')}>
-                        <span className="wh-tag">
-                          {r.crewRole === 'LEAD' ? 'Lead' : 'Helper'} · {r.crewSize} workers
-                        </span>
-                      </Tooltip>
-                    ) : null}
-                  </span>
-                ),
+                ellipsis: true,
+                render: (_: unknown, r) => {
+                  const crew = r.isCrew ? `${r.crewRole === 'LEAD' ? 'Lead' : 'Helper'}, ${r.crewSize} workers` : null;
+                  const meta = [r.machineUnitLabel, crew].filter(Boolean).join(' · ');
+                  return (
+                    <span className="wh-op">
+                      <span className="wh-op__name">{r.operationName}</span>
+                      {meta ? (
+                        <Tooltip title={r.isCrew ? (r.crew || []).map((m) => m.fullName).join(', ') : undefined}>
+                          <span className="wh-op__meta">{meta}</span>
+                        </Tooltip>
+                      ) : null}
+                    </span>
+                  );
+                },
               },
               {
                 title: 'Target',
@@ -275,23 +277,27 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
             )}
           />
           <ToolPanel
-            title="Recent borrow & return"
-            empty="No borrow history"
-            items={data.toolEvents}
+            title="Recent consumables used"
+            empty="No consumables handed out"
+            items={data.consumablesUsed || []}
             page={eventPage}
             onPage={setEventPage}
             renderItem={(ev) => (
               <li key={ev.id} className="wh-tool-row">
-                <span className={`wh-tool-row__dot ${ev.type === 'RETURN' ? 'is-in' : 'is-out'}`} aria-hidden />
+                <span className="wh-tool-row__dot is-used" aria-hidden />
                 <span className="wh-tool-row__text">
                   <strong>
-                    {ev.type === 'RETURN' ? 'Returned' : 'Borrowed'} {ev.toolName || 'tool'}
+                    {ev.toolName || 'Consumable'}
+                    {ev.toolSizeSpec ? <span className="wh-tool-row__spec"> {ev.toolSizeSpec}</span> : null}
                   </strong>
                   <span className="wh-tool-row__meta">
-                    {[ev.assetCode, ev.createdAt ? formatShop(ev.createdAt, 'MMM D, h:mm A') : null]
+                    {[ev.jobNumber, ev.createdAt ? formatShop(ev.createdAt, 'MMM D, h:mm A') : null]
                       .filter(Boolean)
                       .join(' · ') || '—'}
                   </span>
+                </span>
+                <span className="wh-tool-row__qty">
+                  {formatQty(ev.quantity)} {ev.toolUnit || ''}
                 </span>
               </li>
             )}
@@ -300,6 +306,11 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
       </div>
     </div>
   );
+}
+
+function formatQty(v: number | string | null | undefined) {
+  const n = Number(v ?? 0);
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 function ToolPanel<T extends { id: string }>({

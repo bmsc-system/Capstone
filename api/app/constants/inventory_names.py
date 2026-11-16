@@ -33,12 +33,16 @@ CONSUMABLES = [
 ]
 
 # Tools (``tool_types``): individually tracked, borrowed and returned by QR.
+ONE_EACH = "One unit per tool, each with its own QR."
 TOOLS = [
-    {"name": "Caliper", "code": "TL-CALIPER", "aliases": ["vernier caliper", "vernier", "digital caliper", "calipers"]},
-    {"name": "Micrometer", "code": "TL-MICROMETER", "aliases": ["micrometers"]},
-    {"name": "Hammers", "code": "TL-HAMMERS", "aliases": ["hammer"]},
-    {"name": "Collets", "code": "TL-COLLETS", "aliases": ["collet"]},
-    {"name": "Clamps", "code": "TL-CLAMPS", "aliases": ["clamp", "c-clamp", "c clamp"]},
+    {"name": "Caliper", "code": "TL-CALIPER", "aliases": ["vernier caliper", "vernier", "digital caliper", "calipers"],
+     "description": ONE_EACH},
+    {"name": "Micrometer", "code": "TL-MICROMETER", "aliases": ["micrometers"], "description": ONE_EACH},
+    {"name": "Hammers", "code": "TL-HAMMERS", "aliases": ["hammer"], "description": ONE_EACH},
+    # Collets are small and kept in sets, so a set is one unit with one QR.
+    {"name": "Collets", "code": "TL-COLLETS", "aliases": ["collet"],
+     "description": "One unit per collet set, with one QR on the set's case. Put the set in the notes, e.g. ER32, 18 pcs."},
+    {"name": "Clamps", "code": "TL-CLAMPS", "aliases": ["clamp", "c-clamp", "c clamp"], "description": ONE_EACH},
 ]
 
 # Raw materials (``material_catalog``): what a PO line is for; its size goes

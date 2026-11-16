@@ -60,28 +60,35 @@ import {
   type RowDef,
   type RowMode,
 } from './BoardGrid';
+import type { BoardState } from './boardStates';
 import './scheduleBoard.css';
 
 type ViewMode = TimelineViewMode;
 
 
-const SCHEDULE_LEGEND: LegendItem[] = [
+const SCHEDULE_LEGEND: (LegendItem & { state: BoardState })[] = [
   // Bars take their job order's color; the status is written on the bar.
   {
+    state: 'job',
     label: 'Each job order has its own color',
     pattern: 'linear-gradient(90deg, #2563EB 0 33%, #DB2777 33% 66%, #4D7C0F 66%)',
   },
-  { label: 'Completed (faded)', color: 'rgba(37, 99, 235, 0.55)' },
-  { label: 'Waiting for materials', pattern: `${MATERIAL_WAIT_BAR_IMAGE}, ${OPERATION_BAR_COLOR.SCHEDULED}` },
-  { label: 'At risk of missing date', color: '#fff', border: `2px solid ${TONE_BAR_FILL.red}` },
+  { state: 'completed', label: 'Completed (faded)', color: 'rgba(37, 99, 235, 0.55)' },
   {
+    state: 'waiting',
+    label: 'Waiting for materials',
+    pattern: `${MATERIAL_WAIT_BAR_IMAGE}, ${OPERATION_BAR_COLOR.SCHEDULED}`,
+  },
+  { state: 'late', label: 'At risk of missing date', color: '#fff', border: `2px solid ${TONE_BAR_FILL.red}` },
+  {
+    state: 'breakdown',
     label: 'Machine breakdown',
     pattern: 'repeating-linear-gradient(-45deg, #E8C5CB, #E8C5CB 3px, #F5E6E9 3px, #F5E6E9 6px)',
     border: '1px solid #C45A6A',
   },
-  { label: 'Clash (double-booked)', color: '#fff', border: `2px solid ${CLASH_COLOR}` },
-  { label: 'Booked on a down machine', color: '#fff', border: `2px dashed ${DOWN_COLOR}` },
-  { label: 'Stalled (paused over a day)', color: '#fff', border: `2px dotted ${STALLED_COLOR}` },
+  { state: 'clash', label: 'Clash (double-booked)', color: '#fff', border: `2px solid ${CLASH_COLOR}` },
+  { state: 'down', label: 'Booked on a down machine', color: '#fff', border: `2px dashed ${DOWN_COLOR}` },
+  { state: 'stalled', label: 'Stalled (paused over a day)', color: '#fff', border: `2px dotted ${STALLED_COLOR}` },
 ];
 
 type PhoneView = 'list' | 'board';
@@ -122,6 +129,8 @@ function AdminOfficeScheduleBoard() {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const labelW = isMobile ? adminPx(96) : viewMode === 'month' ? adminPx(220) : adminPx(168);
   const [rowMode, setRowMode] = useState<RowMode>('machine');
+  // Only the looks on the board right now go in the legend.
+  const [boardStates, setBoardStates] = useState<ReadonlySet<BoardState>>(new Set());
   // Keep the pills snappy; rebuild the heavy board at lower priority.
   const boardViewMode = useDeferredValue(viewMode);
   const boardRowMode = useDeferredValue(rowMode);
@@ -561,13 +570,14 @@ function AdminOfficeScheduleBoard() {
               shopDayWindows={data?.shopDayWindows}
               pending={boardPending}
               onOpenJob={openJob}
+              onStates={setBoardStates}
             />
           )}
         </ScheduleExpandShell>
       )}
       {!isPhoneBoard && deskView === 'board' ? (
         <div className="sched-page__legend">
-          <Legend items={SCHEDULE_LEGEND} />
+          <Legend items={SCHEDULE_LEGEND.filter((item) => boardStates.has(item.state))} />
           <InfoTip
             label="About bar colours"
             content="Bars take the job's own colour when one is set on the job; otherwise they show the operation status. Click a bar to open its job order."

@@ -20,6 +20,7 @@ import { OPERATION_BAR_COLOR } from '../../theme/statuses';
 import { formatShop, formatShopDateTime, SHOP_TZ } from '../../utils/shopTime';
 import { personLabel } from '../../utils/people';
 import MonthDayChip from './MonthDayChip';
+import { boardStates, type BoardState } from './boardStates';
 import {
   HOUR_END,
   HOUR_START,
@@ -208,6 +209,7 @@ type BoardRowsProps = {
   /** Proposal views: this job stands out, other work is greyed and unlabelled. */
   highlightJobId?: string;
   highlightColor?: string | null;
+  onStates?: (states: ReadonlySet<BoardState>) => void;
 };
 
 const BoardRows = memo(function BoardRows({
@@ -230,6 +232,7 @@ const BoardRows = memo(function BoardRows({
   onOpenJob,
   highlightJobId,
   highlightColor,
+  onStates,
 }: BoardRowsProps) {
   const columnFill = false;
   // Layout every row once per board change — not inline during JSX map.
@@ -304,6 +307,10 @@ const BoardRows = memo(function BoardRows({
     dayHourPx,
     dayColumns,
   ]);
+
+  useEffect(() => {
+    onStates?.(boardStates(prepared));
+  }, [prepared, onStates]);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -698,6 +705,8 @@ type BoardGridProps = {
   onOpenJob?: (jobOrderId: string) => void;
   highlightJobId?: string;
   highlightColor?: string | null;
+  /** Told which looks are on the board whenever the bars change. */
+  onStates?: (states: ReadonlySet<BoardState>) => void;
 };
 
 /** Header, "Now" line and rows, sized to the space it is given. */
@@ -717,6 +726,7 @@ export function BoardGrid({
   onOpenJob,
   highlightJobId,
   highlightColor,
+  onStates,
 }: BoardGridProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [availW, setAvailW] = useState(0);
@@ -897,6 +907,7 @@ export function BoardGrid({
           onOpenJob={onOpenJob}
           highlightJobId={highlightJobId}
           highlightColor={highlightColor}
+          onStates={onStates}
         />
       </div>
       <div className="sched-page__note">

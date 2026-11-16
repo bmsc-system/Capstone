@@ -76,14 +76,15 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
       if (typeFilter === 'CONSUMABLE' && r.kind !== 'CONSUMABLE') return false;
       if (summaryKey === 'materials' && r.kind !== 'MATERIAL') return false;
       if (summaryKey === 'consumables' && r.kind !== 'CONSUMABLE') return false;
-      if (summaryKey === 'archived' && r.active) return false;
+      // Archived items stay on past records but only show under Archived.
+      if (summaryKey === 'archived' ? r.active : !r.active) return false;
       return catalogMatches(r, query);
     });
   }, [rows, query, typeFilter, summaryKey]);
 
   const catalogCards: InventorySummaryCard[] = useMemo(() => {
-    const materials = rows.filter((r) => r.kind === 'MATERIAL').length;
-    const consumables = rows.filter((r) => r.kind === 'CONSUMABLE').length;
+    const materials = rows.filter((r) => r.active && r.kind === 'MATERIAL').length;
+    const consumables = rows.filter((r) => r.active && r.kind === 'CONSUMABLE').length;
     const archived = rows.filter((r) => !r.active).length;
     return [
       { key: 'materials', label: 'Materials', value: materials, icon: Layers, tone: 'blue' },

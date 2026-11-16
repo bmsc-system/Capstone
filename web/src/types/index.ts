@@ -2237,6 +2237,8 @@ export interface WorkerWorkHistory {
   };
   toolsHeld: ToolUnit[];
   toolEvents: ToolEvent[];
+  /** Consumables handed out to this worker, newest first. */
+  consumablesUsed?: (ToolEvent & { jobNumber?: string | null })[];
 }
 
 /** Office Staff dashboard: office work waiting to be done. */

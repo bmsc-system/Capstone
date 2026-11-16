@@ -446,7 +446,13 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: var(--c-page);
+  background-color: var(--c-page);
+  /* The login page's faint 28px grid, scrolling with the content. */
+  background-image:
+    linear-gradient(var(--c-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--c-grid-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-attachment: local;
 }
 
 .app-shell__content.ant-layout-content {
