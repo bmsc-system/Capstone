@@ -799,9 +799,24 @@
   min-width: 0;
 }
 
+/* Search and sort are tools, not actions: 40px, not the 48px tap height. */
+.w-job-tools .worker-search.ant-input-affix-wrapper {
+  height: 40px;
+  min-height: 40px;
+  padding-block: 0;
+}
+
 .w-job-sort {
   flex: 0 0 auto;
   width: 136px;
+}
+
+.w-job-tools .w-job-sort.ant-select {
+  height: 40px;
+}
+
+.w-job-tools .w-job-sort .ant-select-selection-item {
+  font-size: 13px;
 }
 
 /* ---------------- Schedule ---------------- */
