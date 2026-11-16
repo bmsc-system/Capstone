@@ -226,6 +226,22 @@
   white-space: nowrap;
 }
 
+/* A name in place of a number (the top delay cause): up to two lines, never cut off at the edge. */
+.ana-kpi__value .ana-kpi__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 22px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ana-kpi__value:has(.ana-kpi__text) {
+  min-width: 0;
+}
+
 .ana-kpi__value small {
   margin-left: 2px;
   font-size: 13px;
