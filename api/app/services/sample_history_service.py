@@ -1362,7 +1362,8 @@ def _place_operations(rng, shop, ledger, job, plan, not_before, horizon, admin, 
 
     for step in range(1, count + 1):
         op_type = shop.op_types[rng.randrange(len(shop.op_types))]
-        estimated = max(0.75, min(8.0, hours_each))
+        # The Admin sets targets in quarter hours, and each operation its own.
+        estimated = _quarter_hours(hours_each * rng.uniform(0.7, 1.3))
         is_last = step == count
         in_progress = fate == "progress" and is_last
         pause = fate == "run" and not in_progress and rng.random() < 0.55
@@ -1391,7 +1392,7 @@ def _place_operations(rng, shop, ledger, job, plan, not_before, horizon, admin, 
                 job,
                 op_type,
                 seq["n"] - 1,
-                max(0.75, estimated / 2),
+                _quarter_hours(estimated / 2),
                 cursor,
                 shop.future_end,
                 admin,
@@ -1446,6 +1447,7 @@ def _place_one(
 
     start = end = unit = worker = None
     worked = float(estimated)
+    duration_hours = float(estimated)
     for unit_try, worker_try in pairs[:8]:
         worked_try = _paced_hours(
             shop, rng, worker_try, op_type.default_machine_type_id, estimated
@@ -1453,10 +1455,12 @@ def _place_one(
         duration_hours = estimated if in_progress else worked_try + pause_len
         windows = shop.windows[worker_try.id]
         busy = shop.worker_busy[worker_try.id] + shop.unit_busy[unit_try.id]
+        # Book enough time for both the plan and the actual work, so neither
+        # overlaps another booking of the worker or the unit.
         start, end, _ = place_unbroken(
             windows,
             busy,
-            timedelta(hours=duration_hours),
+            timedelta(hours=max(float(estimated), duration_hours)),
             not_before,
             horizon,
             tidy=True,
@@ -1470,6 +1474,11 @@ def _place_one(
         return None
 
     worked_hours = worked if not in_progress else None
+    # The schedule is the plan: start plus the target hours across working
+    # hours, as the system computes it. The actual times differ from it.
+    planned_end = place_duration(
+        shop.windows[worker.id], timedelta(hours=float(estimated)), start, end
+    )[1] or end
     actual_start = start
     actual_end = None
     if not in_progress:
@@ -1506,7 +1515,7 @@ def _place_one(
         assigned_worker_id=worker.id,
         estimated_hours=Decimal(f"{estimated:.2f}"),
         scheduled_start=start,
-        scheduled_end=end,
+        scheduled_end=planned_end,
         actual_start=actual_start,
         actual_end=actual_end,
         status=status,
@@ -2707,6 +2716,11 @@ def _choose_pause(rng, counters):
     if best is None or gap < best[2]:
         return None
     return best
+
+
+def _quarter_hours(hours: float) -> float:
+    """A target the way the Admin types it: quarter hours, 0.75 to 8."""
+    return max(0.75, min(8.0, round(hours * 4) / 4))
 
 
 def _paced_hours(shop, rng, worker, machine_type_id, estimated):
