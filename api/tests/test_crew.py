@@ -174,12 +174,16 @@ def test_assign_sets_lead_and_helpers_and_lists_the_crew(client, shop):
     assert data["crewSize"] == 3
 
 
-def test_at_most_two_helpers_and_never_the_lead(client, shop):
+def test_any_number_of_helpers_but_never_the_lead(client, shop):
     op = _op(_job(shop), 1, shop["types"]["LAYOUT"])
     res = _assign(client, shop, op, shop["ana"], [shop["ben"], shop["cara"], shop["gio"]])
-    assert res.status_code == 400
-    assert res.get_json()["error"]["code"] == "TOO_MANY_HELPERS"
+    assert res.status_code == 200, res.get_json()
+    data = res.get_json()
+    assert data["helperIds"] == [shop["ben"].id, shop["cara"].id, shop["gio"].id]
+    assert data["crewSize"] == 4
     res = _assign(client, shop, op, shop["ana"], [shop["ana"]])
+    assert res.status_code == 400
+    res = _assign(client, shop, op, shop["ana"], [shop["ben"], shop["ben"]])
     assert res.status_code == 400
 
 
@@ -432,3 +436,30 @@ def test_the_admin_is_told_when_an_operation_and_then_the_job_is_finished(client
     client.post(f"/api/v1/alerts/{page['items'][0]['id']}/read", headers=_headers(admin))
     unread = client.get("/api/v1/alerts?unread=1", headers=_headers(admin)).get_json()
     assert [a["kind"] for a in unread["items"]] == ["OPERATION_DONE"]
+
+
+# ---- Instructions after release ---------------------------------------------
+
+
+def test_admin_changes_instructions_of_an_unfinished_operation(client, shop):
+    op = _op(_job(shop), 1, shop["types"]["LAYOUT"], lead=shop["ana"])
+    url = f"/api/v1/operations/{op.id}/instructions"
+    res = client.patch(url, json={"notes": "  Chamfer 1 x 45 both ends.  "}, headers=_headers(shop["admin"]))
+    assert res.status_code == 200, res.get_json()
+    assert res.get_json()["notes"] == "Chamfer 1 x 45 both ends."
+    res = client.patch(url, json={"notes": ""}, headers=_headers(shop["admin"]))
+    assert res.get_json()["notes"] is None
+    # Only the Administrator; workers and office staff cannot.
+    res = client.patch(url, json={"notes": "x"}, headers=_headers(shop["office"]))
+    assert res.status_code == 403
+    res = client.patch(url, json={"notes": "x" * 1001}, headers=_headers(shop["admin"]))
+    assert res.status_code == 400
+
+
+def test_finished_operation_keeps_its_instructions(client, shop):
+    op = _op(_job(shop), 1, shop["types"]["LAYOUT"], lead=shop["ana"], status=OperationStatus.COMPLETED)
+    res = client.patch(
+        f"/api/v1/operations/{op.id}/instructions", json={"notes": "late change"}, headers=_headers(shop["admin"])
+    )
+    assert res.status_code == 409
+    assert res.get_json()["error"]["code"] == "OPERATION_FINISHED"

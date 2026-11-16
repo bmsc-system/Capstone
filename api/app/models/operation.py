@@ -31,15 +31,13 @@ class ReworkReasonCategory(enum.Enum):
     OTHER = "OTHER"
 
 
-MAX_HELPERS = 2
-
 
 class OperationHelper(db.Model):
     """A helper on an operation's crew. The lead is JobOperation.assigned_worker."""
 
     __tablename__ = "operation_helpers"
     __table_args__ = (
-        db.CheckConstraint("position IN (1, 2)", name="ck_operation_helper_position"),
+        db.CheckConstraint("position >= 1", name="ck_operation_helper_position"),
     )
 
     operation_id = db.Column(
@@ -57,7 +55,7 @@ class OperationHelper(db.Model):
 class JobOperation(db.Model):
     """Shop-floor operation step within a job order (table: operations).
 
-    The crew is the lead (assigned_worker) plus up to two helpers. Target hours
+    The crew is the lead (assigned_worker) plus any number of helpers. Target hours
     are elapsed time for the whole crew, and every member is booked for the
     operation's working periods."""
 

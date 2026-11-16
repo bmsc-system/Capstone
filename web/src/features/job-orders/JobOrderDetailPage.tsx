@@ -79,6 +79,8 @@ import { jobOrderPrintBlockers } from '../reports/jobOrderPrintReadiness';
 import JobAuditHistory from '../audit/JobAuditHistory';
 import { confirmAction } from '../../utils/confirmAction';
 import JobNotice from './JobNotice';
+import OperationInstructions from './OperationInstructions';
+import { operationsApi } from '../../api/operations.api';
 
 const RESCHEDULE_REASON_CODES = new Set(
   RESCHEDULE_REASON_OPTIONS.map((o) => o.value as string)
@@ -520,6 +522,8 @@ function JobOrderDetailView() {
   const printBlockers = jobOrderPrintBlockers(job);
   const isInvoicedOrDelivered = Boolean(job.salesInvoice) || isJobReleasedForDelivery(job);
   const deliveryStep = isAdmin ? nextDeliveryStep(job.status) : null;
+  // Instructions change on the plan page while the job is a draft, and not at all once it is closed.
+  const instructionsLocked = ['DRAFT', 'CANCELLED', 'FOR_DELIVERY', 'DELIVERED'].includes(job.status);
   const materialRows = [
     ...rowsFromPlanned(job.plannedMaterials),
     ...(canManage ? rowsFromPurchases(purchases) : rowsFromSummary(job.materialLines || [])),
@@ -1040,6 +1044,25 @@ function JobOrderDetailView() {
                           </div>
                         </div>
                         )}
+
+                        <OperationInstructions
+                          className="op-card__instr"
+                          notes={op.notes}
+                          onSave={
+                            isAdmin && op.status !== 'COMPLETED' && !instructionsLocked
+                              ? async (text) => {
+                                  try {
+                                    await operationsApi.updateInstructions(op.id, text);
+                                    message.success(text ? 'Instructions saved' : 'Instructions removed');
+                                    await fetchJob();
+                                  } catch (err) {
+                                    message.error(getErrorMessage(err));
+                                    throw err;
+                                  }
+                                }
+                              : undefined
+                          }
+                        />
 
                         {op.isOutsourced ? null : (
                         <Collapse

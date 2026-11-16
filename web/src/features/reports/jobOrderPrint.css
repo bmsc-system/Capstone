@@ -36,3 +36,22 @@
     display: none;
   }
 }
+
+/* Operation cell: the name, then the instructions for that step. */
+.jo-print-op-name {
+  font-weight: 700;
+}
+
+.jo-print-op-instr {
+  margin-top: 2px;
+  font-size: 8.5pt;
+  line-height: 1.35;
+  font-style: italic;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A start or end time stays on one line. */
+.jo-print-ops td.jo-print-when {
+  white-space: nowrap;
+}

@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { InputNumber, Button, Select, Typography, Alert, Tag, Tooltip, Popover, Badge, message, Input } from 'antd';
+import { InputNumber, Button, Select, Typography, Alert, Tag, Tooltip, message } from 'antd';
 import InfoTip from '../../components/InfoTip';
 import {
   CloseOutlined,
   DeleteOutlined,
   DownOutlined,
-  FileTextOutlined,
   LockOutlined,
   PlusOutlined,
   StarFilled,
@@ -31,6 +30,7 @@ import JobOrderFlowSteps, {
 } from './JobOrderFlowSteps';
 import { jobOrdersListPath } from './jobOrderListPaths';
 import JobInfoCard from './JobInfoCard';
+import OperationInstructions from './OperationInstructions';
 import RecommendationWeightsButton from './RecommendationWeights';
 import { PersonAvatar, PersonChip } from '../../components/PersonAvatar';
 import { personLabel } from '../../utils/people';
@@ -78,7 +78,7 @@ type OpFormRow = {
   machineTypeId?: string;
   machineUnitId?: string;
   assignedWorkerId?: string;
-  /** Up to MAX_HELPERS; no helpers on outsourced work. */
+  /** Any number of helpers; none on outsourced work. */
   helperIds?: string[];
   estimatedHours?: number | null;
   turnaroundDays?: number | null;
@@ -88,7 +88,6 @@ type OpFormRow = {
   notes?: string;
 };
 
-const MAX_HELPERS = 2;
 
 /** Finishing is the final operation: it stays last, and new operations go before it. */
 const FINAL_OPERATION_CODE = 'FINISHING';
@@ -1133,7 +1132,7 @@ export default function JobOrderPlanningPage() {
         ),
       );
     const setHelpers = (next: string[]) => patchRow(index, { helperIds: next });
-    const canAddHelper = !readOnly && Boolean(record.assignedWorkerId) && helpers.length < MAX_HELPERS;
+    const canAddHelper = !readOnly && Boolean(record.assignedWorkerId);
     const suggestions = rowSuggestions[index] || [];
     const gate = rowGates[index];
     const applyPair = (workerId?: string, unitId?: string) => {
@@ -1237,7 +1236,7 @@ export default function JobOrderPlanningPage() {
             }}
           />
           {canAddHelper ? (
-            <Tooltip title={`Add a helper (up to ${MAX_HELPERS})`}>
+            <Tooltip title="Add a helper">
               <Button
                 type="text"
                 className="jo-op__icon-btn"
@@ -1308,41 +1307,6 @@ export default function JobOrderPlanningPage() {
       />
     );
 
-  const renderNoteButton = (record: OpFormRow, index: number) => {
-    const note = record.notes?.trim() || '';
-    return (
-      <Popover
-        trigger="click"
-        placement="bottomRight"
-        title="Instructions"
-        content={
-          <div className="jo-op__note-pop">
-            <Input.TextArea
-              autoSize={{ minRows: 3, maxRows: 8 }}
-              maxLength={1000}
-              showCount
-              placeholder="Tolerances, setup, special handling"
-              value={record.notes ?? ''}
-              disabled={readOnly}
-              onChange={(e) => patchRow(index, { notes: e.target.value })}
-            />
-          </div>
-        }
-      >
-        <Tooltip title={note ? note.slice(0, 140) : 'Add instructions'}>
-          <Badge count={note ? 1 : 0} size="small" offset={[-4, 4]} color="var(--c-primary)">
-            <Button
-              type="text"
-              className={`jo-op__icon-btn${note ? ' is-on' : ''}`}
-              icon={<FileTextOutlined />}
-              aria-label={note ? 'Edit instructions (1 note)' : 'Add instructions'}
-            />
-          </Badge>
-        </Tooltip>
-      </Popover>
-    );
-  };
-
   /** Lead suggestions shown in the panel; helper picks only count when there are no leads. */
   const suggestionCount = (index: number, key: string) =>
     Math.min((rowSuggestions[index] || []).length || (helperSuggestions[key] || []).length, 8);
@@ -1359,12 +1323,12 @@ export default function JobOrderPlanningPage() {
     }
     const suggestions = rowSuggestions[index] || [];
     const qualifiedWorkers = rowWorkers[index] || [];
-    const helperSugs = (helperSuggestions[row?.key || ''] || []).slice(0, 5);
     const rowHelpers = (row?.helperIds || []).filter(Boolean);
-    const canAddHelper =
-      !readOnly &&
-      Boolean(row?.assignedWorkerId) &&
-      rowHelpers.length < MAX_HELPERS;
+    // Already on the crew: not suggested again.
+    const helperSugs = (helperSuggestions[row?.key || ''] || [])
+      .filter((s) => s.workerId !== row?.assignedWorkerId && !rowHelpers.includes(s.workerId))
+      .slice(0, 5);
+    const canAddHelper = !readOnly && Boolean(row?.assignedWorkerId);
     if (!suggestions.length && !helperSugs.length) return null;
     const topId = suggestions[0]?.workerId;
     const assignedId = row?.assignedWorkerId;
@@ -1440,7 +1404,7 @@ export default function JobOrderPlanningPage() {
           <>
             <div className="jo-op__more-head" style={{ marginTop: 10 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Suggested helpers — click to add (up to {MAX_HELPERS})
+                Suggested helpers — click to add
               </Text>
             </div>
             <div className="jo-op__picks">
@@ -1450,7 +1414,7 @@ export default function JobOrderPlanningPage() {
                   key={s.workerId}
                   onClick={() =>
                     patchRow(index, {
-                      helperIds: [...rowHelpers, s.workerId].slice(0, MAX_HELPERS),
+                      helperIds: [...rowHelpers, s.workerId],
                     })
                   }
                   className="jo-op__pick is-helper"
@@ -1536,7 +1500,6 @@ export default function JobOrderPlanningPage() {
               {renderTargetCell(record, index)}
             </div>
             <div className="jo-op__tools">
-              {renderNoteButton(record, index)}
               {!readOnly ? (
                 <Tooltip title={operations.length > 1 ? 'Remove step' : undefined}>
                   <Button
@@ -1554,6 +1517,11 @@ export default function JobOrderPlanningPage() {
             </div>
           </div>
           {open ? <div className="jo-op__more">{renderSuggestions(index)}</div> : null}
+          <OperationInstructions
+            className="jo-op__instr"
+            notes={record.notes}
+            onSave={readOnly ? undefined : (text) => patchRow(index, { notes: text })}
+          />
         </div>
       </li>
     );

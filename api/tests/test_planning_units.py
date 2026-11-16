@@ -385,4 +385,6 @@ def test_earlier_steps_without_a_crew_fall_back_to_their_target_hours(client, sh
                 "machineTypeId": shop["lathe"].id}]
     by_hours = _gate_suggest(client, shop, job, hoursBefore=2)["suggestions"]
     unplaced = _gate_suggest(client, shop, job, hoursBefore=2, stepsBefore=earlier)["suggestions"]
-    assert [s["nextFreeStart"] for s in by_hours] == [s["nextFreeStart"] for s in unplaced]
+    # During working hours "free now" is the request time, which differs by
+    # microseconds between the two calls: compare to the minute.
+    assert [s["nextFreeStart"][:16] for s in by_hours] == [s["nextFreeStart"][:16] for s in unplaced]
