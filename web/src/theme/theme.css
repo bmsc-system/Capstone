@@ -163,6 +163,14 @@ input[type='number'],
   }
 }
 
+/* Typed passwords: Inter's dots are large and widely spaced (most of all on
+ * phones), so the hidden characters use the system font's smaller dots.
+ * The placeholder keeps the app font. */
+input[type='password']:not(:placeholder-shown) {
+  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: 0.1em;
+}
+
 /* Disabled inputs read as "locked", not as empty fields. */
 .ant-input-disabled,
 .ant-input-number-disabled,
