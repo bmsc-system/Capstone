@@ -48,10 +48,15 @@ import { isJobFinished, nextDeliveryStep } from './jobStage';
 
 type ListTab = 'production' | 'drafts' | 'archived';
 
-function tabFromSearch(param: string | null): ListTab {
+/** The Administrator opens on the jobs waiting to be planned; others on released jobs. */
+function defaultTab(isAdmin: boolean): ListTab {
+  return isAdmin ? 'drafts' : 'production';
+}
+
+function tabFromSearch(param: string | null, isAdmin = false): ListTab {
   // Legacy ?tab=archived → handled by redirect to /job-orders/archived
   if (isJobOrderListTab(param)) return param;
-  return 'production';
+  return defaultTab(isAdmin);
 }
 
 type JobOrderListPageProps = {
@@ -257,8 +262,9 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isAdmin, canOfficeWrite, user } = useAuth();
   const [listTab, setListTab] = useState<ListTab>(() =>
-    archivedOnly ? 'archived' : tabFromSearch(searchParams.get('tab'))
+    archivedOnly ? 'archived' : tabFromSearch(searchParams.get('tab'), isAdmin)
   );
   const [draftCount, setDraftCount] = useState(0);
   const [archivedCount, setArchivedCount] = useState(0);
@@ -285,12 +291,11 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
     setSelectedKeys((keys) =>
       keys.includes(jobId) ? keys.filter((k) => k !== jobId) : [...keys, jobId]
     );
-  const { isAdmin, canOfficeWrite, user } = useAuth();
   // Office Staff see their own encoded job orders first; the rest of the
   // office's work stays one click away.
   const ownerFilterShown = canOfficeWrite && !isAdmin;
   const [ownerFilter, setOwnerFilter] = useState<'mine' | 'all'>(() =>
-    canOfficeWrite && !isAdmin && tabFromSearch(searchParams.get('tab')) === 'drafts' ? 'mine' : 'all'
+    canOfficeWrite && !isAdmin && tabFromSearch(searchParams.get('tab'), isAdmin) === 'drafts' ? 'mine' : 'all'
   );
   const isPhone = useIsPhone();
   const wideList = useMediaQuery(WIDE_LIST_QUERY);
@@ -306,9 +311,9 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
       navigate('/job-orders/archived', { replace: true });
       return;
     }
-    const next = tabFromSearch(searchParams.get('tab'));
+    const next = tabFromSearch(searchParams.get('tab'), isAdmin);
     setListTab((prev) => (prev === next ? prev : next));
-  }, [searchParams, archivedOnly, navigate]);
+  }, [searchParams, archivedOnly, navigate, isAdmin]);
 
   const selectListTab = (tab: ListTab) => {
     if (archivedOnly) return;
@@ -317,8 +322,8 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
     setAwaitingMaterialOnly(false);
     setOwnerFilter(ownerFilterShown && tab === 'drafts' ? 'mine' : 'all');
     setSelectedKeys([]);
-    if (tab === 'drafts') setSearchParams({ tab: 'drafts' }, { replace: true });
-    else setSearchParams({}, { replace: true });
+    // The tab is in the address so Back and bookmarks return to it.
+    setSearchParams({ tab }, { replace: true });
   };
 
   const fetchJobs = async (tab: ListTab = listTab) => {
@@ -345,6 +350,12 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
         jobOrdersApi
           .list({ scope: 'drafts' })
           .then((drafts) => setDraftCount(drafts.data.length))
+          .catch(() => undefined);
+      }
+      if (tab !== 'production' && releasedCount == null) {
+        jobOrdersApi
+          .list({ scope: 'production', summary: true })
+          .then((released) => setReleasedCount(released.data.length))
           .catch(() => undefined);
       }
       if (tab !== 'archived') {
@@ -764,15 +775,17 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
           block={isPhone}
           value={listTab === 'archived' ? 'production' : listTab}
           onChange={selectListTab}
-          items={[
-            { label: 'Released', value: 'production', count: releasedCount },
-            {
+          items={(() => {
+            const released = { label: 'Released', value: 'production' as ListTab, count: releasedCount };
+            const toPlan = {
               label: isAdmin ? 'To plan' : 'Pending',
-              value: 'drafts',
+              value: 'drafts' as ListTab,
               count: draftCount,
-              countTone: draftCount > 0 ? 'red' : undefined,
-            },
-          ]}
+              countTone: draftCount > 0 ? ('red' as const) : undefined,
+            };
+            // The Administrator's work starts with planning, so To plan comes first.
+            return isAdmin ? [toPlan, released] : [released, toPlan];
+          })()}
         />
       </div>
     ) : null;

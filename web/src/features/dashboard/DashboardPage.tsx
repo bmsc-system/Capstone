@@ -93,7 +93,8 @@ export default function DashboardPage() {
 function AdminDashboard() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<Load<JobOrder[]>>({ data: null, failed: false });
-  const [toPlan, setToPlan] = useState<number | null>(null);
+  const [drafts, setDrafts] = useState<Load<JobOrder[]>>({ data: null, failed: false });
+  const toPlan = drafts.data ? drafts.data.length : null;
   const [units, setUnits] = useState<Load<MachineUnitStatus[]>>({ data: null, failed: false });
   const [board, setBoard] = useState<Load<ScheduleBoardResponse>>({ data: null, failed: false });
   const week = useMemo(() => periodBounds(shopNow(), 'week'), []);
@@ -106,8 +107,8 @@ function AdminDashboard() {
       .catch(() => alive && setJobs({ data: null, failed: true }));
     jobOrdersApi
       .list({ scope: 'drafts', summary: true })
-      .then(({ data }) => alive && setToPlan(data.length))
-      .catch(() => undefined);
+      .then(({ data }) => alive && setDrafts({ data, failed: false }))
+      .catch(() => alive && setDrafts({ data: null, failed: true }));
     operationsApi
       .machineUnitStatus(false)
       .then(({ data }) => alive && setUnits({ data, failed: false }))
@@ -136,6 +137,15 @@ function AdminDashboard() {
       overdue: list.filter(isJobOverdue).length,
     };
   }, [jobs.data]);
+
+  // Waiting to be planned, nearest date required first (earliest due date).
+  const planQueue = useMemo(
+    () =>
+      [...(drafts.data || [])].sort((a, b) =>
+        String(a.dueDate || '9999').localeCompare(String(b.dueDate || '9999')),
+      ),
+    [drafts.data],
+  );
 
   const recent = useMemo(
     () =>
@@ -197,7 +207,7 @@ function AdminDashboard() {
           value={jobStats.active}
           loading={jobsLoading}
           hint={toPlan != null ? `${toPlan} to plan` : undefined}
-          onClick={() => navigate('/job-orders')}
+          onClick={() => navigate('/job-orders?tab=production')}
         />
         <StatCard
           icon={<PlayCircleOutlined />}
@@ -206,7 +216,7 @@ function AdminDashboard() {
           value={jobStats.inProgress}
           loading={jobsLoading}
           hint={jobStats.waiting ? `${jobStats.waiting} waiting for materials` : 'On the shop floor now'}
-          onClick={() => navigate('/job-orders')}
+          onClick={() => navigate('/job-orders?tab=production')}
         />
         <StatCard
           icon={<CheckCircleOutlined />}
@@ -215,7 +225,7 @@ function AdminDashboard() {
           value={jobStats.completed + jobStats.forDelivery}
           loading={jobsLoading}
           hint={`${jobStats.forDelivery} For Delivery · ${jobStats.completed} Completed`}
-          onClick={() => navigate('/job-orders')}
+          onClick={() => navigate('/job-orders?tab=production')}
         />
         <StatCard
           icon={<WarningOutlined />}
@@ -225,9 +235,80 @@ function AdminDashboard() {
           valueTone={jobStats.overdue > 0 ? 'red' : undefined}
           loading={jobsLoading}
           hint="Past date required"
-          onClick={() => navigate('/job-orders')}
+          onClick={() => navigate('/job-orders?tab=production')}
         />
       </StatGrid>
+
+      <SectionCard
+        className="dashboard-plan"
+        title="To plan"
+        subtitle={
+          toPlan ? `${toPlan} job order${toPlan === 1 ? '' : 's'} waiting · nearest date required first` : 'Job orders waiting to be planned'
+        }
+        flush
+        extra={
+          <Button type="link" size="small" onClick={() => navigate('/job-orders?tab=drafts')}>
+            View all <RightOutlined />
+          </Button>
+        }
+      >
+        {drafts.failed ? (
+          <CardError what="job orders to plan" />
+        ) : (
+          <DataTable<JobOrder>
+            card={{ title: 'title', subtitle: ['jobNumber', 'clientName'] }}
+            rowKey="id"
+            loading={!drafts.data && !drafts.failed}
+            dataSource={planQueue.slice(0, 5)}
+            pagination={false}
+            scroll={{ x: 760 }}
+            locale={{
+              emptyText: (
+                <EmptyState compact icon={<FileTextOutlined />} title="Nothing to plan" description="New job orders from the office show up here." />
+              ),
+            }}
+            onRow={(job) => rowOpenProps(() => navigate(`/job-orders/${job.id}/plan`))}
+            columns={[
+              {
+                title: 'Job #',
+                key: 'jobNumber',
+                width: 136,
+                render: (_: unknown, job) => <IdChip>{job.jobNumber || job.id.slice(0, 8)}</IdChip>,
+              },
+              { title: 'Client', dataIndex: 'clientName', width: 180, ellipsis: true },
+              { title: 'Title', dataIndex: 'title', ellipsis: true },
+              {
+                title: 'Date required',
+                key: 'dueDate',
+                width: 130,
+                render: (_: unknown, job) => (
+                  <span className={`ui-tabular${isJobOverdue(job) ? ' tone-text--red' : ''}`}>
+                    {formatShop(job.dueDate, 'MMM D, YYYY')}
+                  </span>
+                ),
+              },
+              {
+                title: '',
+                key: 'plan',
+                width: 96,
+                align: 'right',
+                render: (_: unknown, job) => (
+                  <Button
+                    size="small"
+                    type="primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/job-orders/${job.id}/plan`);
+                    }}
+                  >
+                    Plan
+                  </Button>
+                ),
+              },
+            ]}
+          />
+        )}
+      </SectionCard>
 
       <div className="dashboard-page__charts">
         <SectionCard
@@ -339,7 +420,7 @@ function AdminDashboard() {
         subtitle="Last changed first"
         flush
         extra={
-          <Button type="link" size="small" onClick={() => navigate('/job-orders')}>
+          <Button type="link" size="small" onClick={() => navigate('/job-orders?tab=production')}>
             View all <RightOutlined />
           </Button>
         }
