@@ -423,7 +423,7 @@ export default function ScanToolPage() {
           }}
         >
           <Input
-            placeholder={blocked ? 'e.g. SEED-ANGLE-GRINDER-001' : 'Or type the code'}
+            placeholder={blocked ? 'Type the code on the tool label' : 'Or type the code'}
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value)}
             autoCapitalize="characters"
