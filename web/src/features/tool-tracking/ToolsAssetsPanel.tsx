@@ -13,6 +13,7 @@ import {
   QrcodeOutlined,
   SearchOutlined,
   SwapOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { type Dayjs } from 'dayjs';
 import { inventoryApi, toolsApi } from '../../api/tools.api';
@@ -290,6 +291,7 @@ export default function ToolsAssetsPanel() {
 
   const confirmRemoveUnit = (u: ToolUnit) =>
     confirmAction({
+      icon: <DeleteOutlined />,
       title: `Remove ${u.assetCode}?`,
       content: 'If it was borrowed before, it is retired instead so its history is kept.',
       okText: 'Remove',
@@ -308,6 +310,7 @@ export default function ToolsAssetsPanel() {
 
   const confirmRemoveType = (t: ToolType) =>
     confirmAction({
+      icon: <DeleteOutlined />,
       title: `Remove ${t.name}?`,
       content: t.totalUnits
         ? `Its ${t.totalUnits} unit${t.totalUnits === 1 ? ' is' : 's are'} removed too.`

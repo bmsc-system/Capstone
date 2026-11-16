@@ -12,6 +12,8 @@ import {
   CheckCircleOutlined,
   EditOutlined,
   CopyOutlined,
+  LinkOutlined,
+  MailOutlined,
 } from '@ant-design/icons';
 import { usersApi, type InviteDelivery } from '../../api/users.api';
 import { getErrorMessage } from '../../api/client';
@@ -33,7 +35,7 @@ type StatusFilter = 'active' | 'inactive';
 
 function SetupLinkBlock({ setupUrl }: { setupUrl: string }) {
   return (
-    <Space.Compact style={{ width: '100%', marginTop: 12 }}>
+    <Space.Compact style={{ width: '100%', marginTop: 16 }}>
       <Input value={setupUrl} readOnly />
       <Button
         icon={<CopyOutlined />}
@@ -57,6 +59,7 @@ function showSetupLink(setupUrl: string | null | undefined, name: string) {
   if (!setupUrl) return;
   showNotice({
     title: 'Setup link',
+    icon: <LinkOutlined />,
     wide: true,
     okText: 'Done',
     content: (
@@ -82,6 +85,7 @@ function reportInviteDelivery(
   }
   showNotice({
     title: 'Setup link not sent',
+    icon: <MailOutlined />,
     wide: true,
     okText: 'Done',
     content: (
@@ -192,6 +196,7 @@ export default function UsersPage() {
 
   const copyInviteLink = (u: User) => {
     confirmAction({
+      icon: <LinkOutlined />,
       title: `Make a new setup link for ${u.fullName}?`,
       content: 'Any setup link sent before stops working. Nothing is emailed.',
       okText: 'Make link',
@@ -265,6 +270,7 @@ export default function UsersPage() {
 
   const confirmDisable = (id: string, name: string) => {
     confirmAction({
+      icon: <StopOutlined />,
       title: `Deactivate ${name}?`,
       content: 'They can no longer sign in. Their history is kept.',
       okText: 'Deactivate',
@@ -389,6 +395,7 @@ export default function UsersPage() {
             label: 'Reactivate',
             onClick: () => {
               confirmAction({
+                icon: <CheckCircleOutlined />,
                 title: `Reactivate ${record.fullName}?`,
                 content: 'They can sign in again with their current password.',
                 okText: 'Reactivate',

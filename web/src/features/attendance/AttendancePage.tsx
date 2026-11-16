@@ -27,6 +27,7 @@ import {
   LogoutOutlined,
   MoreOutlined,
   RightOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { attendanceApi } from '../../api/attendance.api';
@@ -43,6 +44,7 @@ import type {
   WorkerAbsence,
 } from '../../types';
 import { confirmAction } from '../../utils/confirmAction';
+import { DialogField, DialogFields } from '../../utils/DialogField';
 
 type ModalMode = 'in' | 'out' | 'edit';
 
@@ -249,6 +251,7 @@ export default function AttendancePage() {
     if (!row.record) return;
     const id = row.record.id;
     confirmAction({
+      icon: <DeleteOutlined />,
       title: `Delete ${row.workerName}'s attendance for ${formatShop(row.date, 'MMM D, YYYY')}?`,
       content: 'Only for a record entered by mistake.',
       okText: 'Delete',
@@ -307,17 +310,11 @@ export default function AttendancePage() {
     let note = '';
     confirmAction({
       wide: true,
+      icon: <CalendarOutlined />,
       title: `Mark ${row.workerName} as away?`,
       content: (
-        <div style={{ marginTop: 8, display: 'grid', gap: 12 }}>
-          <div style={{ fontSize: 13, color: '#475569' }}>
-            Their operations in this period are handled for you: work not started goes to the best
-            free worker with the skill, or moves to after they are back when nobody is free; work
-            already started is handed to a helper or a replacement. You are told what was done and
-            can change it.
-          </div>
-          <div>
-            <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>Reason</div>
+        <DialogFields intro="Their work in this period is covered for you: given to a free worker with the skill, or moved to after they are back. You see what changed and can adjust it.">
+          <DialogField label="Reason">
             <Select
               style={{ width: '100%' }}
               defaultValue="ABSENT"
@@ -330,10 +327,9 @@ export default function AttendancePage() {
                 { value: 'LEAVE', label: 'On leave' },
               ]}
             />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>First day away</div>
+          </DialogField>
+          <div className="app-dialog-row">
+            <DialogField label="First day away">
               <DatePicker
                 style={{ width: '100%' }}
                 defaultValue={dayjs(row.date)}
@@ -344,9 +340,8 @@ export default function AttendancePage() {
                   if (d) firstDay = d;
                 }}
               />
-            </div>
-            <div>
-              <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>Last day away</div>
+            </DialogField>
+            <DialogField label="Last day away">
               <DatePicker
                 style={{ width: '100%' }}
                 defaultValue={dayjs(row.date)}
@@ -357,18 +352,20 @@ export default function AttendancePage() {
                   if (d) lastDay = d;
                 }}
               />
-            </div>
+            </DialogField>
           </div>
-          <Input
-            maxLength={255}
-            placeholder="Note (optional)"
-            onChange={(e) => {
-              note = e.target.value;
-            }}
-          />
-        </div>
+          <DialogField label="Note" optional>
+            <Input
+              maxLength={255}
+              placeholder="For example: family emergency"
+              onChange={(e) => {
+                note = e.target.value;
+              }}
+            />
+          </DialogField>
+        </DialogFields>
       ),
-      okText: 'Mark away and cover their work',
+      okText: 'Mark away',
       onOk: async () => {
         try {
           const { data } = await attendanceApi.markAway({
@@ -405,6 +402,7 @@ export default function AttendancePage() {
 
   const markBack = (a: WorkerAbsence) =>
     confirmAction({
+      icon: <CalendarOutlined />,
       title: `${a.workerName ?? 'This worker'} is not away after all?`,
       content: 'They can be scheduled again in that period. Work already handed to others stays with them.',
       okText: 'Yes, remove it',

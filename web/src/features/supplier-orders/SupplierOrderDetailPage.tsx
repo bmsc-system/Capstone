@@ -10,6 +10,11 @@ import {
   PrinterOutlined,
   StopOutlined,
   CalendarOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  InboxOutlined,
+  RollbackOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -32,6 +37,7 @@ import {
 import ResponsiveTable from '../../components/ui/ResponsiveTable';
 import './supplierOrderDetail.css';
 import { confirmAction } from '../../utils/confirmAction';
+import { DialogField, DialogFields } from '../../utils/DialogField';
 
 const DELIVERY_MODE_OPTIONS: { value: DeliveryMode; label: string }[] = [
   { value: 'PICKUP', label: 'Pick-up' },
@@ -41,22 +47,24 @@ const DELIVERY_MODE_OPTIONS: { value: DeliveryMode; label: string }[] = [
 function askDate(title: string, intro: string, okText: string, onOk: (d: string) => Promise<void>) {
   let picked: Dayjs = shopToday();
   confirmAction({
-      wide: true,
+    wide: true,
+    icon: <InboxOutlined />,
     title,
     content: (
-      <div style={{ marginTop: 8 }}>
-        <div style={{ marginBottom: 8, fontSize: 13, color: '#475569' }}>{intro}</div>
-        <DatePicker
-          style={{ width: '100%' }}
-          defaultValue={shopToday()}
-          format="MMM D, YYYY"
-          allowClear={false}
-          disabledDate={isFutureShopDay}
-          onChange={(d) => {
-            if (d) picked = d;
-          }}
-        />
-      </div>
+      <DialogFields intro={intro}>
+        <DialogField label="Date received">
+          <DatePicker
+            style={{ width: '100%' }}
+            defaultValue={shopToday()}
+            format="MMM D, YYYY"
+            allowClear={false}
+            disabledDate={isFutureShopDay}
+            onChange={(d) => {
+              if (d) picked = d;
+            }}
+          />
+        </DialogField>
+      </DialogFields>
     ),
     okText,
     onOk: () => onOk(picked.format('YYYY-MM-DD')),
@@ -71,6 +79,7 @@ const poNumberOf = (code: string, year: number, seq: number) =>
  *  paper POs came first, so the first one can carry on from the last paper number). */
 function IssueFields({
   intro,
+  dateLabel,
   code,
   year,
   nextSeq,
@@ -80,6 +89,7 @@ function IssueFields({
   startSeq,
 }: {
   intro: string;
+  dateLabel: string;
   code: string | null | undefined;
   year: number;
   nextSeq: number;
@@ -91,21 +101,29 @@ function IssueFields({
 }) {
   const [seq, setSeq] = useState<number>(startSeq ?? nextSeq);
   return (
-    <div style={{ marginTop: 8 }}>
-      <div style={{ marginBottom: 8, fontSize: 13, color: '#475569' }}>{intro}</div>
-      <DatePicker
-        style={{ width: '100%' }}
-        defaultValue={startDate ?? shopToday()}
-        format="MMM D, YYYY"
-        allowClear={false}
-        disabledDate={isFutureShopDay}
-        onChange={(d) => {
-          if (d) onDate(d);
-        }}
-      />
+    <DialogFields intro={intro}>
+      <DialogField label={dateLabel}>
+        <DatePicker
+          style={{ width: '100%' }}
+          defaultValue={startDate ?? shopToday()}
+          format="MMM D, YYYY"
+          allowClear={false}
+          disabledDate={isFutureShopDay}
+          onChange={(d) => {
+            if (d) onDate(d);
+          }}
+        />
+      </DialogField>
       {code ? (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>PO number</div>
+        <DialogField
+          label="PO number"
+          help={
+            <>
+              Prints as <strong>{poNumberOf(code, year, seq || nextSeq)}</strong>. Type another number to carry on
+              from your paper POs; later ones continue from the highest number used.
+            </>
+          }
+        >
           <Space.Compact style={{ width: '100%' }}>
             <Input
               disabled
@@ -127,14 +145,9 @@ function IssueFields({
               }}
             />
           </Space.Compact>
-          <div style={{ marginTop: 6, fontSize: 12, color: '#64748b' }}>
-            Prints as <strong>{poNumberOf(code, year, seq || nextSeq)}</strong>. The next one is{' '}
-            {poNumberOf(code, year, nextSeq)}; type another number to carry on from your paper POs.
-            Later POs to this supplier continue from the highest number used.
-          </div>
-        </div>
+        </DialogField>
       ) : null}
-    </div>
+    </DialogFields>
   );
 }
 
@@ -283,10 +296,12 @@ export default function SupplierOrderDetailPage() {
     let seq = nextSeq;
     confirmAction({
       wide: true,
-      title: `Send ${order.supplierName} order for approval?`,
+      icon: <SendOutlined />,
+      title: 'Send for approval?',
       content: (
         <IssueFields
-          intro="The Admin approves it before the PO is issued. The lines lock while it waits; you can take it back to change it. Date to issue:"
+          intro={`${order.supplierName} order. The Admin approves it before the PO is issued. The lines lock while it waits; you can take it back to change it.`}
+          dateLabel="Date to issue"
           code={order.supplierCode}
           year={order.nextPoYear ?? shopToday().year()}
           nextSeq={nextSeq}
@@ -326,12 +341,14 @@ export default function SupplierOrderDetailPage() {
     let seq = startSeq;
     confirmAction({
       wide: true,
-      title: `Approve and issue ${order.supplierName} order?`,
+      icon: <CheckCircleOutlined />,
+      title: 'Approve and issue?',
       content: (
         <IssueFields
-          intro={`This assigns the PO number, sets the expected delivery date from the supplier's ${
+          intro={`${order.supplierName} order. This assigns the PO number, sets the expected delivery date from the supplier's ${
             order.supplierLeadTimeDays ?? '—'
-          }-day lead time, and locks the lines. Date issued:`}
+          }-day lead time, and locks the lines.`}
+          dateLabel="Date issued"
           code={order.supplierCode}
           year={order.nextPoYear ?? shopToday().year()}
           nextSeq={nextSeq}
@@ -362,19 +379,21 @@ export default function SupplierOrderDetailPage() {
   const sendBack = () => {
     let note = '';
     confirmAction({
+      icon: <RollbackOutlined />,
       title: 'Send this order back to Office Staff?',
       content: (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>What should be changed?</div>
-          <Input.TextArea
-            rows={3}
-            maxLength={1000}
-            placeholder="For example: reduce the quantity of the round bar to 4 pcs"
-            onChange={(e) => {
-              note = e.target.value;
-            }}
-          />
-        </div>
+        <DialogFields>
+          <DialogField label="What should be changed?">
+            <Input.TextArea
+              rows={3}
+              maxLength={1000}
+              placeholder="For example: reduce the quantity of the round bar to 4 pcs"
+              onChange={(e) => {
+                note = e.target.value;
+              }}
+            />
+          </DialogField>
+        </DialogFields>
       ),
       okText: 'Send back',
       onOk: async () => {
@@ -429,7 +448,7 @@ export default function SupplierOrderDetailPage() {
       `Confirm delivery of ${order.poNumber}?`,
       `Deliveries arrive complete: all ${openLines.length} open line${
         openLines.length === 1 ? '' : 's'
-      } on this order are received on one date. Date received:`,
+      } on this order are received on one date.`,
       'Confirm delivery',
       (d) => run(() => supplierOrdersApi.receive(order.id, d), 'Delivery confirmed')
     );
@@ -443,6 +462,7 @@ export default function SupplierOrderDetailPage() {
         : 'Its materials go back to "to order".',
       okText: isDraft ? 'Discard draft' : 'Cancel order',
       danger: true,
+      icon: isDraft ? <DeleteOutlined /> : <CloseCircleOutlined />,
       cancelText: 'Keep',
       onOk: () =>
         run(() => supplierOrdersApi.cancel(order.id), isDraft ? 'Draft discarded' : 'Order cancelled'),
@@ -732,15 +752,22 @@ export default function SupplierOrderDetailPage() {
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
-            message={`Waiting for the Admin's approval${
-              order.submittedByName ? `. Sent by ${order.submittedByName}` : ''
-            }${order.submittedAt ? ` on ${formatShop(order.submittedAt, 'MMM D, h:mm A')}` : ''}.`}
+            title="Waiting for the Admin's approval"
             description={
-              canOfficeWrite
-                ? 'The lines are locked while it waits. Take it back if something needs to change.'
-                : isAdmin
-                  ? 'Check the lines and totals, then approve and issue it, or send it back with what to change.'
-                  : undefined
+              [
+                order.submittedByName || order.submittedAt
+                  ? `Sent${order.submittedByName ? ` by ${order.submittedByName}` : ''}${
+                      order.submittedAt ? ` on ${formatShop(order.submittedAt, 'MMM D, h:mm A')}` : ''
+                    }.`
+                  : '',
+                canOfficeWrite
+                  ? 'The lines are locked while it waits. Take it back if something needs to change.'
+                  : isAdmin
+                    ? 'Check the lines and totals, then approve and issue it, or send it back with what to change.'
+                    : '',
+              ]
+                .filter(Boolean)
+                .join(' ') || undefined
             }
           />
         ) : null}
@@ -749,7 +776,7 @@ export default function SupplierOrderDetailPage() {
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
-            message="The Admin sent this order back"
+            title="The Admin sent this order back"
             description={order.returnNote}
           />
         ) : null}

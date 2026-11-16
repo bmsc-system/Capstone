@@ -3,7 +3,7 @@ import { useArmed } from '../../hooks/useArmed';
 import { confirmAction } from '../../utils/confirmAction';
 import { formatHoursMinutes } from '../../utils/duration';
 import { Button, message } from 'antd';
-import { CheckCircleFilled, FileTextOutlined, WarningOutlined } from '@ant-design/icons';
+import { CheckCircleFilled, FileTextOutlined, WarningOutlined, CheckOutlined, PauseCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import dayjs from 'dayjs';
@@ -858,6 +858,8 @@ export default function AssignmentDetailPage() {
                             content:
                               'Mark it complete only when the work on this step is done. The Administrator checks it next.',
                             okText: 'Mark complete',
+                            cancelText: 'Not yet',
+                            icon: <CheckOutlined />,
                             onOk: () => runAction(op, 'complete'),
                           })
                         }
@@ -1012,6 +1014,7 @@ export default function AssignmentDetailPage() {
                         ? setOtherNote('')
                         : r.value === 'EMERGENCY'
                         ? confirmAction({
+                            icon: <PauseCircleOutlined />,
                             title: 'Pause for an emergency?',
                             content:
                               'Use this when you have to leave. The Administrator is told, and your work for the rest of today is handed to other workers or moved.',

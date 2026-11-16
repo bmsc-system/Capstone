@@ -28,6 +28,8 @@ import {
   ReloadOutlined,
   StopOutlined,
   InboxOutlined,
+  FolderOutlined,
+  MinusCircleOutlined,
 } from '@ant-design/icons';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -466,6 +468,7 @@ function JobOrderDetailView() {
   const handleSetMaterialNotRequired = () => {
     if (!job) return;
     confirmAction({
+      icon: <MinusCircleOutlined />,
       title: 'Set Materials needed to Not required?',
       content: 'For material the client supplies or the shop has in stock.',
       okText: 'Set Not required',
@@ -552,6 +555,7 @@ function JobOrderDetailView() {
 
   const handleArchive = () => {
     confirmAction({
+      icon: <FolderOutlined />,
       title: 'Archive this job order?',
       content: 'You can find it later under Archived.',
       okText: 'Archive',

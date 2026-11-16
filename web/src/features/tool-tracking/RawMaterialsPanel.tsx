@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, DatePicker, Descriptions, Drawer, Segmented, message } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { DownloadOutlined } from '@ant-design/icons';
+import { DownloadOutlined, InboxOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { Clock, Package, ShoppingCart, Truck } from 'lucide-react';
 import { inventoryApi } from '../../api/tools.api';
@@ -28,6 +28,7 @@ import {
 } from './inventoryLook';
 import { formatPoMaterialLabel } from '../../components/MaterialInputs';
 import { confirmAction } from '../../utils/confirmAction';
+import { DialogField, DialogFields } from '../../utils/DialogField';
 import { newestFirst } from '../../utils/newestFirst';
 
 function money(v: number | null | undefined) {
@@ -108,21 +109,23 @@ export default function RawMaterialsPanel() {
     let receivedDate = shopToday();
     confirmAction({
       wide: true,
+      icon: <InboxOutlined />,
       title: `Mark “${row.materialName}” received?`,
       content: (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ marginBottom: 8, fontSize: 13, color: '#475569' }}>Date received</div>
-          <DatePicker
-            style={{ width: '100%' }}
-            defaultValue={shopToday()}
-            format="MMM D, YYYY"
-            allowClear={false}
-            disabledDate={isFutureShopDay}
-            onChange={(d) => {
-              if (d) receivedDate = d;
-            }}
-          />
-        </div>
+        <DialogFields>
+          <DialogField label="Date received">
+            <DatePicker
+              style={{ width: '100%' }}
+              defaultValue={shopToday()}
+              format="MMM D, YYYY"
+              allowClear={false}
+              disabledDate={isFutureShopDay}
+              onChange={(d) => {
+                if (d) receivedDate = d;
+              }}
+            />
+          </DialogField>
+        </DialogFields>
       ),
       okText: 'Mark received',
       onOk: async () => {

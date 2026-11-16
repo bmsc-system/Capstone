@@ -8,6 +8,7 @@ import {
   QrcodeOutlined,
   StopOutlined,
   UndoOutlined,
+  ScanOutlined,
 } from '@ant-design/icons';
 import type { Html5Qrcode } from 'html5-qrcode';
 import { toolsApi } from '../../api/tools.api';
@@ -154,6 +155,7 @@ export default function ScanToolPage() {
 
         if (data.needsConfirm) {
           confirmAction({
+            icon: <ScanOutlined />,
             title: 'Scan again?',
             content: data.confirmMessage || 'You just scanned this item. Scan again?',
             okText: 'Yes, scan again',

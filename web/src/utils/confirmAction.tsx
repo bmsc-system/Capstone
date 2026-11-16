@@ -1,5 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Button, ConfigProvider, Modal, type ThemeConfig } from 'antd';
+import { ExclamationCircleOutlined, InfoCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { officeTheme, officeTouchTheme, workerTheme } from '../theme/antTheme';
+import { TOUCH_QUERY } from '../hooks/useViewport';
 import './confirmAction.css';
 
 type ConfirmOptions = {
@@ -7,10 +11,12 @@ type ConfirmOptions = {
   content?: ReactNode;
   okText?: string;
   cancelText?: string;
-  /** Maroon button for deleting, removing, disabling or signing out. */
+  /** Maroon icon and button for deleting, removing, disabling or signing out. */
   danger?: boolean;
-  /** Wider card for content such as a QR code or a date field. */
+  /** Wider box for content with fields, such as a date or a QR code. */
   wide?: boolean;
+  /** Icon in the round badge beside the title; a question mark (or ! for danger) by default. */
+  icon?: ReactNode;
   /** A rejected promise keeps the dialog open so the person can try again. */
   onOk?: () => unknown | Promise<unknown>;
   onCancel?: () => void;
@@ -21,6 +27,7 @@ type NoticeOptions = {
   content?: ReactNode;
   okText?: string;
   wide?: boolean;
+  icon?: ReactNode;
 };
 
 type DialogProps = ConfirmOptions & { single?: boolean; close: () => void };
@@ -29,7 +36,15 @@ type DialogProps = ConfirmOptions & { single?: boolean; close: () => void };
  *  double-click on the button that opened it, not a choice. */
 const ARM_DELAY_MS = 450;
 
-function Dialog({ title, content, okText, cancelText, danger, wide, onOk, onCancel, single, close }: DialogProps) {
+/** The dialog mounts outside the app's tree, so it takes the same theme the
+ *  screen behind it uses: worker app, office on a phone, or office. */
+function pickTheme(): ThemeConfig {
+  if (typeof document !== 'undefined' && document.querySelector('.worker-shell')) return workerTheme;
+  return typeof window !== 'undefined' && window.matchMedia?.(TOUCH_QUERY).matches ? officeTouchTheme : officeTheme;
+}
+
+function Dialog({ title, content, okText, cancelText, danger, wide, icon, onOk, onCancel, single, close }: DialogProps) {
+  const [open, setOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
 
@@ -39,79 +54,66 @@ function Dialog({ title, content, okText, cancelText, danger, wide, onOk, onCanc
   }, []);
 
   const cancel = () => {
-    if (busy) return;
-    close();
+    if (busy || !open) return;
+    setOpen(false);
     onCancel?.();
   };
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') cancel();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  });
-
   const confirm = async () => {
-    if (!armed || busy) return;
+    if (!armed || busy || !open) return;
     if (!onOk) {
-      close();
+      setOpen(false);
       return;
     }
     setBusy(true);
     try {
       await onOk();
-      close();
+      setOpen(false);
     } catch {
       setBusy(false);
     }
   };
 
+  const badge = icon ?? (danger ? <ExclamationCircleOutlined /> : single ? <InfoCircleOutlined /> : <QuestionCircleOutlined />);
+
   return (
-    <div
-      className="app-confirm-overlay"
-      role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && armed) cancel();
-      }}
-    >
-      <div
-        className={`app-confirm-card${wide ? ' app-confirm-card--wide' : ''}`}
-        role={single ? 'alertdialog' : 'dialog'}
-        aria-modal="true"
-        aria-labelledby="app-confirm-title"
-      >
-        <div id="app-confirm-title" className="app-confirm-card__title">
-          {title}
-        </div>
-        {content ? <div className="app-confirm-card__body">{content}</div> : null}
-        <div className="app-confirm-card__actions">
-          {single ? (
-            <button
-              type="button"
-              className="acct-sheet-btn acct-sheet-btn--primary"
-              onClick={() => armed && close()}
-            >
+    <Modal
+      open={open}
+      afterClose={close}
+      centered
+      width={wide ? 480 : 440}
+      closable={false}
+      keyboard={!busy}
+      mask={{ closable: armed && !busy }}
+      onCancel={cancel}
+      className={`app-dialog${single ? ' app-dialog--single' : ''}`}
+      title={
+        <span className="app-dialog__head">
+          <span className={`app-dialog__badge${danger ? ' app-dialog__badge--danger' : ''}`} aria-hidden="true">
+            {badge}
+          </span>
+          <span className="app-dialog__title">{title}</span>
+        </span>
+      }
+      footer={
+        single ? (
+          <Button type="primary" onClick={() => armed && setOpen(false)}>
+            {okText || 'OK'}
+          </Button>
+        ) : (
+          <>
+            <Button onClick={() => armed && cancel()} disabled={busy}>
+              {cancelText || 'Cancel'}
+            </Button>
+            <Button type="primary" danger={danger} loading={busy} onClick={confirm}>
               {okText || 'OK'}
-            </button>
-          ) : (
-            <>
-              <button type="button" className="acct-sheet-btn" onClick={() => armed && cancel()} disabled={busy}>
-                {cancelText || 'Cancel'}
-              </button>
-              <button
-                type="button"
-                className={`acct-sheet-btn ${danger ? 'acct-sheet-btn--danger' : 'acct-sheet-btn--primary'}`}
-                onClick={confirm}
-                disabled={busy}
-              >
-                {busy ? 'Working…' : okText || 'OK'}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+            </Button>
+          </>
+        )
+      }
+    >
+      {content}
+    </Modal>
   );
 }
 
@@ -131,18 +133,25 @@ function mount(props: Omit<DialogProps, 'close'>) {
   const root = createRoot(host);
   const close = () => {
     if (key) openTitles.delete(key);
-    root.unmount();
-    host.remove();
+    // Called after the closing animation; unmount outside React's render.
+    window.setTimeout(() => {
+      root.unmount();
+      host.remove();
+    });
   };
-  root.render(<Dialog {...props} close={close} />);
+  root.render(
+    <ConfigProvider theme={pickTheme()}>
+      <Dialog {...props} close={close} />
+    </ConfigProvider>
+  );
 }
 
-/** Ask before an action. Same look as the log-out confirm. */
+/** Ask before an action, in the app's own window. */
 export function confirmAction(options: ConfirmOptions) {
   mount(options);
 }
 
-/** A message with one OK button. */
+/** A message with one button. */
 export function showNotice(options: NoticeOptions) {
   mount({ ...options, single: true });
 }

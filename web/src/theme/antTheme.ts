@@ -144,6 +144,23 @@ const components: ThemeConfig['components'] = {
   Pagination: {
     itemSize: 28,
   },
+  /* One compact alert: 16px icon, 14px title, clean tints from the tone palette
+     (antd would derive a grey-brown error fill from the maroon). */
+  Alert: {
+    defaultPadding: '8px 12px',
+    withDescriptionPadding: '10px 14px',
+    withDescriptionIconSize: 16,
+    fontSizeLG: font.size.base,
+    colorInfoBg: tones.blue.bg,
+    colorInfoBorder: tones.blue.border,
+    colorWarning: '#d97706',
+    colorWarningBg: tones.amber.bg,
+    colorWarningBorder: tones.amber.border,
+    colorErrorBg: tones.red.bg,
+    colorErrorBorder: tones.red.border,
+    colorSuccessBg: tones.green.bg,
+    colorSuccessBorder: tones.green.border,
+  },
 };
 
 /** Office screens (Admin, Office Staff). */

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { Dayjs } from 'dayjs';
 import { Button, DatePicker, Drawer, Form, Input, InputNumber, Select, Space, message } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { DownloadOutlined, ExportOutlined, NumberOutlined, PlusOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { DownloadOutlined, ExportOutlined, NumberOutlined, PlusOutlined, ShoppingCartOutlined, CloseCircleOutlined, DeleteOutlined, RollbackOutlined } from '@ant-design/icons';
 import { BellRing, CalendarClock, CircleAlert, Package, Wallet } from 'lucide-react';
 import { analyticsApi } from '../../api/analytics.api';
 import { CONSUMABLE_UNITS } from '../../api/catalog.api';
@@ -24,6 +24,7 @@ import type {
   ReplenishmentItem,
 } from '../../types';
 import { confirmAction } from '../../utils/confirmAction';
+import { DialogField, DialogFields } from '../../utils/DialogField';
 import { exportCsv } from '../../utils/csvExport';
 import { formatShop, isFutureShopDay, shopToday } from '../../utils/shopTime';
 import { CategoryTile, InventorySummaryCards, type InventorySummaryCard } from './inventoryLook';
@@ -189,22 +190,22 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   const setCount = (item: ReplenishmentItem) => {
     let count: number | null = item.onHand ?? 0;
     confirmAction({
+      icon: <NumberOutlined />,
       title: `Count of ${item.name}`,
       content: (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ marginBottom: 6, fontSize: 13, color: '#475569' }}>
-            How many are on the shelf now? The stock on hand is set to this number.
-          </div>
-          <InputNumber
-            min={0}
-            defaultValue={count ?? 0}
-            style={{ width: '100%' }}
-            addonAfter={item.unit}
-            onChange={(v) => {
-              count = typeof v === 'number' ? v : null;
-            }}
-          />
-        </div>
+        <DialogFields>
+          <DialogField label="How many are on the shelf now?" help="The stock on hand is set to this number.">
+            <InputNumber
+              min={0}
+              defaultValue={count ?? 0}
+              style={{ width: '100%' }}
+              addonAfter={item.unit}
+              onChange={(v) => {
+                count = typeof v === 'number' ? v : null;
+              }}
+            />
+          </DialogField>
+        </DialogFields>
       ),
       okText: 'Save count',
       onOk: async () => {
@@ -231,6 +232,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
       content: `${num(u.quantity)} ${u.unit ?? ''} to ${u.workerName ?? 'the worker'} goes back to the stock on hand. Use this only for an entry made by mistake.`,
       okText: 'Undo',
       danger: true,
+      icon: <RollbackOutlined />,
       onOk: async () => {
         try {
           await consumablesApi.undoIssue(u.id);
@@ -318,6 +320,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
       title: `Dismiss the report for ${r.name ?? 'this item'}?`,
       content: 'Use this when there is still enough on the shelf. Recording a purchase closes the report by itself.',
       okText: 'Dismiss',
+      icon: <CloseCircleOutlined />,
       onOk: async () => {
         try {
           await consumablesApi.dismissReport(r.id);
@@ -331,6 +334,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
 
   const removePurchase = (p: ConsumablePurchase) =>
     confirmAction({
+      icon: <DeleteOutlined />,
       title: 'Remove this purchase?',
       content: `${num(p.quantity)} ${p.unit} bought ${day(p.purchasedOn)}. Use this only for an entry made by mistake.`,
       okText: 'Remove',
