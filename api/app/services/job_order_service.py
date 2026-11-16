@@ -160,12 +160,12 @@ def _validate_helpers(
     if not helper_ids:
         return []
     if outsourced:
-        raise AppError("Outsourced operations have no crew.", "VALIDATION_ERROR", 400)
+        raise AppError("Outsourced operations have no workers.", "VALIDATION_ERROR", 400)
     if not lead_id:
         raise AppError("Choose the lead worker before adding helpers.", "VALIDATION_ERROR", 400)
     if len(set(helper_ids)) != len(helper_ids) or lead_id in helper_ids:
         raise AppError(
-            "Each crew member can appear only once.", "VALIDATION_ERROR", 400
+            "Each worker can appear only once.", "VALIDATION_ERROR", 400
         )
     crew = [lead_id, *helper_ids]
     for wid in helper_ids:

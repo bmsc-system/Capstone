@@ -217,7 +217,7 @@ export default function WorkerHistoryPanel({ workerId }: Props) {
                     {r.isCrew ? (
                       <Tooltip title={(r.crew || []).map((m) => m.fullName).join(', ')}>
                         <span className="wh-tag">
-                          {r.crewRole === 'LEAD' ? 'Lead' : 'Helper'} · crew of {r.crewSize}
+                          {r.crewRole === 'LEAD' ? 'Lead' : 'Helper'} · {r.crewSize} workers
                         </span>
                       </Tooltip>
                     ) : null}

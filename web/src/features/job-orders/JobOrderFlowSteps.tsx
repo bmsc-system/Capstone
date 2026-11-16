@@ -2,7 +2,7 @@ import { CheckOutlined } from '@ant-design/icons';
 
 /** Planning stages. Job information is entered by Office Staff beforehand and is not a stage here. */
 export const JOB_FLOW_STEPS = [
-  { id: 2, label: 'Operations', hint: 'Steps, crew and hours' },
+  { id: 2, label: 'Operations', hint: 'Steps, workers and hours' },
   { id: 3, label: 'Schedule', hint: 'Start and end times' },
   { id: 4, label: 'Released', hint: 'On the shop floor' },
 ] as const;

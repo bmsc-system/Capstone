@@ -679,7 +679,7 @@ export default function AssignmentDetailPage() {
                     {op.assignedWorkerName && (!isMine || (op.crewSize || 1) > 1) ? (
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 600, color: colors.text }}>
-                          {(op.crewSize || 1) > 1 ? 'Crew:' : 'Assigned:'}
+                          {(op.crewSize || 1) > 1 ? 'Workers:' : 'Assigned:'}
                         </span>
                         <CrewChips
                           crew={op.crew}

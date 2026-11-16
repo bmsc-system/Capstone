@@ -262,6 +262,7 @@ class JobOperation(db.Model):
                 else None
             ),
             "clientName": job.client.name if job and job.client else None,
+            "jobCreatedAt": job.created_at.isoformat() if job and job.created_at else None,
             "dueDate": job.due_date.isoformat() if job and job.due_date else None,
             "jobPriority": job.priority.value if job and job.priority else None,
             "sequenceNo": self.sequence_no,

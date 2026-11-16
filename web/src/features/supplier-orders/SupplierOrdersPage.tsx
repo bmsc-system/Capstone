@@ -17,6 +17,7 @@ import type { SupplierOrder, SupplierOrderStatus } from '../../types';
 import OrderMaterialsModal from './OrderMaterialsModal';
 import { ORDER_STATUS_PILL, fmtDay, fmtMoney } from './supplierOrderUi';
 import ResponsiveTable from '../../components/ui/ResponsiveTable';
+import { newestFirst } from '../../utils/newestFirst';
 
 type Filter = 'ALL' | 'OVERDUE' | SupplierOrderStatus;
 type PrintedFilter = 'printed' | 'not';
@@ -62,7 +63,7 @@ export default function SupplierOrdersPage() {
       const { data } = await supplierOrdersApi.list(
         filter === 'ALL' ? undefined : { status: filter }
       );
-      setRows(data);
+      setRows(newestFirst(data));
       if (filter === 'ALL') setAll(data);
       else supplierOrdersApi.list().then((res) => setAll(res.data)).catch(() => undefined);
     } catch (err) {

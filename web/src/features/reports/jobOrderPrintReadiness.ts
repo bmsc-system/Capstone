@@ -15,7 +15,7 @@ export function jobOrderPrintBlockers(job: Pick<JobOrder, 'status' | 'operations
     const missing: string[] = [];
     const needsMachine = Boolean(op.machineTypeId || op.machineTypeCode);
     if (needsMachine && !op.machineUnitId && !op.machineUnitLabel) missing.push('machine unit');
-    if (!op.assignedWorkerId && !op.assignedWorkerName) missing.push('crew');
+    if (!op.assignedWorkerId && !op.assignedWorkerName) missing.push('workers');
     if (!op.scheduledStart || !op.scheduledEnd) missing.push('schedule');
     if (missing.length) {
       const list =

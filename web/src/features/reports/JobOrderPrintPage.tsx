@@ -250,7 +250,7 @@ export default function JobOrderPrintPage() {
             <th rowSpan={2}>#</th>
             <th rowSpan={2}>Operation</th>
             <th rowSpan={2}>Machine unit</th>
-            <th rowSpan={2}>Crew</th>
+            <th rowSpan={2}>Workers</th>
             <th colSpan={2}>Schedule</th>
             <th rowSpan={2}>Target hrs</th>
           </tr>

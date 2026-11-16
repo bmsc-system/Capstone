@@ -190,7 +190,11 @@ export default function AnalyticsDelaysPage() {
         />
         <Kpi
           label="Top cause"
-          value={<span style={{ fontSize: 17 }}>{top?.label ?? '—'}</span>}
+          value={
+            <span className="ana-kpi__text" title={top?.label}>
+              {top?.label ?? '—'}
+            </span>
+          }
           sub={top ? `${fmtNum(top.shareOfTotalPct)}% of delay hours` : 'No delays'}
         />
         <Kpi

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { authApi } from '../../api/auth.api';
 import { useAuth } from '../../hooks/useAuth';
 import PinSetupKeypad from './PinSetupKeypad';
-import { PIN_HINT_KEY } from '../../auth/pinHint';
+import { PIN_HINT_KEY, isPinDevice } from '../../auth/pinHint';
 
 const DISMISS_KEY = 'bmsc_pin_offer_dismissed';
 
@@ -13,7 +13,7 @@ export default function PinOfferModal() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!user || !isWorker) return;
+    if (!user || !isWorker || !isPinDevice()) return;
     if (sessionStorage.getItem('bmsc_offer_pin') !== '1') return;
     if (localStorage.getItem(PIN_HINT_KEY) === '1') return;
     if (localStorage.getItem(DISMISS_KEY) === '1') return;
@@ -30,7 +30,7 @@ export default function PinOfferModal() {
     await authApi.setPin(pin);
     localStorage.setItem(PIN_HINT_KEY, '1');
     localStorage.removeItem(DISMISS_KEY);
-    message.success('PIN saved for this device');
+    message.success('PIN saved');
     setOpen(false);
   };
 
@@ -45,7 +45,7 @@ export default function PinOfferModal() {
       width={400}
     >
       <p style={{ color: '#475569', marginBottom: 16, textAlign: 'center' }}>
-        A 4-digit PIN for this phone only.
+        A 4-digit PIN to open the app. It works on every phone you sign in on.
       </p>
       <PinSetupKeypad
         onSave={onSave}

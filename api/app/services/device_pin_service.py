@@ -1,4 +1,10 @@
-"""Device-bound PIN unlock (optional convenience after password login)."""
+"""PIN unlock (optional convenience after password login).
+
+A worker has one PIN for the account, like a mobile wallet's MPIN: setting or
+changing it on one phone changes it on every phone he is signed in on, and a
+phone he signs in on later with his password picks it up. PIN unlock still
+only works on a phone that has signed in with the password at least once.
+"""
 
 from __future__ import annotations
 
@@ -51,6 +57,18 @@ def _get_or_create_device(user_id: str, device_id: str, device_label: str | None
     return device
 
 
+def _account_pin(user_id: str, exclude_row_id: str | None = None) -> UserDevice | None:
+    """The newest PIN on any of the user's signed-in phones."""
+    q = UserDevice.query.filter(
+        UserDevice.user_id == user_id,
+        UserDevice.revoked_at.is_(None),
+        UserDevice.pin_hash.isnot(None),
+    )
+    if exclude_row_id:
+        q = q.filter(UserDevice.id != exclude_row_id)
+    return q.order_by(UserDevice.pin_set_at.desc().nullslast()).first()
+
+
 def register_device_after_password_login(
     user: User, device_id: str | None, device_label: str | None = None
 ) -> UserDevice | None:
@@ -64,6 +82,13 @@ def register_device_after_password_login(
         device.pin_hash = None
         device.pin_set_at = None
         device.pin_failed_attempts = 0
+    elif pin_allowed(user) and not device.pin_hash:
+        # The worker's PIN works here too.
+        source = _account_pin(user.id, exclude_row_id=device.id)
+        if source:
+            device.pin_hash = source.pin_hash
+            device.pin_set_at = source.pin_set_at
+            device.pin_failed_attempts = 0
     db.session.commit()
     return device
 
@@ -90,27 +115,43 @@ def set_device_pin(
         )
     if device_label:
         device.device_label = device_label
-    device.pin_hash = bcrypt.generate_password_hash(pin).decode("utf-8")
-    device.pin_set_at = _utcnow()
-    device.pin_failed_attempts = 0
+    pin_hash = bcrypt.generate_password_hash(pin).decode("utf-8")
+    now = _utcnow()
+    # One PIN for the account: every signed-in phone gets the same one.
+    phones = UserDevice.query.filter(
+        UserDevice.user_id == user.id,
+        UserDevice.revoked_at.is_(None),
+    ).all()
+    for phone in phones:
+        phone.pin_hash = pin_hash
+        phone.pin_set_at = now
+        phone.pin_failed_attempts = 0
     write_audit_event(
         "PIN_SET",
         "UserDevice",
         device.id,
-        after={"userId": user.id, "deviceId": device_id},
+        after={"userId": user.id, "deviceId": device_id, "devices": len(phones)},
     )
     db.session.commit()
     return device
 
 
 def remove_device_pin(user: User, device_id: str) -> None:
+    """Turn the PIN off for the account, on every phone."""
     device = UserDevice.query.filter_by(user_id=user.id, device_id=device_id).first()
     if not device or not device.pin_hash:
         raise AppError("No PIN on this device", "NOT_FOUND", 404)
-    device.pin_hash = None
-    device.pin_set_at = None
-    device.pin_failed_attempts = 0
-    write_audit_event("PIN_REMOVED", "UserDevice", device.id, after={"userId": user.id})
+    phones = UserDevice.query.filter(
+        UserDevice.user_id == user.id,
+        UserDevice.pin_hash.isnot(None),
+    ).all()
+    for phone in phones:
+        phone.pin_hash = None
+        phone.pin_set_at = None
+        phone.pin_failed_attempts = 0
+    write_audit_event(
+        "PIN_REMOVED", "UserDevice", device.id, after={"userId": user.id, "devices": len(phones)}
+    )
     db.session.commit()
 
 

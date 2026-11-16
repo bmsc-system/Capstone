@@ -179,7 +179,7 @@ def suggested_action(row) -> str | None:
             else "Agree on firm return dates with outside shops."
         )
     actions = {
-        OperationPauseReason.WAITING_PRIOR_OPERATION.value: "Operations waited for the step before them: check that step's machine and crew{at}.",
+        OperationPauseReason.WAITING_PRIOR_OPERATION.value: "Operations waited for the step before them: check that step's machine and workers{at}.",
         OperationPauseReason.WAITING_INSTRUCTIONS.value: "Confirm drawings and instructions with the client before the job is released{at}.",
         OperationPauseReason.WAITING_TOOL.value: "Tools were not ready{at}: check the tool borrow log and keep common tools at the machine.",
         OperationPauseReason.WAITING_MATERIAL.value: "Work started before its material was at the machine{at}: check material before starting.",

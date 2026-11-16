@@ -25,6 +25,7 @@ import {
   InventorySummaryCards,
   type InventorySummaryCard,
 } from './inventoryLook';
+import { newestFirst } from '../../utils/newestFirst';
 
 function sectionLabel(text: string) {
   return <div className="app-form-section">{text}</div>;
@@ -54,7 +55,7 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
     setLoading(true);
     try {
       const { data } = await catalogApi.list({ includeInactive: true });
-      setRows(data.items);
+      setRows(newestFirst(data.items));
       setCategories(data.categories);
       setMaterialUnits(data.materialUnits?.length ? data.materialUnits : MATERIAL_UNITS);
       setConsumableUnits(data.consumableUnits?.length ? data.consumableUnits : CONSUMABLE_UNITS);

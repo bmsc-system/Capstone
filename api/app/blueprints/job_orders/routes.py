@@ -93,6 +93,17 @@ def get_job_order(job_id):
     return jsonify(job.to_dict(include_operations=True, viewer_role=role))
 
 
+@job_orders_bp.route("/<job_id>/target-hours", methods=["GET"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
+def target_hours(job_id):
+    """Target hours suggested from finished work, by operation type."""
+    from app.services.target_hours_service import suggestions_for_job
+
+    job = jo_service.get_job_order(job_id, get_current_user_id(), get_current_user_role())
+    return jsonify(suggestions_for_job(job))
+
+
 @job_orders_bp.route("/<job_id>", methods=["PATCH"])
 @jwt_required()
 @require_roles(UserRole.ADMIN, UserRole.OFFICE_STAFF)

@@ -205,7 +205,7 @@ export default function ScheduleList({ operations, downtimes, from, to, onOpenJo
             r.op.machineTypeName || <span className="sched-list__muted">No machine</span>,
     },
     {
-      title: 'Crew',
+      title: 'Workers',
       key: 'crew',
       width: 180,
       ellipsis: true,

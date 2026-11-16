@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import './AuthShell.css';
 
 const BUSINESS = 'Brothers Machine Shop and Services Corporation';
-const TAGLINE = 'Every job order, every machine, on schedule.';
 
 /** A quiet slice of the schedule board: machines down the side, jobs as bars. */
 const BOARD: { machine: string; bars: { left: number; width: number; tone?: 'gold' | 'light' }[] }[] = [
@@ -68,7 +67,6 @@ export default function AuthShell({ children, wide = false }: { children: ReactN
           <Mark />
           <div className="auth__rule" />
           <Title />
-          <p className="auth__tag">{TAGLINE}</p>
           <div className="auth-board" aria-hidden>
             <div className="auth-board__days">
               <span />
@@ -100,7 +98,6 @@ export default function AuthShell({ children, wide = false }: { children: ReactN
         <header className="auth__mhead">
           <Mark />
           <Title />
-          <p className="auth__tag">{TAGLINE}</p>
         </header>
         <div className={`login-card${wide ? ' login-card--wide' : ''}`}>{children}</div>
       </main>

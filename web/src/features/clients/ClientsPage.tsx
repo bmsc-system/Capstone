@@ -17,6 +17,7 @@ import { useAuth } from '../../hooks/useAuth';
 import type { Client } from '../../types';
 import { useNavigate } from 'react-router-dom';
 import ClientFormModal from './ClientFormModal';
+import { newestFirst } from '../../utils/newestFirst';
 
 type NotifyFilter = 'email' | 'off';
 
@@ -40,7 +41,7 @@ export default function ClientsPage() {
     setLoading(true);
     try {
       const { data } = await clientsApi.list();
-      setClients(data);
+      setClients(newestFirst(data));
     } catch (err) {
       message.error(getErrorMessage(err));
     } finally {

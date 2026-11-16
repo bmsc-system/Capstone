@@ -15,6 +15,7 @@ from app.models.user import User, UserRole, UserStatus
 from app.models.user_security import InvitationChannel, UserDevice, UserInvitation
 from app.services.device_pin_service import (
     register_device_after_password_login,
+    remove_device_pin,
     set_device_pin,
 )
 from app.services.invitation_service import create_invited_user, issue_invitation
@@ -689,3 +690,79 @@ def test_editing_other_details_keeps_the_setup_link(client):
         json={"token": raw, "password": "Pending12345!x", "passwordConfirm": "Pending12345!x"},
     )
     assert res.status_code == 200, res.get_json()
+
+
+def test_one_pin_for_every_phone_of_the_worker(client):
+    """Like a wallet MPIN: the PIN belongs to the account, not to one phone."""
+    user = _active_user("pinshared@test.local", "+639170000071")
+    register_device_after_password_login(user, "phone-a", "Phone A")
+    register_device_after_password_login(user, "phone-b", "Phone B")
+    set_device_pin(user, "phone-a", "2583")
+
+    # Already signed in on phone B: the same PIN opens it.
+    ok_b = client.post("/api/v1/auth/pin/unlock", json={"deviceId": "phone-b", "pin": "2583"})
+    assert ok_b.status_code == 200
+    assert ok_b.get_json()["user"]["id"] == user.id
+
+    # A phone signed in later with the password picks the PIN up.
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"identifier": "pinshared@test.local", "password": "Worker123!", "deviceId": "phone-c"},
+    )
+    assert login.status_code == 200
+    assert login.get_json()["device"]["hasPin"] is True
+    assert client.post(
+        "/api/v1/auth/pin/unlock", json={"deviceId": "phone-c", "pin": "2583"}
+    ).status_code == 200
+
+    # Changing it on phone C changes it everywhere.
+    set_device_pin(user, "phone-c", "7140")
+    for phone in ("phone-a", "phone-b", "phone-c"):
+        assert client.post(
+            "/api/v1/auth/pin/unlock", json={"deviceId": phone, "pin": "2583"}
+        ).status_code == 401
+        assert client.post(
+            "/api/v1/auth/pin/unlock", json={"deviceId": phone, "pin": "7140"}
+        ).status_code == 200
+
+
+def test_a_phone_never_signed_in_cannot_use_the_pin(client):
+    user = _active_user("pinnew@test.local", "+639170000072")
+    _set_pin(user, "phone-a", "2583")
+    res = client.post("/api/v1/auth/pin/unlock", json={"deviceId": "stranger-phone", "pin": "2583"})
+    assert res.status_code == 401
+    assert res.get_json()["error"]["code"] == "PIN_DEVICE_UNKNOWN"
+
+
+def test_turning_the_pin_off_turns_it_off_on_every_phone(client):
+    user = _active_user("pinoff@test.local", "+639170000073")
+    register_device_after_password_login(user, "phone-a", "Phone A")
+    register_device_after_password_login(user, "phone-b", "Phone B")
+    set_device_pin(user, "phone-a", "2583")
+    remove_device_pin(user, "phone-b")
+    assert UserDevice.query.filter(
+        UserDevice.user_id == user.id, UserDevice.pin_hash.isnot(None)
+    ).count() == 0
+    # And a later password sign-in does not bring it back.
+    register_device_after_password_login(user, "phone-c", "Phone C")
+    assert UserDevice.query.filter_by(user_id=user.id, device_id="phone-c").first().pin_hash is None
+
+
+def test_locked_out_phone_gets_the_pin_back_after_a_password_sign_in(client):
+    user = _active_user("pinback@test.local", "+639170000074")
+    register_device_after_password_login(user, "phone-a", "Phone A")
+    register_device_after_password_login(user, "phone-b", "Phone B")
+    set_device_pin(user, "phone-a", "2583")
+    for _ in range(5):
+        client.post("/api/v1/auth/pin/unlock", json={"deviceId": "phone-b", "pin": "0000"})
+    # Phone B is signed out; phone A keeps its PIN.
+    assert client.post(
+        "/api/v1/auth/pin/unlock", json={"deviceId": "phone-b", "pin": "2583"}
+    ).status_code == 401
+    assert client.post(
+        "/api/v1/auth/pin/unlock", json={"deviceId": "phone-a", "pin": "2583"}
+    ).status_code == 200
+    register_device_after_password_login(user, "phone-b", "Phone B")
+    assert client.post(
+        "/api/v1/auth/pin/unlock", json={"deviceId": "phone-b", "pin": "2583"}
+    ).status_code == 200

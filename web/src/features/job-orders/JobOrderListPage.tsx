@@ -40,7 +40,8 @@ const CARDS_BY_DEFAULT_QUERY = '(max-width: 1279.98px)';
 const WIDE_LIST_QUERY = '(min-width: 1400px)';
 const MID_LIST_QUERY = '(min-width: 1280px)';
 import type { JobOrder, JobOrderStatus } from '../../types';
-import { compareByDue, compareOpenFirst } from './jobOrderSort';
+import { compareByDue } from './jobOrderSort';
+import { newestFirst } from '../../utils/newestFirst';
 import { isJobOrderListTab } from './jobOrderListTabs';
 import CancelJobModal from './CancelJobModal';
 import MarkDeliveredModal from './MarkDeliveredModal';
@@ -383,15 +384,16 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return jobs
+    const rows = jobs
       .filter((job) => {
         if (q && !jobSearchHaystack(job).includes(q)) return false;
         if (statusFilter.length && !statusFilter.includes(job.status)) return false;
         if (clientFilter.length && !clientFilter.includes(job.clientName || '')) return false;
         if (ownerFilter === 'mine' && user && job.createdById !== user.id) return false;
         return true;
-      })
-      .sort(compareOpenFirst);
+      });
+    // Latest entry on top; the column headers still sort by date required etc.
+    return newestFirst(rows);
   }, [jobs, search, statusFilter, clientFilter, ownerFilter, user]);
 
   const selectedJobs = useMemo(

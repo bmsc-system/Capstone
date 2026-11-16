@@ -22,7 +22,7 @@ import type { UserDevice } from '../../types';
 import PinSetupKeypad from './PinSetupKeypad';
 import './AccountSecurityPage.css';
 import { confirmAction } from '../../utils/confirmAction';
-import { PIN_HINT_KEY } from '../../auth/pinHint';
+import { PIN_HINT_KEY, isPinDevice } from '../../auth/pinHint';
 import { clearPinCheck } from '../../auth/appLock';
 
 /** Other devices listed before "Show N more". */
@@ -101,7 +101,7 @@ function DeviceRow({
               This device
             </StatusPill>
           ) : null}
-          {showPin && device.hasPin ? (
+          {showPin && info.kind !== 'desktop' && device.hasPin ? (
             <StatusPill tone="green" compact>
               PIN on
             </StatusPill>
@@ -114,7 +114,7 @@ function DeviceRow({
           <span title={formatShop(device.createdAt, 'MMM D, YYYY h:mm A')}>
             First signed in {formatShop(device.createdAt, 'MMM D, YYYY')}
           </span>
-          {showPin && !device.hasPin ? <span>PIN off</span> : null}
+          {showPin && info.kind !== 'desktop' && !device.hasPin ? <span>PIN off</span> : null}
           <span className="sec-device__id" title="Device ID (stored in that browser)">
             ID {device.deviceId.slice(-4).toUpperCase()}
           </span>
@@ -173,7 +173,7 @@ export default function AccountSecurityPage() {
   const onSavePin = async (pin: string) => {
     await authApi.setPin(pin);
     localStorage.setItem(PIN_HINT_KEY, '1');
-    message.success(`PIN saved. Use it next time you open the app on this ${deviceWord}.`);
+    message.success('PIN saved. Use it on every phone you sign in on.');
     setPinModalOpen(false);
     load();
   };
@@ -181,7 +181,7 @@ export default function AccountSecurityPage() {
   const onRemovePin = () => {
     confirmAction({
       title: 'Turn off PIN unlock?',
-      content: `You will sign in with your password on this ${deviceWord}.`,
+      content: 'You will sign in with your password on all your phones.',
       okText: 'Turn off PIN',
       cancelText: 'Keep PIN',
       onOk: async () => {
@@ -243,7 +243,7 @@ export default function AccountSecurityPage() {
   const signOutOthers = () => {
     confirmAction({
       title: `Sign out ${others.length} other device${others.length === 1 ? '' : 's'}?`,
-      content: `Each one is signed out right away${isWorker ? ' and its PIN unlock is turned off' : ''}. This ${deviceWord} stays signed in.`,
+      content: `Each one is signed out right away and needs your password to sign in again. This ${deviceWord} stays signed in.`,
       okText: 'Sign out others',
       danger: true,
       onOk: async () => {
@@ -373,10 +373,16 @@ export default function AccountSecurityPage() {
           )}
         </span>
       }
-      subtitle={`Open the app with 4 numbers instead of your password, on this ${deviceWord} only.`}
+      subtitle="Open the app with 4 numbers instead of your password. One PIN for all your phones."
     >
       {loading ? (
         <Skeleton active paragraph={{ rows: 2 }} title={false} />
+      ) : !isPinDevice() ? (
+        <p className="sec-pin__blocked">
+          {pinOn
+            ? 'Your PIN is on. Use it in the app on your phone. On a computer, sign in with your password.'
+            : 'Set up your PIN in the app on your phone. On a computer, sign in with your password.'}
+        </p>
       ) : !thisDevice ? (
         <p className="sec-pin__blocked">
           To set up a PIN, log out and sign in again with your password on this {deviceWord}.
@@ -386,7 +392,7 @@ export default function AccountSecurityPage() {
           <p className="sec-pin__on">
             <CheckCircleFilled aria-hidden />
             <span>
-              PIN is on for this {deviceWord}
+              PIN is on
               {thisDevice.pinSetAt ? ` since ${formatShop(thisDevice.pinSetAt, 'MMM D, YYYY')}` : ''}.
               <span className="sec-pin__sub"> Forgot it? Sign in with your password.</span>
             </span>
@@ -526,7 +532,7 @@ export default function AccountSecurityPage() {
         width="min(400px, calc(100vw - 32px))"
       >
         <p className="sec-pin__modal-hint">
-          Pick 4 numbers, then type them again. This PIN works only on this {deviceWord}.
+          Pick 4 numbers, then type them again. The same PIN works on every phone you sign in on.
         </p>
         <PinSetupKeypad
           onSave={onSavePin}

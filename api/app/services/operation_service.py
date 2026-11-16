@@ -204,6 +204,9 @@ def _append_log(
         received_at=received_at,
     )
     db.session.add(log)
+    # Keep the loaded list in step, so the hours worked counted right after
+    # this (on complete or pause) include the new entry.
+    operation.time_logs.append(log)
     return log
 
 
@@ -782,7 +785,7 @@ def _resolve_downtime_link(unit_id, operation_id, job_order_id, reporter_id, rep
         )
     if reporter_role == UserRole.PRODUCTION_WORKER.value and reporter_id not in op.crew_ids:
         raise AppError(
-            "You can only report a breakdown from an operation you are on the crew of.",
+            "You can only report a breakdown from an operation you are working on.",
             "FORBIDDEN",
             403,
         )

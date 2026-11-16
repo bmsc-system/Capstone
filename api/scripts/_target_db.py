@@ -50,6 +50,6 @@ def confirm_database(label: str) -> None:
 
 def name_key(name: str) -> str:
     """Names compared without case, punctuation or extra spaces
-    ("Gregorio Agao Jr." matches "gregorio agao jr")."""
+    ("Juan Dela Cruz Jr." matches "juan dela cruz jr")."""
     cleaned = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in (name or "").lower())
     return " ".join(cleaned.split())

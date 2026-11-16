@@ -224,11 +224,10 @@ def test_pin_unlock_issues_a_device_bound_session(client):
 
 def test_stale_cleanup_removes_only_inactive_devices_without_pin(client):
     user = _user("sess_stale@test.local")
-    for device_id in ("dev-old", "dev-old-pin", "dev-recent", "dev-old-revoked"):
+    for device_id in ("dev-old", "dev-recent", "dev-old-revoked"):
         _login(client, user.email, device_id)
-    set_device_pin(user, "dev-old-pin", "2583")
     long_ago = datetime.now(timezone.utc) - timedelta(days=STALE_DEVICE_DAYS + 1)
-    for device_id in ("dev-old", "dev-old-pin", "dev-old-revoked"):
+    for device_id in ("dev-old", "dev-old-revoked"):
         row = _row(user, device_id)
         row.last_used_at = long_ago
         row.created_at = long_ago
@@ -238,4 +237,20 @@ def test_stale_cleanup_removes_only_inactive_devices_without_pin(client):
 
     current = _login(client, user.email, "dev-now")
     listed = client.get("/api/v1/auth/devices", headers=_auth(current["accessToken"])).get_json()
-    assert sorted(d["deviceId"] for d in listed) == ["dev-now", "dev-old-pin", "dev-recent"]
+    assert sorted(d["deviceId"] for d in listed) == ["dev-now", "dev-recent"]
+
+
+def test_stale_cleanup_keeps_an_old_phone_that_has_the_pin(client):
+    """A worker back from a long leave can still open his phone with the PIN."""
+    user = _user("sess_stale_pin@test.local")
+    _login(client, user.email, "dev-old-pin")
+    set_device_pin(user, "dev-old-pin", "2583")
+    long_ago = datetime.now(timezone.utc) - timedelta(days=STALE_DEVICE_DAYS + 1)
+    row = _row(user, "dev-old-pin")
+    row.last_used_at = long_ago
+    row.created_at = long_ago
+    db.session.flush()
+
+    current = _login(client, user.email, "dev-now")
+    listed = client.get("/api/v1/auth/devices", headers=_auth(current["accessToken"])).get_json()
+    assert sorted(d["deviceId"] for d in listed) == ["dev-now", "dev-old-pin"]

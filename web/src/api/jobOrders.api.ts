@@ -17,6 +17,7 @@ import type {
   SuggestionMode,
   User,
   SuggestionDateGate,
+  TargetHoursHint,
   WorkerSuggestion,
 } from '../types';
 
@@ -60,6 +61,9 @@ export const jobOrdersApi = {
       },
     }),
   get: (id: string) => apiClient.get<JobOrder>(`/job-orders/${id}`),
+  /** Target hours from finished work, by operation type id (Admin). */
+  targetHours: (id: string) =>
+    apiClient.get<Record<string, TargetHoursHint>>(`/job-orders/${id}/target-hours`),
   machines: () => apiClient.get<MachineInfo[]>('/job-orders/machines'),
   machineUnits: () => apiClient.get<MachineUnitInfo[]>('/job-orders/machine-units'),
   proposeSchedule: (jobId: string, body?: Record<string, unknown>) =>
