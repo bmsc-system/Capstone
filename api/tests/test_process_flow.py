@@ -594,3 +594,21 @@ def test_invoice_recorded_only_once(people):
     with pytest.raises(AppError) as exc:
         si_service.record_invoice(job, _invoice_data(job, invoiceNumber="PF-OTHER"), people["office"].id)
     assert exc.value.code == "INVOICE_EXISTS"
+
+
+def test_completing_an_operation_records_the_hours_worked(people):
+    job = _job(people)
+    _line(job, "Round bar S45C", received=date(2026, 9, 3))
+    op = _add_op(job, "TURNING", people["worker"].id, seq=1)
+    op.estimated_hours = Decimal("2")
+    db.session.refresh(job)
+    worker = people["worker"].id
+    role = UserRole.PRODUCTION_WORKER.value
+    operation_service.start_operation(
+        op, worker, role, datetime(2026, 9, 10, 0, 30, tzinfo=timezone.utc).isoformat()
+    )
+    operation_service.complete_operation(
+        op, worker, role, datetime(2026, 9, 10, 3, 0, tzinfo=timezone.utc).isoformat()
+    )
+    assert op.actual_worked_hours == Decimal("2.5000")
+    assert op.variance_hours == Decimal("0.5000")

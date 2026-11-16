@@ -204,6 +204,9 @@ def _append_log(
         received_at=received_at,
     )
     db.session.add(log)
+    # Keep the loaded list in step, so the hours worked counted right after
+    # this (on complete or pause) include the new entry.
+    operation.time_logs.append(log)
     return log
 
 

@@ -71,7 +71,7 @@ describe('faster unit suggestion text', () => {
       fasterPairText(
         {
           assignedWorkerId: 'emerson',
-          workerName: 'Emerson Agao',
+          workerName: 'Worker A',
           workerNickname: 'Emerson',
           machineUnitId: 's2',
           machineUnitLabel: 'Shaper #2',
