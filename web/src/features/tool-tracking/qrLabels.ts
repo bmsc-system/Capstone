@@ -8,15 +8,15 @@ export type QrLabelItem = {
   detail?: string | null;
 };
 
-export type LabelSizeId = 'small' | 'medium' | 'large';
+export type LabelSizeId = 'xsmall' | 'small' | 'medium' | 'large';
 
-/** A4 label sheets (mm), matching the common 40-, 21- and 8-label sheets
- * (with margins, so printers do not cut off the edges). Plain A4 paper works
- * for all three. */
+/** Label sizes (mm). On A4 they sit where the common 65-, 40-, 21- and
+ * 8-label sticker sheets have them (with margins, so printers do not cut off
+ * the edges); on Letter and Legal they are centred on the page. Plain paper
+ * works for all of them. */
 export type LabelSize = {
   id: LabelSizeId;
   label: string;
-  hint: string;
   cols: number;
   rows: number;
   width: number;
@@ -28,10 +28,21 @@ export type LabelSize = {
 };
 
 export const LABEL_SIZES: Record<LabelSizeId, LabelSize> = {
+  xsmall: {
+    id: 'xsmall',
+    label: 'Very small',
+    cols: 5,
+    rows: 13,
+    width: 38.1,
+    height: 21.2,
+    top: 10.7,
+    left: 4.65,
+    colGap: 2.5,
+    rowGap: 0,
+  },
   small: {
     id: 'small',
     label: 'Small',
-    hint: '45.7 × 25.4 mm · 40 per A4 sheet',
     cols: 4,
     rows: 10,
     width: 45.7,
@@ -44,7 +55,6 @@ export const LABEL_SIZES: Record<LabelSizeId, LabelSize> = {
   medium: {
     id: 'medium',
     label: 'Medium',
-    hint: '63.5 × 38.1 mm · 21 per A4 sheet',
     cols: 3,
     rows: 7,
     width: 63.5,
@@ -57,7 +67,6 @@ export const LABEL_SIZES: Record<LabelSizeId, LabelSize> = {
   large: {
     id: 'large',
     label: 'Large',
-    hint: '99.1 × 67.7 mm · 8 per A4 sheet',
     cols: 2,
     rows: 4,
     width: 99.1,
@@ -68,6 +77,36 @@ export const LABEL_SIZES: Record<LabelSizeId, LabelSize> = {
     rowGap: 0,
   },
 };
+
+export type PaperId = 'a4' | 'letter' | 'legal';
+
+export type Paper = { id: PaperId; label: string; width: number; height: number };
+
+export const PAPERS: Record<PaperId, Paper> = {
+  a4: { id: 'a4', label: 'A4', width: 210, height: 297 },
+  letter: { id: 'letter', label: 'Letter', width: 215.9, height: 279.4 },
+  legal: { id: 'legal', label: 'Legal', width: 215.9, height: 355.6 },
+};
+
+/** Smallest edge most printers can print to (mm). */
+const PAPER_MARGIN = 6.35;
+
+/** Where the labels go on one sheet of this paper. */
+export function sheetGrid(size: LabelSize, paper: Paper): LabelSize {
+  if (paper.id === 'a4') return size;
+  const fit = (room: number, item: number, gap: number) => Math.max(1, Math.floor((room + gap) / (item + gap)));
+  const cols = fit(paper.width - PAPER_MARGIN * 2, size.width, size.colGap);
+  const rows = fit(paper.height - PAPER_MARGIN * 2, size.height, size.rowGap);
+  const usedW = cols * size.width + (cols - 1) * size.colGap;
+  const usedH = rows * size.height + (rows - 1) * size.rowGap;
+  return { ...size, cols, rows, left: (paper.width - usedW) / 2, top: (paper.height - usedH) / 2 };
+}
+
+/** "45.7 × 25.4 mm · 40 per A4 sheet" */
+export function sizeHint(size: LabelSize, paper: Paper) {
+  const grid = sheetGrid(size, paper);
+  return `${size.width} × ${size.height} mm · ${perSheet(grid)} per ${paper.label} sheet`;
+}
 
 export const perSheet = (size: LabelSize) => size.cols * size.rows;
 

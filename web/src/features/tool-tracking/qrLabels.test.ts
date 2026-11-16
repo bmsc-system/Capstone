@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LABEL_SIZES, layoutSheets, perSheet } from './qrLabels';
+import { LABEL_SIZES, PAPERS, layoutSheets, perSheet, sheetGrid, sizeHint } from './qrLabels';
 
 describe('QR label sheets', () => {
   const items = ['A', 'B', 'C'];
@@ -30,5 +30,26 @@ describe('QR label sheets', () => {
       expect(s.left * 2 + s.cols * s.width + (s.cols - 1) * s.colGap).toBeLessThanOrEqual(210.01);
       expect(s.top + s.rows * s.height + (s.rows - 1) * s.rowGap).toBeLessThanOrEqual(297.01);
     }
+  });
+
+  it('every size fits on every paper, A4 keeping the sticker-sheet places', () => {
+    for (const paper of Object.values(PAPERS)) {
+      for (const size of Object.values(LABEL_SIZES)) {
+        const g = sheetGrid(size, paper);
+        expect(g.left).toBeGreaterThanOrEqual(0);
+        expect(g.top).toBeGreaterThanOrEqual(0);
+        expect(g.left + g.cols * g.width + (g.cols - 1) * g.colGap).toBeLessThanOrEqual(paper.width + 0.01);
+        expect(g.top + g.rows * g.height + (g.rows - 1) * g.rowGap).toBeLessThanOrEqual(paper.height + 0.01);
+      }
+    }
+    expect(sheetGrid(LABEL_SIZES.small, PAPERS.a4)).toBe(LABEL_SIZES.small);
+    expect(perSheet(LABEL_SIZES.xsmall)).toBe(65);
+  });
+
+  it('fits more labels on Legal than on Letter', () => {
+    expect(perSheet(sheetGrid(LABEL_SIZES.small, PAPERS.legal))).toBeGreaterThan(
+      perSheet(sheetGrid(LABEL_SIZES.small, PAPERS.letter))
+    );
+    expect(sizeHint(LABEL_SIZES.small, PAPERS.a4)).toBe('45.7 × 25.4 mm · 40 per A4 sheet');
   });
 });

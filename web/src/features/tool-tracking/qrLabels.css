@@ -2,7 +2,7 @@
 
 .qr-sheet {
   position: relative;
-  width: 210mm;
+  width: 210mm; /* the paper's size is set on each sheet */
   height: 297mm;
   background: #fff;
   overflow: hidden;
@@ -80,6 +80,9 @@
   text-overflow: ellipsis;
 }
 
+.qr-label--xsmall { gap: 1.2mm; padding: 1.6mm 1.4mm; }
+.qr-label--xsmall .qr-label__code { font-size: 6pt; }
+.qr-label--xsmall .qr-label__name { font-size: 5.5pt; -webkit-line-clamp: 1; }
 .qr-label--small .qr-label__code { font-size: 7.5pt; }
 .qr-label--small .qr-label__name { font-size: 6.5pt; }
 .qr-label--small .qr-label__detail { font-size: 6pt; }
@@ -116,13 +119,35 @@
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #f1f5f9;
-  padding: 12px;
-  display: flex;
-  justify-content: center;
   overflow: hidden;
 }
 
+.qr-preview__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.qr-preview__scroll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .qr-preview__frame {
+  flex: none;
+  background: #fff;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.15);
   overflow: hidden;
 }
