@@ -150,9 +150,12 @@
 
 .ana-card__tools {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 6px;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-width: 100%;
 }
 
 .ana-card__body {

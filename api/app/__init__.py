@@ -429,6 +429,43 @@ def _register_cli(app):
             else "Dry run: nothing was saved. Run with --apply to commit."
         )
 
+    @sample_history_group.command("rebuild")
+    @click.option("--start", required=True, help="First shop day, YYYY-MM-DD.")
+    @click.option("--end", required=True, help="Last shop day, YYYY-MM-DD.")
+    @click.option("--seed", type=int, default=42, show_default=True)
+    @click.option(
+        "--apply",
+        "apply_changes",
+        is_flag=True,
+        help="Commit. Without it, rebuild, print the summary, and roll back.",
+    )
+    def sample_history_rebuild(start, end, seed, apply_changes):
+        """Replace the sample history with a new one for --start..--end.
+
+        Only sample rows are removed; anything entered in the system stays.
+        Works on a hosted database too: take a backup first. --apply asks
+        you to type the database host before it commits.
+        """
+        from app.services.sample_history_service import format_summary, rebuild
+
+        _confirm_sample_history_host(apply_changes)
+        try:
+            summary = rebuild(start, end, seed=seed, apply=apply_changes)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+        removed = summary.pop("removed", {})
+        print(f"Removed the old sample history: {removed.get('ledgerRows', 0)} rows.")
+        unlinked = {k: v for k, v in (summary.pop("unlinked", {}) or {}).items() if v}
+        if unlinked:
+            print("Kept, unlinked from sample rows: " + ", ".join(f"{k} {v}" for k, v in unlinked.items()))
+        for line in format_summary(summary):
+            print(line)
+        print(
+            "Applied."
+            if apply_changes
+            else "Dry run: nothing was saved. Run with --apply to commit."
+        )
+
     @sample_history_group.command("remove")
     @click.option(
         "--apply",

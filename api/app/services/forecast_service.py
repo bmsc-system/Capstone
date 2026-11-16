@@ -33,7 +33,7 @@ MONTHLY_WINDOW = 3
 MIN_FORECAST_MONTHS = fm.MIN_TRAIN + 3
 FORECAST_HORIZON_MONTHS = 3
 # Months ahead a user can ask the sales and demand forecasts for.
-FORECAST_HORIZON_CHOICES = (1, 3, 6)
+FORECAST_HORIZON_CHOICES = (1, 3, 6, 12)
 
 
 def horizon_months(value) -> int:
