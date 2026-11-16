@@ -473,6 +473,8 @@ const BoardRows = memo(function BoardRows({
                         width={col.width}
                         rowMode={rowMode}
                         onOpenJob={highlightJobId ? undefined : onOpenJob}
+                        highlightJobId={highlightJobId}
+                        highlightColor={highlightColor || THIS_JOB_COLOR}
                       />
                     );
                   })

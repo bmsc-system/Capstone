@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, type CSSProperties } from 'react';
 import { Popover } from 'antd';
 import { DownOutlined, RightOutlined } from '@ant-design/icons';
 import type { ScheduleBoardOperation } from '../../api/schedule.api';
@@ -15,6 +15,9 @@ type Props = {
   /** Worker rows show the machine; machine rows show the worker. */
   rowMode: 'machine' | 'worker';
   onOpenJob?: (jobOrderId: string) => void;
+  /** Planning a job: its days are filled in its colour, other work is muted. */
+  highlightJobId?: string;
+  highlightColor?: string;
 };
 
 function statusLabel(s: string) {
@@ -73,9 +76,11 @@ function groupByJob(ops: ScheduleBoardOperation[]): JobGroup[] {
   return [...map.values()];
 }
 
-function MonthDayChip({ dayKey, ops, left, width, rowMode, onOpenJob }: Props) {
+function MonthDayChip({ dayKey, ops, left, width, rowMode, onOpenJob, highlightJobId, highlightColor }: Props) {
   const [open, setOpen] = useState(false);
   const n = ops.length;
+  const mine = highlightJobId ? ops.filter((op) => op.jobOrderId === highlightJobId).length : 0;
+  const tone = !highlightJobId ? '' : mine ? ' is-this-job' : ' is-muted';
   const jobs = useMemo(() => (open ? groupByJob(ops) : []), [open, ops]);
   const day = formatShop(`${dayKey}T12:00:00+08:00`, 'ddd, MMM D');
 
@@ -149,11 +154,15 @@ function MonthDayChip({ dayKey, ops, left, width, rowMode, onOpenJob }: Props) {
     >
       <button
         type="button"
-        className={`sched-month-chip${open ? ' is-open' : ''}`}
-        style={{ left: left + 2, width: Math.max(24, width - 4) }}
+        className={`sched-month-chip${tone}${open ? ' is-open' : ''}`}
+        style={{
+          left: left + 2,
+          width: Math.max(24, width - 4),
+          ...(mine && highlightColor ? ({ '--chip-color': highlightColor } as CSSProperties) : null),
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={`${n} operation${n === 1 ? '' : 's'} on ${day}`}
+        title={`${n} operation${n === 1 ? '' : 's'} on ${day}${mine ? ` (${mine} of this job)` : ''}`}
       >
         <span className="sched-month-chip__text">
           {width >= 112 ? `${n} operation${n === 1 ? '' : 's'}` : `${n} op${n === 1 ? '' : 's'}`}

@@ -83,6 +83,34 @@
   color: #1d4ed8;
 }
 
+/* Planning a job: its days take the job's colour (as its bars do in Day and
+   Week); days with only other work are muted. */
+.sched-month-chip.is-this-job {
+  --chip-color: #2563eb;
+  background: var(--chip-color);
+  border-color: var(--chip-color);
+  color: #fff;
+}
+
+.sched-month-chip.is-this-job .sched-month-chip__caret {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sched-month-chip.is-this-job:hover,
+.sched-month-chip.is-this-job:focus-visible,
+.sched-month-chip.is-this-job.is-open {
+  background: var(--chip-color);
+  border-color: var(--chip-color);
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.12);
+}
+
+.sched-month-chip.is-muted {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #64748b;
+}
+
 .sched-month-chip__text {
   overflow: hidden;
   text-overflow: ellipsis;
