@@ -91,6 +91,27 @@ from app.services.schedule_calendar import (
 )
 
 HOLIDAYS = (
+    (date(2024, 6, 12), "Independence Day"),
+    (date(2024, 8, 21), "Ninoy Aquino Day"),
+    (date(2024, 8, 26), "National Heroes Day"),
+    (date(2024, 11, 1), "All Saints' Day"),
+    (date(2024, 11, 2), "All Souls' Day"),
+    (date(2024, 11, 30), "Bonifacio Day"),
+    (date(2024, 12, 24), "Christmas Eve"),
+    (date(2024, 12, 25), "Christmas Day"),
+    (date(2024, 12, 30), "Rizal Day"),
+    (date(2024, 12, 31), "Last Day of the Year"),
+    (date(2025, 1, 1), "New Year's Day"),
+    (date(2025, 1, 29), "Chinese New Year"),
+    (date(2025, 4, 9), "Araw ng Kagitingan"),
+    (date(2025, 4, 17), "Maundy Thursday"),
+    (date(2025, 4, 18), "Good Friday"),
+    (date(2025, 4, 19), "Black Saturday"),
+    (date(2025, 5, 1), "Labor Day"),
+    (date(2025, 5, 12), "Election Day"),
+    (date(2025, 6, 12), "Independence Day"),
+    (date(2025, 8, 21), "Ninoy Aquino Day"),
+    (date(2025, 8, 25), "National Heroes Day"),
     (date(2025, 11, 1), "All Saints' Day"),
     (date(2025, 12, 8), "Feast of the Immaculate Conception"),
     (date(2025, 12, 24), "Christmas Eve"),
@@ -146,6 +167,80 @@ PARTS = (
     ("Base plate", "Milled base, holes drilled and tapped."),
 )
 
+# Each part's routing: the operations it goes through, in order (operation
+# type codes). A leading "?" marks a step only some jobs need. Steps whose
+# operation type the shop does not have are skipped.
+PART_ROUTES = {
+    "Drive shaft": ("FACING", "TURNING", "?THREADING", "KEYWAY", "?SPLINE", "?SURFACE_GRINDING"),
+    "Bronze bushing": ("FACING", "TURNING", "?GROOVING"),
+    "Coupling hub": ("FACING", "TURNING", "KEYWAY", "?DRILLING"),
+    "Flange": ("CUTTING", "FACING", "TURNING", "DRILLING"),
+    "Mounting bracket": ("CUTTING", "BENDING", "DRILLING", "?SLOTTING"),
+    "Spur gear": ("FACING", "TURNING", "TEETH_CUTTING", "KEYWAY"),
+    "Conveyor roller": ("FACING", "TURNING", "?DRILLING"),
+    "Pin": ("FACING", "TURNING", "?GROOVING", "?SURFACE_GRINDING"),
+    "Spacer": ("BLANKING", "FACING"),
+    "Pulley": ("FACING", "TURNING", "GROOVING", "KEYWAY"),
+    "Housing cover": ("CUTTING", "SLOTTING", "DRILLING"),
+    "Wear plate": ("CUTTING", "SURFACE_GRINDING"),
+    "Sleeve": ("FACING", "TURNING", "?GROOVING"),
+    "Adapter plate": ("CUTTING", "FACING", "DRILLING"),
+    "Keystock": ("SLOTTING", "?SURFACE_GRINDING"),
+    "Collar": ("FACING", "TURNING", "DRILLING"),
+    "Guide rail": ("CUTTING", "SLOTTING", "DRILLING"),
+    "Cam": ("CUTTING", "SLOTTING", "?SURFACE_GRINDING"),
+    "Hub": ("FACING", "TURNING", "KEYWAY"),
+    "Base plate": ("CUTTING", "SLOTTING", "DRILLING"),
+    # Repairs, by the job's title.
+    "Rethreading of ring blower port": ("THREADING",),
+    "Modification of cyclodrive base": ("DRILLING", "SLOTTING"),
+    "Repair of pump shaft": ("TURNING", "?KEYWAY"),
+    "Reconditioning of hydraulic cylinder rod": ("TURNING", "SURFACE_GRINDING"),
+    "Re-boring of bearing housing": ("FACING", "TURNING"),
+    "Repair of impeller hub": ("TURNING", "KEYWAY"),
+    "Re-machining of roller journal": ("TURNING", "?FACING"),
+    "Repair of gear coupling": ("TEETH_CUTTING", "TURNING"),
+    "Resurfacing of mixer blade": ("SURFACE_GRINDING",),
+    "Repair of conveyor sprocket": ("TEETH_CUTTING", "?TURNING"),
+}
+# Relative target hours of one pass of each operation (a turning pass takes
+# about twice a facing pass; cutting gear teeth is the longest).
+OP_WEIGHT = {
+    "FACING": 0.35, "BLANKING": 0.3, "TURNING": 1.4, "THREADING": 0.6, "GROOVING": 0.6,
+    "SLOTTING": 1.0, "TEETH_CUTTING": 2.0, "KEYWAY": 0.8, "SPLINE": 1.4, "DRILLING": 0.5,
+    "SURFACE_GRINDING": 0.9, "CUTTING": 0.35, "BENDING": 0.35,
+}
+# The shop's raw materials each part is usually made from, most likely first.
+PART_MATERIALS = {
+    "Drive shaft": ("Shafting", "1045", "4140", "4340"),
+    "Bronze bushing": ("Bronze Materials",),
+    "Coupling hub": ("1045", "4140", "Shafting"),
+    "Flange": ("MS Plates", "Stainless Plates"),
+    "Mounting bracket": ("MS Plates", "Stainless Plates"),
+    "Spur gear": ("4140", "4340", "1045", "Engineering Plastic"),
+    "Conveyor roller": ("BI Pipe", "GI Pipe", "SS Pipe", "Shafting"),
+    "Pin": ("4140", "1045", "Shafting"),
+    "Spacer": ("MS Plates", "Engineering Plastic", "Stainless Plates"),
+    "Pulley": ("1045", "Shafting"),
+    "Housing cover": ("MS Plates", "Stainless Plates"),
+    "Wear plate": ("Engineering Plastic", "MS Plates"),
+    "Sleeve": ("Bronze Materials", "SS Pipe", "Engineering Plastic", "Shafting"),
+    "Adapter plate": ("MS Plates", "Stainless Plates"),
+    "Keystock": ("1045",),
+    "Collar": ("1045", "Shafting"),
+    "Guide rail": ("MS Plates", "Engineering Plastic"),
+    "Cam": ("4140", "MS Plates"),
+    "Hub": ("1045", "Shafting", "4140"),
+    "Base plate": ("MS Plates",),
+    "Repair of pump shaft": ("Shafting", "4140"),
+    "Reconditioning of hydraulic cylinder rod": ("Hydraulic Cylinder", "Shafting"),
+    "Re-boring of bearing housing": ("Bronze Materials",),
+    "Repair of gear coupling": ("4140",),
+}
+# Thin sheet parts, bought by the sheet rather than cut to size.
+SHEET_PARTS = ("Mounting bracket", "Housing cover")
+PIPE_SIZES = ((60, 4), (89, 5), (114, 6), (168, 7))  # OD and wall, mm
+
 # Repairs and modifications, worded the way clients write them on their POs
 # (e.g. "Modification of Cyclodrive Base", "Rethreading of ring blower port").
 REPAIR_JOBS = (
@@ -165,10 +260,11 @@ REPAIR_JOBS = (
 # suppliers quoted them in 2026: 1045 round bar 320mm dia x 170mmL at
 # PHP 15,685 is about PHP 146 a kilo. Matched on words in the catalog name.
 STOCK_PRICES = (
-    (("stainless", "sus", "304", "316"), 285, 7.9),
-    (("4140", "alloy"), 195, 7.85),
+    (("engineering plastic",), 520, 1.41),
+    (("stainless", "sus", "304", "316", "ss pipe"), 285, 7.9),
+    (("4140", "4340", "alloy"), 195, 7.85),
     (("skd", "d2", "tool"), 480, 7.7),
-    (("1045", "s45c", "carbon"), 142, 7.85),
+    (("1045", "s45c", "carbon", "shafting"), 142, 7.85),
     (("a36", "ms", "mild", "iron", "plate", "steel"), 82, 7.85),
     (("6061", "5052", "alum"), 390, 2.7),
     (("brass",), 620, 8.5),
@@ -183,6 +279,8 @@ STOCK_PRICES = (
 DEFAULT_STOCK_PRICE = (150, 7.85)
 # Parts cut from plate rather than round bar.
 PLATE_PARTS = ("plate", "bracket", "flange", "cover", "rail", "cam", "key")
+# Long round parts cut from a longer length of bar.
+LONG_PARTS = ("shaft", "pin", "roller", "rod", "journal")
 
 # Pause time is wall-clock and stays on the same shift. Machine downtime is
 # planted as its own records so it can carry shop hours without stretching
@@ -404,28 +502,23 @@ def _keep_monthly_sales_in_band(rng, plans, start, end):
             plan["amount"] = round(plan["amount"] * factor, 2)
 
 
-# The consumables the sample shop keeps on its list (by catalog code): the
-# everyday cutting, grinding, welding and safety items. A reset marks every
-# other consumable archived, so the list stays about a page long.
+# The consumables the sample shop keeps on its list (by catalog code), from
+# the shop's own list (app/constants/inventory_names.py): cutting and
+# grinding disks, fluids, drill bits, endmills, taps, sandpaper and bandsaw
+# blades. A reset marks every other consumable archived.
 SAMPLE_CONSUMABLE_CODES = (
-    "INV-OIL-CUT-PAIL",  # Cutting oil
-    "INV-COOLANT",  # Soluble coolant
-    "INV-HSSDRILL-6",
+    "INV-OIL-CUT-PAIL",  # Fluids: cutting oil
+    "INV-COOLANT",  # Fluids: soluble coolant
+    "INV-HSSDRILL-6",  # Drill Bits
     "INV-HSSDRILL-10",
-    "INV-HSSEM-10",
-    "INV-INS-CNMG",  # Carbide insert CNMG 120408
-    "INV-LATHEHSS-12",  # Lathe tool bit 1/2"
-    "INV-CTRDRILL-A",
-    "INV-TAP-M10",
-    "INV-GRIND-4",
-    "INV-CUT-14",
-    "INV-FLAP-4-G60",
-    "INV-RODE6013-25",
-    "INV-MIG-08",
-    "INV-GLOVES-WELD",
-    "INV-SAFETY-GLASS",
-    "INV-SAND-G120",
-    "INV-SHOP-RAGS",
+    "INV-CTRDRILL-A",  # Drill Bits: center drill
+    "INV-HSSEM-10",  # Endmills
+    "INV-TAP-M10",  # Handtaps
+    "INV-GRIND-4",  # Grinding Stone
+    "INV-CUT-14",  # Cutting Disk
+    "INV-FLAP-4-G60",  # Flap Disk
+    "INV-SAND-G120",  # Sandpaper
+    "INV-BANDSAW",  # Bandsaw Blade
 )
 
 
@@ -484,6 +577,96 @@ def generate(start, end, seed=42, apply=False):
         raise
     finally:
         _thaw_onupdate(frozen)
+
+
+def rebuild(start, end, seed=42, apply=False):
+    """Replace the sample history with a new one for ``start``..``end``.
+
+    Everything that is not sample data stays: people, machines, clients,
+    suppliers, the catalog, tools, settings, and records entered in the
+    system. Records entered in the system that point at a sample job, PO or
+    operation are kept and unlinked from it (hand-outs, requests), except
+    notifications and invoices about a sample job, which go with it.
+    One transaction; without ``apply`` it is rolled back after the summary.
+    Runs on any database; the CLI asks for the host name before it commits.
+    """
+    start_d = _parse_day(start, "start")
+    end_d = _parse_day(end, "end")
+    if end_d < start_d:
+        raise ValueError("end is before start")
+    frozen = _freeze_onupdate()
+    try:
+        with _quiet_audit():
+            print("Removing the old sample history...", flush=True)
+            unlinked = _unlink_from_sample()
+            removed = _remove()
+            db.session.flush()
+            summary = _generate(start_d, end_d, int(seed))
+            summary["removed"] = removed
+            summary["unlinked"] = unlinked
+            if apply:
+                db.session.commit()
+            else:
+                db.session.rollback()
+            summary["applied"] = bool(apply)
+            return summary
+    except Exception:
+        db.session.rollback()
+        raise
+    finally:
+        _thaw_onupdate(frozen)
+
+
+def _unlink_from_sample():
+    """Let records that are not sample data survive removing the sample rows
+    they point at."""
+    from sqlalchemy import text
+
+    def sample(table):
+        return f"(SELECT record_id FROM sample_records WHERE table_name = '{table}')"
+
+    def run(sql):
+        return db.session.execute(text(sql)).rowcount or 0
+
+    counts = {
+        "hand-outs unlinked from sample jobs": run(
+            f"UPDATE tool_events SET job_order_id = NULL WHERE job_order_id IN {sample('job_orders')} "
+            f"AND id::text NOT IN {sample('tool_events')}"
+        ),
+        "notifications about sample jobs": run(
+            f"DELETE FROM notification_logs WHERE job_order_id IN {sample('job_orders')} "
+            f"AND id::text NOT IN {sample('notification_logs')}"
+        ),
+        "invoices on sample jobs": run(
+            f"DELETE FROM sales_invoices WHERE job_order_id IN {sample('job_orders')} "
+            f"AND id::text NOT IN {sample('sales_invoices')}"
+        ),
+        "requests unlinked from sample purchases": run(
+            "UPDATE consumable_requests SET consumable_purchase_id = NULL "
+            f"WHERE consumable_purchase_id::text IN {sample('consumable_purchases')}"
+        )
+        + run(
+            "UPDATE consumable_requests SET material_purchase_id = NULL "
+            f"WHERE material_purchase_id IN {sample('material_purchases')}"
+        ),
+        "redo links to sample operations": run(
+            f"UPDATE operations SET rework_of_operation_id = NULL WHERE rework_of_operation_id IN {sample('operations')} "
+            f"AND id NOT IN {sample('operations')}"
+        ),
+    }
+    stray = db.session.execute(
+        text(
+            f"SELECT count(*) FROM material_purchases WHERE supplier_order_id IN {sample('supplier_orders')} "
+            f"AND id NOT IN {sample('material_purchases')}"
+        )
+    ).scalar() or 0
+    if stray:
+        raise ValueError(
+            f"{stray} PO line(s) entered in the system sit on sample supplier orders. "
+            "Move or delete them first. Nothing was changed."
+        )
+    db.session.flush()
+    return counts
 
 
 def remove(apply=False):
@@ -888,11 +1071,13 @@ def _generate(start, end, seed):
 
     shop.tune_efficiency(rng)
     plans = _plan_jobs(rng, shop, start, end)
-    ops_guess = max(1, len(plans) * 2.2)
+    weight = max(1.0, sum(_expected_weight(shop, p) for p in plans if p["fate"] not in ("draft", "cancelled")))
     capacity = max(1, len(shop.workers)) * 7.5 * max(1, len(shop.working_days))
-    # Target hours per operation so the shop is busy but not full (about a third
-    # of worker hours on job work; the rest is setup, breaks and slack).
-    shop.hours_per_op = min(5.0, max(1.0, (capacity * 0.33) / ops_guess))
+    # Hours per unit of routing weight: a turning pass on a few pieces is
+    # about four to five hours, facing about one. At most a fifth of worker
+    # hours go to scheduled machine work; the rest is setup, welding, fitting
+    # and assembly (not scheduled), breaks and slack.
+    shop.hours_per_op = min(2.2, max(0.75, (capacity * 0.2) / weight))
     print(f"Scheduling {len(plans)} job orders...", flush=True)
     counters = _schedule_jobs(rng, shop, ledger, plans)
     _attendance(rng, shop, ledger, plans, counters)
@@ -925,9 +1110,10 @@ def _plan_jobs(rng, shop, start, end):
         season = {3: 1.08, 4: 0.97, 5: 1.03, 6: 0.90, 7: 1.05, 8: 1.08, 9: 0.96, 10: 1.12}.get(
             anchor.month, 1.0
         )
-        # About 7.5 job orders a week at the start, rising slowly; with the
-        # seasonal wobble a week stays within the shop's 7-10.
-        full = min(10.0, (7.5 + month_i * 0.1) * season * rng.uniform(0.94, 1.06))
+        # About 7 job orders a week at the start, rising to about 9 by the
+        # end of the range however long it is; with the seasonal wobble a
+        # week stays within the shop's 7-10.
+        full = min(10.0, (7.2 + 1.8 * month_i / span) * season * rng.uniform(0.94, 1.06))
         count = max(1, int(round(full * (len(week) / 6))))
         for _ in range(count):
             seq += 1
@@ -965,6 +1151,7 @@ def _plan_jobs(rng, shop, start, end):
             plans.append(
                 {
                     "seq": seq,
+                    "part": REPAIR_JOBS[part_i % len(REPAIR_JOBS)][0] if kind == JobType.REPAIR else part,
                     "po": po,
                     "due": due,
                     "client": client,
@@ -1047,8 +1234,8 @@ def _one_job(rng, shop, ledger, plan, counters, admin, office):
     raw_materials = []
     catalog = None
     if plan["needs"] and fate != "cancelled":
-        catalog = shop.catalog[rng.randrange(len(shop.catalog))]
-        stock = _stock_line(catalog, plan["title"], plan["qty"], plan["amount"])
+        catalog = _pick_material(rng, shop, plan.get("part"))
+        stock = _stock_line(catalog, plan["title"], plan["qty"], plan["amount"], part=plan.get("part"))
         plan["stock"] = stock
         raw_materials = [
             {
@@ -1168,7 +1355,8 @@ def _one_job(rng, shop, ledger, plan, counters, admin, office):
         job.supplier_id = purchase["supplier"].id
         job.supplier_reference = purchase["order"].po_number
         if first.get("actual_start"):
-            purchase["line"].consumed_at = first["actual_start"]
+            for line in purchase["lines"]:
+                line.consumed_at = max(first["actual_start"], shop_local_to_utc(purchase["received"], time(8, 0)))
     elif purchase and fate == "waiting":
         job.material_expected_date = purchase["expected"]
         job.supplier_id = purchase["supplier"].id
@@ -1277,15 +1465,15 @@ def _purchase_for_job(rng, shop, ledger, plan, job, catalog, office, counters):
         updated_at=order.updated_at,
     )
     ledger.add(line, issued_at)
-    if rng.random() < 0.35 and len(shop.catalog) > 1:
-        other = shop.catalog[rng.randrange(len(shop.catalog))]
-        if other.id == catalog.id:
-            other = shop.catalog[(shop.catalog.index(catalog) + 1) % len(shop.catalog)]
-        extra = _stock_line(other, plan["title"], max(1, plan["qty"] // 2), plan["amount"] / 3)
+    other = _pick_material(rng, shop, plan.get("part"), exclude=catalog.id) if rng.random() < 0.25 else None
+    if other is not None:
+        extra = _stock_line(other, plan["title"], max(1, plan["qty"] // 2), plan["amount"] / 3, part=plan.get("part"))
+        planned_id = _new_id(rng)
         extra_line = MaterialPurchase(
             id=_new_id(rng),
             job_order_id=job.id,
             material_catalog_id=other.id,
+            planned_material_id=planned_id,
             material_name=other.name,
             size_spec=extra["size"],
             quantity=Decimal(str(extra["quantity"])),
@@ -1302,7 +1490,7 @@ def _purchase_for_job(rng, shop, ledger, plan, job, catalog, office, counters):
         materials = list(job.raw_materials or [])
         materials.append(
             {
-                "id": _new_id(rng),
+                "id": planned_id,
                 "materialCatalogId": other.id,
                 "name": other.name,
                 "sizeSpec": extra_line.size_spec,
@@ -1324,6 +1512,7 @@ def _purchase_for_job(rng, shop, ledger, plan, job, catalog, office, counters):
     return {
         "order": order,
         "line": line,
+        "lines": [line] + ([extra_line] if other is not None else []),
         "supplier": supplier,
         "expected": expected,
         "received": received,
@@ -1346,11 +1535,51 @@ def _ready_at(shop, plan, purchase):
     return shop_local_to_utc(ready, time(8, 0)), previous, late
 
 
+def _qty_factor(plan):
+    """More pieces take longer, though setup is shared: 1 piece 1.0, 12 about 2.2."""
+    return 0.5 + 0.5 * math.sqrt(max(1, int(plan.get("qty") or 1)))
+
+
+def _route_codes(plan, rng=None):
+    """The part's operation codes; optional steps drawn when ``rng`` is given,
+    else counted at their 40 percent chance (for planning hours)."""
+    steps = PART_ROUTES.get(plan.get("part") or "", ())
+    codes = []
+    for step in steps:
+        if step.startswith("?"):
+            if rng is None or rng.random() < 0.4:
+                codes.append(step[1:])
+        else:
+            codes.append(step)
+    return codes
+
+
+def _route(rng, shop, plan, fate):
+    """The operation types this job goes through, in routing order."""
+    by_code = {op.code: op for op in shop.op_types}
+    route = [by_code[c] for c in _route_codes(plan, rng) if c in by_code]
+    if not route:
+        route = [shop.op_types[rng.randrange(len(shop.op_types))] for _ in range(_op_count(rng))]
+    if fate == "progress" and len(route) < 2:
+        route = route + [shop.op_types[rng.randrange(len(shop.op_types))]]
+    return route
+
+
+def _expected_weight(shop, plan):
+    """Expected target-hour weight of a job (for sizing the shop's load)."""
+    have = {op.code for op in shop.op_types}
+    total = 0.0
+    for step in PART_ROUTES.get(plan.get("part") or "", ()):
+        code = step.lstrip("?")
+        if code in have:
+            total += OP_WEIGHT.get(code, 1.0) * (0.4 if step.startswith("?") else 1.0)
+    return (total or 2.2) * _qty_factor(plan)
+
+
 def _place_operations(rng, shop, ledger, job, plan, not_before, horizon, admin, counters, fate):
-    count = _op_count(rng)
-    if fate == "progress":
-        count = max(2, count)
-    hours_each = shop.hours_per_op * rng.uniform(0.75, 1.25)
+    route = _route(rng, shop, plan, fate)
+    count = len(route)
+    job_hours = shop.hours_per_op * _qty_factor(plan) * rng.uniform(0.85, 1.15)
     placed = []
     cursor = not_before
     seq = {"n": 1}
@@ -1360,10 +1589,10 @@ def _place_operations(rng, shop, ledger, job, plan, not_before, horizon, admin, 
         seq["n"] += 1
         return n
 
-    for step in range(1, count + 1):
-        op_type = shop.op_types[rng.randrange(len(shop.op_types))]
-        # The Admin sets targets in quarter hours, and each operation its own.
-        estimated = _quarter_hours(hours_each * rng.uniform(0.7, 1.3))
+    for step, op_type in enumerate(route, start=1):
+        # The Admin sets targets in quarter hours, and each operation its own:
+        # longer for a turning pass than a facing pass, longer for more pieces.
+        estimated = _quarter_hours(job_hours * OP_WEIGHT.get(op_type.code, 1.0) * rng.uniform(0.85, 1.15))
         is_last = step == count
         in_progress = fate == "progress" and is_last
         pause = fate == "run" and not in_progress and rng.random() < 0.55
@@ -1497,8 +1726,9 @@ def _place_one(
         category, reason_text = _pick_rework(rng)
         status = OperationStatus.COMPLETED
 
-    # Released-but-not-started operations (scheduled / waiting).
-    if job.status == JobOrderStatus.SCHEDULED:
+    # Released-but-not-started operations (scheduled / waiting), and an
+    # in-progress job's next step that only fits after the end date.
+    if job.status == JobOrderStatus.SCHEDULED or (in_progress and start >= shop.history_end):
         status = OperationStatus.SCHEDULED
         actual_start = None
         actual_end = None
@@ -1558,6 +1788,7 @@ def _place_one(
 
     return {
         "op": op,
+        "code": op_type.code,
         "start": start,
         "end": end,
         "actual_start": actual_start,
@@ -1692,9 +1923,17 @@ def _remember_work(shop, result):
     day = utc_to_shop(start).date()
     last = utc_to_shop(end).date() if end is not None else shop.end
     worker = result["worker"]
-    while day <= last and (day - utc_to_shop(start).date()).days < 12:
+    op = result["op"]
+    code = result.get("code") or ""
+    first_day = utc_to_shop(start).date()
+    while day <= last and (day - first_day).days < 12:
         if shop.is_working(day):
-            shop.day_work[day].append((worker.id, result["op"].id, result["op"].job_order_id))
+            # The part of the work on this day (whole shift on middle days).
+            begin = start if day == first_day else shop_local_to_utc(day, time(8, 0))
+            finish = end if (end is not None and utc_to_shop(end).date() == day) else shop_local_to_utc(day, time(17, 0))
+            shop.day_work[day].append(
+                (worker.id, op.id, op.job_order_id, code, begin, finish, op.machine_type_id)
+            )
         day += timedelta(days=1)
 
 
@@ -1717,13 +1956,22 @@ def _attendance(rng, shop, ledger, plans, counters):
     }
     admin = shop.admins[0]
     crew = shop.crew or shop.workers
+    # Days each person has booked work (lead or helper): never absent then.
+    booked = set()
+    for worker_id, spans in shop.worker_busy.items():
+        for begin, finish in spans:
+            day = utc_to_shop(begin).date()
+            last = min(utc_to_shop(finish).date(), shop.end)
+            while day <= last:
+                booked.add((worker_id, day))
+                day += timedelta(days=1)
     for person in crew:
         for day in shop.working_days:
             if not shop.worker_works(person.id, day):
                 continue
             if (person.id, day) in existing:
                 continue
-            if rng.random() < 0.03:
+            if (person.id, day) not in booked and rng.random() < 0.03:
                 counters["absences"] += 1
                 continue
             sched = shop.worker_schedules.get(person.id) or {}
@@ -1732,7 +1980,7 @@ def _attendance(rng, shop, ledger, plans, counters):
             if not working or start_t is None or end_t is None:
                 continue
             overtime = rng.random() < 0.04
-            clock_in = shop_local_to_utc(day, _shift_time(start_t, rng.randint(0, 8)))
+            clock_in = shop_local_to_utc(day, _shift_time(start_t, -rng.randint(0, 12)))
             clock_out = shop_local_to_utc(
                 day, _shift_time(end_t, 45 if overtime else rng.randint(0, 8))
             )
@@ -1778,6 +2026,73 @@ SAMPLE_PRICES = (
 )
 
 
+# Which operations use each consumable (operation type codes), so a hand-out
+# goes to work that needs it: drill bits to drilling, endmills to milling.
+CONSUMABLE_USE = (
+    ("drill", ("DRILLING", "FACING", "TURNING")),
+    ("endmill", ("SLOTTING", "GROOVING", "KEYWAY", "TEETH_CUTTING")),
+    ("tap", ("DRILLING", "THREADING")),
+    ("cutting disk", ("CUTTING", "BLANKING", "BENDING")),
+    ("grinding", ("SURFACE_GRINDING", "BENDING", "CUTTING")),
+    ("flap", ("SURFACE_GRINDING", "BENDING", "CUTTING")),
+    ("sandpaper", ("TURNING", "FACING", "SURFACE_GRINDING")),
+    ("bandsaw", ("BLANKING", "CUTTING")),
+    ("fluid", ("TURNING", "FACING", "THREADING", "DRILLING", "SLOTTING", "GROOVING")),
+)
+
+
+def _pick_work(rng, work, tool):
+    """(worker, operation, job) for a hand-out: work that uses the item when
+    there is some that day, else any."""
+    text = f"{tool.name} {tool.size_spec or ''}".lower()
+    codes = next((c for word, c in CONSUMABLE_USE if word in text), ())
+    fitting = [w for w in work if w[3] in codes] if codes else []
+    worker_id, op_id, job_id = rng.choice(fitting or work)[:3]
+    return worker_id, op_id, job_id
+
+
+def _shop_item(tool):
+    """(how fast it is used, store price in pesos) for one of the shop's
+    consumables, by name and size. The everyday sizes are used fastest."""
+    import re
+
+    name = (tool.name or "").lower()
+    size = (tool.size_spec or "").lower()
+    mm = [float(n) for n in re.findall(r"(\d+(?:\.\d+)?)\s*mm", size)]
+    inch = [float(n) for n in re.findall(r'(\d+)"', size)]
+    if "fluid" in name or "oil" in name or "coolant" in name:
+        per_gallon = 900 if ("oil" in size or "oil" in name) else 760
+        per_unit = {"pail": 5, "gallon": 1, "liter": 0.264, "litre": 0.264}.get((tool.unit or "").lower(), 1)
+        return "bulk", int(round(per_gallon * per_unit / 10) * 10)
+    if "cutting disk" in name:
+        big = bool(inch and inch[0] >= 10)
+        return "high", (210 if big else 38)
+    if "grinding" in name:
+        big = bool(inch and inch[0] >= 7)
+        return ("mid" if big else "high"), (140 if big else 65)
+    if "flap" in name:
+        return ("high" if "60" in size else "mid" if ("40" in size or "80" in size) else "low"), 75
+    if "sandpaper" in name:
+        return ("mid" if ("120" in size or "80" in size) else "low"), 180
+    if "center drill" in size:
+        return "low", 160
+    if "drill" in name:
+        d = mm[0] if mm else 8
+        return ("mid" if d in (6, 8, 10, 12) else "low"), int(round((40 + 22 * d) / 5) * 5)
+    if "endmill" in name or "end mill" in name:
+        d = mm[0] if mm else 10
+        carbide = "carb" in (tool.code or "").lower() or "carbide" in size
+        price = (300 + 150 * d) if carbide else (100 + 60 * d)
+        return ("mid" if (d == 10 and not carbide) else "low"), int(round(price / 5) * 5)
+    if "tap" in name:
+        m = re.findall(r"m(\d+)", size)
+        d = float(m[0]) if m else 10
+        return ("mid" if d == 10 else "low"), int(100 + 30 * d)
+    if "bandsaw" in name:
+        return "low", 1650
+    return _usage_rate(tool.name), int(_sample_price(tool.name))
+
+
 def _sample_price(name):
     low = (name or "").lower()
     for word, price in SAMPLE_PRICES:
@@ -1816,7 +2131,7 @@ def _hand_outs(rng, shop, ledger, counters, tool, arrivals, every, office):
         base, extra = divmod(to_give, visits)
         for n, day in enumerate(picked):
             amount = Decimal(base + (1 if n < extra else 0))
-            worker_id, op_id, job_id = rng.choice(shop.day_work[day])
+            worker_id, op_id, job_id = _pick_work(rng, shop.day_work[day], tool)
             when = shop_local_to_utc(day, time(rng.randint(8, 15), rng.choice((5, 20, 35, 50))))
             ledger.add(
                 ToolEvent(
@@ -1859,11 +2174,14 @@ def _consumables(rng, shop, ledger, counters):
     home = {}
     for index, tool in enumerate(sorted(shop.consumables, key=lambda t: t.id)):
         home[tool.id] = shop.suppliers[index % len(shop.suppliers)] if shop.suppliers else None
+    sized = {t.name.lower() for t in shop.consumables if t.size_spec}
     for index, tool in enumerate(names):
-        rate = _usage_rate(tool.name)
+        if not tool.size_spec and tool.name.lower() in sized:
+            continue  # the plain entry next to its sizes: the sizes get used
+        rate, price = _shop_item(tool)
         every = BUY_EVERY[rate] + (index % 4) * 3
         amount = BUY_AMOUNT[rate] + (0 if rate == "bulk" else (index % 3) * 2)
-        cost = tool.unit_cost if tool.unit_cost is not None else _sample_price(tool.name)
+        cost = tool.unit_cost if tool.unit_cost is not None else Decimal(price)
         day = shop.next_working(days[0] + timedelta(days=rng.randrange(max(1, every))))
         arrivals = []
         while day <= shop.end:
@@ -1939,7 +2257,7 @@ def _stock_po(rng, shop, ledger, supplier, day, rows, office, counters):
     _audit(ledger, rng, office, "CREATE", "SupplierOrder", order.id, issued_at, {"po": order.po_number})
     packed = []
     for tool, amount in rows:
-        cost = tool.unit_cost if tool.unit_cost is not None else Decimal(str(rng.randrange(15, 400)))
+        cost = tool.unit_cost if tool.unit_cost is not None else Decimal(_shop_item(tool)[1])
         line = MaterialPurchase(
             id=_new_id(rng),
             tool_id=tool.id,
@@ -1969,41 +2287,82 @@ def _stock_po(rng, shop, ledger, supplier, day, rows, office, counters):
     return order, received, packed
 
 
+# Which tools a worker takes out for which work (operation type codes), and
+# how often when they do that work. Measuring tools go with nearly every
+# machining job; hammers only now and then.
+TOOL_USE = (
+    ("caliper", 0.8, ("FACING", "TURNING", "THREADING", "GROOVING", "SLOTTING", "KEYWAY",
+                      "SPLINE", "TEETH_CUTTING", "DRILLING", "SURFACE_GRINDING", "BLANKING", "CUTTING")),
+    ("micrometer", 0.35, ("TURNING", "FACING", "THREADING", "GROOVING", "SURFACE_GRINDING")),
+    ("collet", 0.3, ("SLOTTING", "GROOVING", "KEYWAY", "TEETH_CUTTING", "DRILLING")),
+    ("clamp", 0.4, ("SLOTTING", "DRILLING", "CUTTING", "BENDING", "SURFACE_GRINDING", "KEYWAY")),
+    ("hammer", 0.12, ("FACING", "TURNING", "BENDING", "CUTTING", "DRILLING", "KEYWAY", "SLOTTING")),
+)
+
+
 def _tool_borrows(rng, shop, ledger, counters):
+    """Workers borrow the tools their day's work needs (a caliper for turning,
+    collets and clamps for milling) a few minutes before their first
+    operation and return them after their last. One worker per tool unit per
+    day; every tool is back on the rack at the end of the day, so custody is
+    as it was."""
     units = [
         unit
         for unit in ToolUnit.query.order_by(ToolUnit.asset_code).all()
-        if unit.status == ToolUnitStatus.AVAILABLE
+        if unit.status == ToolUnitStatus.AVAILABLE and unit.tool_type is not None
     ]
     if not units or not shop.working_days or not shop.workers:
         return
+    by_kind = defaultdict(list)
+    for unit in units:
+        name = unit.tool_type.name.lower()
+        for kind, _p, _codes in TOOL_USE:
+            if kind in name:
+                by_kind[kind].append(unit)
+                break
+    if not by_kind:
+        return
     for day in shop.working_days:
-        for index, unit in enumerate(units):
-            if rng.random() < 0.08:
-                continue
-            person = shop.workers[(index + day.toordinal()) % len(shop.workers)]
-            borrow_at = shop_local_to_utc(day, time(8, 10))
-            borrow = ToolEvent(
-                id=_new_id(rng),
-                tool_unit_id=unit.id,
-                worker_id=person.id,
-                type=ToolEventType.BORROW,
-                quantity=Decimal("1"),
-                created_at=borrow_at,
-            )
-            ledger.add(borrow, borrow_at)
-            counters["borrows"] += 1
-            return_at = shop_local_to_utc(day, time(16, 40))
-            returned = ToolEvent(
-                id=_new_id(rng),
-                tool_unit_id=unit.id,
-                worker_id=person.id,
-                type=ToolEventType.RETURN,
-                quantity=Decimal("1"),
-                created_at=return_at,
-            )
-            ledger.add(returned, return_at)
-            counters["returns"] += 1
+        work = shop.day_work.get(day) or []
+        if not work:
+            continue
+        spans = defaultdict(list)
+        for worker_id, _op, _job, code, begin, finish, _mt in work:
+            spans[worker_id].append((code, begin, finish))
+        out_today = set()
+        for worker_id in sorted(spans):
+            rows = spans[worker_id]
+            codes = {c for c, _b, _f in rows}
+            first = min(b for _c, b, _f in rows)
+            last = max(f for _c, _b, f in rows)
+            day_open = shop_local_to_utc(day, time(7, 50))
+            day_close = shop_local_to_utc(day, time(17, 30))
+            for kind, chance, uses in TOOL_USE:
+                if not codes & set(uses) or rng.random() > chance:
+                    continue
+                free = [u for u in by_kind.get(kind, ()) if u.id not in out_today]
+                if not free:
+                    continue
+                unit = free[rng.randrange(len(free))]
+                out_today.add(unit.id)
+                borrow_at = max(day_open, first - timedelta(minutes=rng.randint(3, 12)))
+                return_at = min(day_close, last + timedelta(minutes=rng.randint(2, 15)))
+                if return_at <= borrow_at:
+                    return_at = borrow_at + timedelta(minutes=30)
+                for kind_event, when in ((ToolEventType.BORROW, borrow_at), (ToolEventType.RETURN, return_at)):
+                    ledger.add(
+                        ToolEvent(
+                            id=_new_id(rng),
+                            tool_unit_id=unit.id,
+                            worker_id=worker_id,
+                            type=kind_event,
+                            quantity=Decimal("1"),
+                            created_at=when,
+                        ),
+                        when,
+                    )
+                counters["borrows"] += 1
+                counters["returns"] += 1
 
 
 def _ensure_holidays(ledger):
@@ -2823,9 +3182,12 @@ def _stock_size(title):
         part = int(float(raw))
     except ValueError:
         return None
-    if any(word in name.lower() for word in PLATE_PARTS):
+    low = name.lower()
+    if any(word in low for word in PLATE_PARTS):
         return f"{max(6, part // 4)}mm x {part * 2 + 50}mm x {part * 3 + 50}mm"
-    return f"{part + 10}mm dia x {part * 3}mmL"
+    if any(word in low for word in LONG_PARTS):
+        return f"{part + 10}mm dia x {max(150, part * 6)}mmL"
+    return f"{part + 10}mm dia x {max(30, round(part * 1.2 + 10))}mmL"
 
 
 def _price_of(name):
@@ -2853,20 +3215,57 @@ def _stock_kg(size, density):
     return 2.0
 
 
-def _stock_line(catalog, title, parts, job_amount):
+def _pick_material(rng, shop, part, exclude=None):
+    """A raw material for this part from the shop's catalog: one of the
+    materials the part is usually made from when the shop has it, else any.
+    With ``exclude`` (a second material for the same job) only the part's own
+    list counts, and None means there is no sensible second one."""
+    by_name = {c.name.lower(): c for c in shop.catalog}
+    wanted = [by_name[n.lower()] for n in PART_MATERIALS.get(part or "", ()) if n.lower() in by_name]
+    if exclude is not None:
+        wanted = [c for c in wanted if c.id != exclude]
+        return wanted[min(len(wanted) - 1, int(rng.random() ** 2 * len(wanted)))] if wanted else None
+    if wanted:
+        # Earlier entries are the usual choice; later ones now and then.
+        return wanted[min(len(wanted) - 1, int(rng.random() ** 2 * len(wanted)))]
+    plain = [c for c in shop.catalog if "hydraulic" not in c.name.lower()] or shop.catalog
+    return plain[rng.randrange(len(plain))]
+
+
+def _stock_line(catalog, title, parts, job_amount, part=None):
     """Size, quantity, unit and unit price of the stock bought for a job.
 
-    One bar or plate per part, fewer when that would cost more than about
-    40 percent of the job (several parts are cut from one length). Priced by
-    weight; per kilo when the catalog item is bought by the kilo."""
+    Bar is "60mm dia x 150mmL", plate cut to size "12mm x 150mm x 200mm",
+    thin sheet "3mm x 1220mm x 2440mm", pipe "114mm OD x 6mm wall x 600mmL".
+    One piece per part, fewer when that would cost more than about 40 percent
+    of the job (several parts are cut from one length). Priced by weight; a
+    hydraulic cylinder by the piece."""
+    name = (catalog.name or "").lower()
     unit = (catalog.default_unit or "pcs").strip() or "pcs"
     price, density = _price_of(f"{catalog.name} {catalog.category or ''}")
-    if unit.lower() == "sheet":
-        size = "3mm x 1220mm x 2440mm"
+    pieces = max(1, int(parts or 1))
+    if "hydraulic" in name:
+        bore = (50, 63, 80, 100)[(len(title) + pieces) % 4]
+        size = f"{bore}mm bore x {bore * 4}mm stroke"
+        each = 9000 + bore * 110
+        return {"size": size, "quantity": 1, "unit": "pcs", "unit_cost": float(each)}
+    if "pipe" in name:
+        od, wall = PIPE_SIZES[(len(title) + pieces) % len(PIPE_SIZES)]
+        length = 600 if "roller" in title.lower() else 300
+        size = f"{od}mm OD x {wall}mm wall x {length}mmL"
+        kg = math.pi / 4 * (od * od - (od - 2 * wall) ** 2) * length * density / 1e6
+        unit = "pcs"
+    elif part in SHEET_PARTS and unit.lower() == "sheet":
+        thick = (3, 4.5, 6)[(len(title) + pieces) % 3]
+        size = f"{thick:g}mm x 1220mm x 2440mm"
+        kg = thick * 1220 * 2440 * density / 1e6
+        pieces = 1
     else:
         size = _stock_size(title) or "50mm dia x 150mmL"
-    kg = max(0.2, _stock_kg(size, density))
-    pieces = max(1, int(parts or 1))
+        kg = _stock_kg(size, density)
+        if unit.lower() == "sheet":
+            unit = "pcs"  # plate cut to size
+    kg = max(0.2, kg)
     while pieces > 1 and kg * price * pieces > 0.4 * float(job_amount or 0):
         pieces = math.ceil(pieces / 2)
     if unit.lower() in ("kg", "kgs", "kilo", "kilos"):

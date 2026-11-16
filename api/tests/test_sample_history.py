@@ -409,3 +409,33 @@ def test_a_full_month_of_sales_is_scaled_into_the_band():
     low, high = MONTHLY_SALES_BAND
     assert low <= may <= high
     assert june == 3_000_000.0
+
+
+def test_rebuild_replaces_the_sample_and_keeps_what_was_entered(app):
+    from app.services.sample_history_service import rebuild
+
+    _shop()
+    generate(date(2026, 4, 6), date(2026, 4, 17), seed=7, apply=True)
+    old_jobs = {j.id for j in JobOrder.query.all()}
+    sample_job = JobOrder.query.first()
+    tool = Tool.query.filter_by(code="CD4").first()
+    worker = User.query.filter_by(email="wren.calder@example.test").first()
+    # A hand-out the office recorded in the system against a sample job.
+    kept = ToolEvent(tool_id=tool.id, worker_id=worker.id, type=ToolEventType.ISSUE,
+                     quantity=Decimal("1"), stock_delta=Decimal("-1"), job_order_id=sample_job.id)
+    db.session.add(kept)
+    db.session.commit()
+
+    summary = rebuild("2026-03-02", "2026-04-17", seed=11, apply=True)
+
+    assert summary["unlinked"]["hand-outs unlinked from sample jobs"] == 1
+    survivor = db.session.get(ToolEvent, kept.id)
+    assert survivor is not None and survivor.job_order_id is None
+    new_jobs = {j.id for j in JobOrder.query.all()}
+    assert new_jobs and not (new_jobs & old_jobs)
+    # Every job in the ledger, and each borrow returned the same day.
+    ledger_jobs = {r.record_id for r in SampleRecord.query.filter_by(table_name="job_orders")}
+    assert ledger_jobs == new_jobs
+    borrows = ToolEvent.query.filter_by(type=ToolEventType.BORROW).count()
+    returns = ToolEvent.query.filter_by(type=ToolEventType.RETURN).count()
+    assert borrows == returns

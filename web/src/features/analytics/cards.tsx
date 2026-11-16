@@ -111,18 +111,22 @@ function ForecastBody({
   f,
   format,
   height,
+  past,
 }: {
   f: MovingAverageForecast;
   format: (v: number | null | undefined) => string;
   height: number;
+  /** Months of history to draw (0 = all). The forecast always uses all of it. */
+  past?: number;
 }) {
   if (!f.months.length) {
     return <ChartEmpty title="Not enough history yet" text={`Needs ${f.monthsNeeded} full months of records.`} height={height} />;
   }
+  const shown = past ? f.months.slice(-past) : f.months;
   return (
     <>
       <ForecastChart
-        months={f.months}
+        months={shown}
         horizon={f.enoughHistory ? f.horizon ?? [] : []}
         soFar={f.enoughHistory ? f.currentMonthSoFar : null}
         format={format}
@@ -155,8 +159,28 @@ function exportForecast(name: string, f: MovingAverageForecast) {
   ]);
 }
 
-/** How far ahead a forecast looks: 1, 3 or 6 months. */
-const FORECAST_MONTHS = [1, 3, 6] as const;
+/** How far ahead a forecast looks: 1, 3, 6 or 12 months. */
+const FORECAST_MONTHS = [1, 3, 6, 12] as const;
+
+/** How much history the chart shows (0 = all). */
+const PAST_MONTHS = [
+  { value: 12, label: 'Past 12 months' },
+  { value: 24, label: 'Past 2 years' },
+  { value: 0, label: 'All history' },
+] as const;
+
+function PastSelect({ value, onChange }: { value: number; onChange: (m: number) => void }) {
+  return (
+    <Select
+      size="small"
+      aria-label="History shown"
+      value={value}
+      onChange={onChange}
+      style={{ width: 138 }}
+      options={PAST_MONTHS.map((o) => ({ value: o.value, label: o.label }))}
+    />
+  );
+}
 
 function AheadSelect({ value, onChange }: { value: number; onChange: (m: number) => void }) {
   return (
@@ -186,6 +210,7 @@ export function SalesForecastCard({
 }) {
   const f = data?.salesForecast;
   const take = f ? forecastTakeaway(f, fmtPesoCompact, 'expected') : null;
+  const [past, setPast] = useState(12);
   return (
     <Card
       title="Sales forecast"
@@ -194,7 +219,12 @@ export function SalesForecastCard({
       takeaway={take?.text}
       takeawayTone={take?.tone}
       controls={
-        onMonthsChange ? <AheadSelect value={months ?? 3} onChange={onMonthsChange} /> : undefined
+        onMonthsChange ? (
+          <>
+            <PastSelect value={past} onChange={setPast} />
+            <AheadSelect value={months ?? 3} onChange={onMonthsChange} />
+          </>
+        ) : undefined
       }
       info={
         f ? (
@@ -207,7 +237,11 @@ export function SalesForecastCard({
       }
       onExport={f ? () => exportForecast('sales-forecast', f) : undefined}
     >
-      {f ? <ForecastBody f={f} format={fmtPesoCompact} height={height} /> : <CardLoading />}
+      {f ? (
+        <ForecastBody f={f} format={fmtPesoCompact} height={height} past={onMonthsChange ? past : 12} />
+      ) : (
+        <CardLoading />
+      )}
     </Card>
   );
 }
@@ -228,6 +262,7 @@ export function DemandForecastCard({
   onMonthsChange?: (m: number) => void;
 }) {
   const [type, setType] = useState<string>('ALL');
+  const [past, setPast] = useState(12);
   const series: MovingAverageForecast | undefined =
     type === 'ALL' ? data ?? undefined : data?.byJobType.find((t) => t.jobType === type);
   const fmtCount = (v: number | null | undefined) => fmtNum(v, 0);
@@ -254,6 +289,7 @@ export function DemandForecastCard({
                 ]}
               />
             ) : null}
+            {onMonthsChange ? <PastSelect value={past} onChange={setPast} /> : null}
             {onMonthsChange ? <AheadSelect value={months ?? 3} onChange={onMonthsChange} /> : null}
           </>
         ) : undefined
@@ -269,7 +305,11 @@ export function DemandForecastCard({
       }
       onExport={series ? () => exportForecast(`demand-forecast-${type.toLowerCase()}`, series) : undefined}
     >
-      {series ? <ForecastBody f={series} format={fmtCount} height={height} /> : <CardLoading />}
+      {series ? (
+        <ForecastBody f={series} format={fmtCount} height={height} past={onMonthsChange ? past : 12} />
+      ) : (
+        <CardLoading />
+      )}
     </Card>
   );
 }
