@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { InputNumber, Button, Select, Typography, Alert, Tag, Tooltip, Popover, Badge, message, Input } from 'antd';
+import { InputNumber, Button, Select, Typography, Alert, Tag, Tooltip, message } from 'antd';
 import InfoTip from '../../components/InfoTip';
 import {
   CloseOutlined,
   DeleteOutlined,
   DownOutlined,
-  FileTextOutlined,
   LockOutlined,
   PlusOutlined,
   StarFilled,
@@ -31,6 +30,7 @@ import JobOrderFlowSteps, {
 } from './JobOrderFlowSteps';
 import { jobOrdersListPath } from './jobOrderListPaths';
 import JobInfoCard from './JobInfoCard';
+import OperationInstructions from './OperationInstructions';
 import RecommendationWeightsButton from './RecommendationWeights';
 import { PersonAvatar, PersonChip } from '../../components/PersonAvatar';
 import { personLabel } from '../../utils/people';
@@ -1307,41 +1307,6 @@ export default function JobOrderPlanningPage() {
       />
     );
 
-  const renderNoteButton = (record: OpFormRow, index: number) => {
-    const note = record.notes?.trim() || '';
-    return (
-      <Popover
-        trigger="click"
-        placement="bottomRight"
-        title="Instructions"
-        content={
-          <div className="jo-op__note-pop">
-            <Input.TextArea
-              autoSize={{ minRows: 3, maxRows: 8 }}
-              maxLength={1000}
-              showCount
-              placeholder="Tolerances, setup, special handling"
-              value={record.notes ?? ''}
-              disabled={readOnly}
-              onChange={(e) => patchRow(index, { notes: e.target.value })}
-            />
-          </div>
-        }
-      >
-        <Tooltip title={note ? note.slice(0, 140) : 'Add instructions'}>
-          <Badge count={note ? 1 : 0} size="small" offset={[-4, 4]} color="var(--c-primary)">
-            <Button
-              type="text"
-              className={`jo-op__icon-btn${note ? ' is-on' : ''}`}
-              icon={<FileTextOutlined />}
-              aria-label={note ? 'Edit instructions (1 note)' : 'Add instructions'}
-            />
-          </Badge>
-        </Tooltip>
-      </Popover>
-    );
-  };
-
   /** Lead suggestions shown in the panel; helper picks only count when there are no leads. */
   const suggestionCount = (index: number, key: string) =>
     Math.min((rowSuggestions[index] || []).length || (helperSuggestions[key] || []).length, 8);
@@ -1535,7 +1500,6 @@ export default function JobOrderPlanningPage() {
               {renderTargetCell(record, index)}
             </div>
             <div className="jo-op__tools">
-              {renderNoteButton(record, index)}
               {!readOnly ? (
                 <Tooltip title={operations.length > 1 ? 'Remove step' : undefined}>
                   <Button
@@ -1553,6 +1517,11 @@ export default function JobOrderPlanningPage() {
             </div>
           </div>
           {open ? <div className="jo-op__more">{renderSuggestions(index)}</div> : null}
+          <OperationInstructions
+            className="jo-op__instr"
+            notes={record.notes}
+            onSave={readOnly ? undefined : (text) => patchRow(index, { notes: text })}
+          />
         </div>
       </li>
     );

@@ -237,13 +237,13 @@ export default function JobOrderPrintPage() {
       <div className="shop-print-section">Operations</div>
       <table className="shop-print-table shop-print-table--compact jo-print-ops">
         <colgroup>
-          <col style={{ width: '5%' }} />
-          <col style={{ width: '19%' }} />
-          <col style={{ width: '13%' }} />
-          <col style={{ width: '21%' }} />
+          <col style={{ width: '4%' }} />
+          <col style={{ width: '28%' }} />
+          <col style={{ width: '11%' }} />
+          <col style={{ width: '17%' }} />
           <col style={{ width: '16%' }} />
           <col style={{ width: '16%' }} />
-          <col style={{ width: '10%' }} />
+          <col style={{ width: '8%' }} />
         </colgroup>
         <thead>
           <tr>
@@ -263,15 +263,18 @@ export default function JobOrderPrintPage() {
           {ops.map((op) => (
             <tr key={op.id || op.sequenceNo}>
               <td className="mid">{op.sequenceNo}</td>
-              <td>{orDash(op.operationName)}</td>
+              <td>
+                <div className="jo-print-op-name">{orDash(op.operationName)}</div>
+                {op.notes?.trim() ? <div className="jo-print-op-instr">{op.notes.trim()}</div> : null}
+              </td>
               <td>{op.machineUnitLabel || (op.machineTypeId ? '—' : 'No machine')}</td>
               <td>
                 {crewLines(op).map((name) => (
                   <div key={name}>{name}</div>
                 ))}
               </td>
-              <td>{fmtStamp(op.scheduledStart)}</td>
-              <td>{fmtStamp(op.scheduledEnd)}</td>
+              <td className="jo-print-when">{fmtStamp(op.scheduledStart)}</td>
+              <td className="jo-print-when">{fmtStamp(op.scheduledEnd)}</td>
               <td className="num">{op.estimatedHours != null ? op.estimatedHours.toFixed(2) : '—'}</td>
             </tr>
           ))}

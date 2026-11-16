@@ -436,3 +436,30 @@ def test_the_admin_is_told_when_an_operation_and_then_the_job_is_finished(client
     client.post(f"/api/v1/alerts/{page['items'][0]['id']}/read", headers=_headers(admin))
     unread = client.get("/api/v1/alerts?unread=1", headers=_headers(admin)).get_json()
     assert [a["kind"] for a in unread["items"]] == ["OPERATION_DONE"]
+
+
+# ---- Instructions after release ---------------------------------------------
+
+
+def test_admin_changes_instructions_of_an_unfinished_operation(client, shop):
+    op = _op(_job(shop), 1, shop["types"]["LAYOUT"], lead=shop["ana"])
+    url = f"/api/v1/operations/{op.id}/instructions"
+    res = client.patch(url, json={"notes": "  Chamfer 1 x 45 both ends.  "}, headers=_headers(shop["admin"]))
+    assert res.status_code == 200, res.get_json()
+    assert res.get_json()["notes"] == "Chamfer 1 x 45 both ends."
+    res = client.patch(url, json={"notes": ""}, headers=_headers(shop["admin"]))
+    assert res.get_json()["notes"] is None
+    # Only the Administrator; workers and office staff cannot.
+    res = client.patch(url, json={"notes": "x"}, headers=_headers(shop["office"]))
+    assert res.status_code == 403
+    res = client.patch(url, json={"notes": "x" * 1001}, headers=_headers(shop["admin"]))
+    assert res.status_code == 400
+
+
+def test_finished_operation_keeps_its_instructions(client, shop):
+    op = _op(_job(shop), 1, shop["types"]["LAYOUT"], lead=shop["ana"], status=OperationStatus.COMPLETED)
+    res = client.patch(
+        f"/api/v1/operations/{op.id}/instructions", json={"notes": "late change"}, headers=_headers(shop["admin"])
+    )
+    assert res.status_code == 409
+    assert res.get_json()["error"]["code"] == "OPERATION_FINISHED"

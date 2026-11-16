@@ -371,6 +371,16 @@ def list_unit_downtime(unit_id):
     return jsonify([r.to_dict() for r in rows])
 
 
+@operations_bp.route("/<operation_id>/instructions", methods=["PATCH"])
+@jwt_required()
+@require_roles(UserRole.ADMIN)
+def update_operation_instructions(operation_id):
+    """The Admin changes an unfinished operation's instructions after release."""
+    data = request.get_json() or {}
+    op = op_service.update_instructions(operation_id, data.get("notes"))
+    return jsonify({"id": op.id, "notes": op.notes})
+
+
 @operations_bp.route("/time-logs/<log_id>/reason", methods=["PATCH"])
 @jwt_required()
 @require_roles(UserRole.ADMIN)

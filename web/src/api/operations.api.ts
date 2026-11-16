@@ -18,6 +18,9 @@ export const operationsApi = {
   /** Admin: correct the reason of a pause; the first reason is kept. */
   relabelPause: (logId: string, reason: OperationPauseReason) =>
     apiClient.patch(`/operations/time-logs/${logId}/reason`, { reason }),
+  /** Admin: change an unfinished operation's instructions after release. */
+  updateInstructions: (id: string, notes: string) =>
+    apiClient.patch<{ id: string; notes: string | null }>(`/operations/${id}/instructions`, { notes }),
   /** Admin: who could take this operation at its booked time (or resume it now). */
   replacements: (id: string) => apiClient.get<OperationReplacements>(`/operations/${id}/replacements`),
   /** Admin: give a released, unfinished operation to another worker (best available when none named). */

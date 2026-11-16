@@ -1299,3 +1299,51 @@ def open_downtime_intervals_by_unit(now_utc=None):
         until = downtime_blocked_until(row, now) or far
         by_unit.setdefault(unit_id, []).append((_ensure_utc(row.started_at), until))
     return by_unit
+
+
+INSTRUCTIONS_MAX = 1000
+
+
+def update_instructions(operation_id: str, notes) -> JobOperation:
+    """The Admin changes an operation's instructions after release, for
+    example when the client changes a tolerance. Finished operations keep the
+    instructions they were done with."""
+    from app.services.audit_service import write_audit_event
+
+    op = db.session.get(JobOperation, operation_id)
+    if op is None:
+        raise AppError("Operation not found", "NOT_FOUND", 404)
+    if op.status == OperationStatus.COMPLETED:
+        raise AppError(
+            "This operation is finished; its instructions can no longer change.",
+            "OPERATION_FINISHED",
+            409,
+        )
+    job = op.job_order
+    if job is not None and job.status in (
+        JobOrderStatus.CANCELLED,
+        JobOrderStatus.DELIVERED,
+        JobOrderStatus.FOR_DELIVERY,
+    ):
+        raise AppError("This job order is closed.", "JOB_CLOSED", 409)
+    text = (notes or "").strip() if isinstance(notes, str) or notes is None else None
+    if text is None:
+        raise AppError("Instructions must be text.", "VALIDATION_ERROR", 400)
+    if len(text) > INSTRUCTIONS_MAX:
+        raise AppError(
+            f"Instructions can be at most {INSTRUCTIONS_MAX} characters.", "VALIDATION_ERROR", 400
+        )
+    before = op.notes or None
+    after = text or None
+    if before == after:
+        return op
+    op.notes = after
+    write_audit_event(
+        "OPERATION_INSTRUCTIONS_CHANGED",
+        "JobOperation",
+        op.id,
+        before={"notes": before},
+        after={"notes": after},
+    )
+    db.session.commit()
+    return op
