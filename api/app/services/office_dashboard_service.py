@@ -31,6 +31,7 @@ def _job(job: JobOrder) -> dict:
         "clientName": job.client.name if job.client else None,
         "dueDate": job.due_date.isoformat() if job.due_date else None,
         "status": job.status.value,
+        "createdAt": job.created_at.isoformat() if job.created_at else None,
     }
 
 
@@ -81,6 +82,7 @@ def _deliveries(today):
             "supplierName": o.supplier.name if o.supplier else None,
             "expectedDeliveryDate": o.expected_delivery_date.isoformat(),
             "daysOverdue": o.days_overdue(today),
+            "createdAt": o.created_at.isoformat() if o.created_at else None,
         }
         for o in orders
     ]

@@ -52,6 +52,7 @@ import { isJobFinished } from '../job-orders/jobStage';
 import { periodBounds } from '../schedule/scheduleTimelineUtils';
 import { useAuth } from '../../hooks/useAuth';
 import OfficeDashboard from './OfficeDashboard';
+import { newestFirst } from '../../utils/newestFirst';
 import './dashboard.css';
 
 type Load<T> = { data: T | null; failed: boolean };
@@ -139,14 +140,8 @@ function AdminDashboard() {
     };
   }, [jobs.data]);
 
-  // Waiting to be planned, nearest date required first (earliest due date).
-  const planQueue = useMemo(
-    () =>
-      [...(drafts.data || [])].sort((a, b) =>
-        String(a.dueDate || '9999').localeCompare(String(b.dueDate || '9999')),
-      ),
-    [drafts.data],
-  );
+  // Waiting to be planned, the latest job order on top.
+  const planQueue = useMemo(() => newestFirst(drafts.data || []), [drafts.data]);
 
   const recent = useMemo(
     () =>
@@ -244,7 +239,7 @@ function AdminDashboard() {
         className="dashboard-plan"
         title="To plan"
         subtitle={
-          toPlan ? `${toPlan} job order${toPlan === 1 ? '' : 's'} waiting · nearest date required first` : 'Job orders waiting to be planned'
+          toPlan ? `${toPlan} job order${toPlan === 1 ? '' : 's'} waiting · newest first` : 'Job orders waiting to be planned'
         }
         flush
         extra={

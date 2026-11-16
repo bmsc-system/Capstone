@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { newestFirst } from '../../utils/newestFirst';
 import { Button, Skeleton } from 'antd';
 import {
   AlertOutlined,
@@ -35,6 +36,7 @@ type Task = {
   clientName: string | null;
   detail: string;
   when: string | null;
+  createdAt?: string | null;
 };
 
 const TASK_LABEL: Record<TaskKind, { label: string; tone: 'amber' | 'blue' }> = {
@@ -67,14 +69,15 @@ export default function OfficeDashboard() {
     };
   }, []);
 
-  const reported = data?.reportedLow ?? [];
+  // Each list shows the latest entry on top.
+  const reported = newestFirst(data?.reportedLow ?? [], (r) => r.reportedAt);
   const reportedIds = new Set(reported.map((r) => r.toolId));
   const forecastDue = (data?.restockDue ?? []).filter((it) => !reportedIds.has(it.id));
   const toBuyCount = reported.length + forecastDue.length;
 
   const tasks = useMemo<Task[]>(() => {
     if (!data) return [];
-    return [
+    return newestFirst([
       ...data.materialsToOrder.map((j) => ({
         key: `m-${j.id}`,
         kind: 'materials' as const,
@@ -83,6 +86,7 @@ export default function OfficeDashboard() {
         clientName: j.clientName,
         detail: j.title,
         when: j.dueDate,
+        createdAt: j.createdAt,
       })),
       ...data.invoicesToRecord.map((j) => ({
         key: `i-${j.id}`,
@@ -92,12 +96,13 @@ export default function OfficeDashboard() {
         clientName: j.clientName,
         detail: j.title,
         when: j.dueDate,
+        createdAt: j.createdAt,
       })),
-    ];
+    ]);
   }, [data]);
 
   const loading = !data && !failed;
-  const deliveries = data ? [...data.lateDeliveries, ...data.deliveriesDueSoon] : [];
+  const deliveries = data ? newestFirst([...data.lateDeliveries, ...data.deliveriesDueSoon]) : [];
 
   if (failed) {
     return (

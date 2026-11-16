@@ -45,6 +45,7 @@ import type {
 } from '../../types';
 import { confirmAction } from '../../utils/confirmAction';
 import { DialogField, DialogFields } from '../../utils/DialogField';
+import { newestFirst } from '../../utils/newestFirst';
 
 type ModalMode = 'in' | 'out' | 'edit';
 
@@ -179,6 +180,11 @@ export default function AttendancePage() {
   const workerOptions = useMemo(
     () => (sheet?.rows || []).map((r) => ({ value: r.workerId, label: r.workerName })),
     [sheet]
+  );
+  // The latest entry on top: who clocked in last first, then everyone not in yet.
+  const sheetRows = useMemo(
+    () => newestFirst(sheet?.rows || [], (r) => r.record?.clockIn),
+    [sheet?.rows],
   );
 
   useEffect(() => {
@@ -679,7 +685,7 @@ export default function AttendancePage() {
             cardsBelow="narrow"
             rowKey="workerId"
             loading={loading}
-            dataSource={sheet?.rows || []}
+            dataSource={sheetRows}
             columns={dayColumns}
             pagination={false}
             scroll={{ x: 1180 }}
