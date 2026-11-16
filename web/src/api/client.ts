@@ -2,6 +2,7 @@ import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { connectivity } from '../offline/connectivity';
 import { readDeviceId } from './device';
 import { PIN_HINT_KEY } from '../auth/pinHint';
+import { clearPinCheck } from '../auth/appLock';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
@@ -17,7 +18,10 @@ export type SessionEndReason = 'signed-out' | 'expired';
 
 function endSession(reason?: SessionEndReason) {
   clearSession();
-  if (reason === 'signed-out') localStorage.removeItem(PIN_HINT_KEY);
+  if (reason === 'signed-out') {
+    localStorage.removeItem(PIN_HINT_KEY);
+    clearPinCheck();
+  }
   window.location.href = reason ? `/login?reason=${reason}` : '/login';
 }
 

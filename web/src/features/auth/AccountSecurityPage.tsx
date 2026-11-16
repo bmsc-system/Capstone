@@ -23,6 +23,7 @@ import PinSetupKeypad from './PinSetupKeypad';
 import './AccountSecurityPage.css';
 import { confirmAction } from '../../utils/confirmAction';
 import { PIN_HINT_KEY } from '../../auth/pinHint';
+import { clearPinCheck } from '../../auth/appLock';
 
 /** Other devices listed before "Show N more". */
 const VISIBLE_OTHERS = 3;
@@ -187,6 +188,7 @@ export default function AccountSecurityPage() {
         try {
           await authApi.removePin();
           localStorage.removeItem(PIN_HINT_KEY);
+          clearPinCheck();
           message.success('PIN unlock turned off');
           load();
         } catch (err) {
@@ -201,6 +203,7 @@ export default function AccountSecurityPage() {
     try {
       await authApi.changePassword(values.currentPassword, values.newPassword);
       localStorage.removeItem(PIN_HINT_KEY);
+      clearPinCheck();
       message.success(
         isWorker
           ? 'Password updated. Your other devices were signed out and PIN unlock is off.'
