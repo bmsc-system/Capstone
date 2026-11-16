@@ -7,6 +7,8 @@ import {
   LockOutlined,
   MobileOutlined,
   TabletOutlined,
+  LogoutOutlined,
+  UnlockOutlined,
 } from '@ant-design/icons';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -180,6 +182,7 @@ export default function AccountSecurityPage() {
 
   const onRemovePin = () => {
     confirmAction({
+      icon: <UnlockOutlined />,
       title: 'Turn off PIN unlock?',
       content: 'You will sign in with your password on all your phones.',
       okText: 'Turn off PIN',
@@ -224,6 +227,7 @@ export default function AccountSecurityPage() {
 
   const signOutOne = (row: UserDevice) => {
     confirmAction({
+      icon: <LogoutOutlined />,
       title: `Sign out ${describeDevice(row.deviceLabel, row.deviceId).name}?`,
       content: signOutNote,
       okText: 'Sign out',
@@ -242,6 +246,7 @@ export default function AccountSecurityPage() {
 
   const signOutOthers = () => {
     confirmAction({
+      icon: <LogoutOutlined />,
       title: `Sign out ${others.length} other device${others.length === 1 ? '' : 's'}?`,
       content: `Each one is signed out right away and needs your password to sign in again. This ${deviceWord} stays signed in.`,
       okText: 'Sign out others',

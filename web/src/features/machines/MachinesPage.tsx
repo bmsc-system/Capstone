@@ -23,6 +23,7 @@ import {
   CalendarOutlined,
   CheckCircleOutlined,
   UserOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -317,6 +318,7 @@ export default function MachinesPage() {
 
   const retireUnit = (unit: MachineUnitStatus) => {
     confirmAction({
+      icon: <DeleteOutlined />,
       title: `Remove ${unit.label}?`,
       content: 'For a scrapped or replaced machine. Its history is kept.',
       okText: 'Remove machine',

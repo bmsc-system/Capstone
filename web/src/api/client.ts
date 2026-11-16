@@ -33,6 +33,7 @@ function responseCode(error: unknown): string | undefined {
 export const REQUEST_TIMEOUT_MS = 20_000;
 export const TIMEOUT_MESSAGE =
   'The server took too long to answer. Check your connection and try again.';
+export const NETWORK_MESSAGE = 'Could not reach the server. Check the connection, then try again.';
 
 const apiClient = axios.create({
   baseURL: API_BASE,
@@ -230,6 +231,8 @@ export function getErrorMessage(error: unknown): string {
     if (!error.response && (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT')) {
       return TIMEOUT_MESSAGE;
     }
+    // No reply at all: axios only says "Network Error".
+    if (!error.response && error.code === 'ERR_NETWORK') return NETWORK_MESSAGE;
     const data = error.response?.data as { error?: { message?: string } };
     const apiMsg = data?.error?.message || error.message;
     if (apiMsg) return apiMsg;

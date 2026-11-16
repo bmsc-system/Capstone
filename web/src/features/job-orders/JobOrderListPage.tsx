@@ -1057,7 +1057,7 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
           title="Job orders could not be loaded"
           description={error}
           action={
-            <Button type="primary" onClick={() => fetchJobs(listTab)}>
+            <Button size="small" onClick={() => fetchJobs(listTab)}>
               Try again
             </Button>
           }

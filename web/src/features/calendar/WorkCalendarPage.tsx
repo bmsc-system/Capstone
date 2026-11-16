@@ -359,6 +359,7 @@ export default function WorkCalendarPage() {
     }
 
     confirmAction({
+      icon: <DeleteOutlined />,
       title: `Remove exception on ${formatShop(exc.date, 'MMM D, YYYY')}?`,
       content:
         impactCount > 0

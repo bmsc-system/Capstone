@@ -341,3 +341,34 @@ input[type='number'],
   font-size: var(--fs-lg);
   font-weight: 700;
 }
+
+/* Alerts: one compact style everywhere — a semibold title over grey text.
+   Padding, icon size and tints come from the theme (antTheme.ts → Alert). */
+.ant-alert.ant-alert-with-description .ant-alert-icon {
+  margin-top: 2px;
+  margin-inline-end: 10px;
+}
+
+.ant-alert.ant-alert-with-description .ant-alert-title {
+  margin-bottom: 2px;
+  font-size: var(--fs-base, 14px);
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.ant-alert.ant-alert-with-description .ant-alert-description {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--c-text-2);
+}
+
+.ant-alert .ant-alert-description ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.ant-alert.ant-alert-with-description .ant-alert-action {
+  align-self: center;
+  margin-inline-start: 12px;
+}
+

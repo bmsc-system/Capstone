@@ -5,6 +5,7 @@ import {
   DisconnectOutlined,
   ExclamationCircleFilled,
   SyncOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { formatShop } from '../utils/shopTime';
 import { useOfflineOptional, type OfflineContextValue } from './OfflineProvider';
@@ -37,6 +38,7 @@ function SyncPill({
   const confirmDiscard = () => {
     if (!refused) return;
     confirmAction({
+      icon: <DeleteOutlined />,
       title: 'Discard this action?',
       content: `"${refused.label}" at ${formatShop(refused.at, 'MMM D, h:mm A')} will not be recorded.`,
       okText: 'Discard',
