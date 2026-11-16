@@ -17,6 +17,7 @@ import './workerSetup.css';
 import InfoTip from '../../components/InfoTip';
 import { LevelBar, TabBar, PageSkeleton } from '../../components/ui';
 import ResponsiveTable from '../../components/ui/ResponsiveTable';
+import { newestFirst } from '../../utils/newestFirst';
 
 const { Text } = Typography;
 
@@ -91,9 +92,8 @@ export default function WorkerSetupPage() {
       try {
         const { data } = await usersApi.list();
         // Only production workers are assigned work.
-        const production = data
-          .filter((u) => u.role === 'PRODUCTION_WORKER' && u.status !== 'DISABLED')
-          .sort((a, b) => a.fullName.localeCompare(b.fullName));
+        const production = newestFirst(data)
+          .filter((u) => u.role === 'PRODUCTION_WORKER' && u.status !== 'DISABLED');
         setWorkers(production);
         if (!workerId && production[0] && !window.matchMedia(NARROW_QUERY).matches) {
           const nextParams = new URLSearchParams(params);

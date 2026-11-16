@@ -34,7 +34,7 @@ describe('jobOrderPrintBlockers', () => {
     );
     expect(out).toEqual([
       'Operation 1 (Facing) has no machine unit and schedule.',
-      'Operation 2 (Facing) has no crew.',
+      'Operation 2 (Facing) has no workers.',
     ]);
   });
 

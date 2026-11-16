@@ -599,11 +599,11 @@ def _busy_seconds_in_horizon(intervals, anchor_utc, end_utc) -> float:
 
 
 def _crew_label(op: dict) -> str:
-    """'Ana' or 'The crew (Ana, Ben)' for messages."""
+    """'Ana' or 'The workers (Ana, Ben)' for messages."""
     crew = _crew(op)
     if len(crew) <= 1:
         return _worker_label(crew[0]) if crew else "The assigned worker"
-    return f"The crew ({', '.join(_worker_label(w) for w in crew)})"
+    return f"The workers ({', '.join(_worker_label(w) for w in crew)})"
 
 
 def _worker_label(worker_id) -> str:

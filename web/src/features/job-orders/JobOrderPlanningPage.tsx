@@ -35,6 +35,7 @@ import RecommendationWeightsButton from './RecommendationWeights';
 import { PersonAvatar, PersonChip } from '../../components/PersonAvatar';
 import { personLabel } from '../../utils/people';
 import { pairKey, pairedUnitId, parsePairKey, scoreBreakdown, unitOwnerName, unitPairText } from './unitPairing';
+import { autoHours, hintDetail, hintLabel } from './targetHours';
 import type {
   FasterPairSuggestion,
   JobOrder,
@@ -47,6 +48,7 @@ import type {
   RecommendationWeightSets,
   ScoringWeights,
   SuggestionDateGate,
+  TargetHoursHint,
   User,
   WorkerSuggestion,
 } from '../../types';
@@ -81,6 +83,8 @@ type OpFormRow = {
   /** Any number of helpers; none on outsourced work. */
   helperIds?: string[];
   estimatedHours?: number | null;
+  /** The hours were filled in from finished work (not typed by the Admin). */
+  hoursAuto?: boolean;
   turnaroundDays?: number | null;
   scheduledStart?: string;
   scheduledEnd?: string;
@@ -222,6 +226,7 @@ export default function JobOrderPlanningPage() {
   const [job, setJob] = useState<JobOrder | null>(null);
   const [wizardStep, setWizardStep] = useState<JobFlowStepId>(2);
   const [operations, setOperations] = useState<OpFormRow[]>([]);
+  const [hourHints, setHourHints] = useState<Record<string, TargetHoursHint>>({});
   // Latest rows for async work (suggestion fetches outlive the render they began in).
   const operationsRef = useRef<OpFormRow[]>([]);
   operationsRef.current = operations;
@@ -531,11 +536,12 @@ export default function JobOrderPlanningPage() {
     (async () => {
       setLoading(true);
       try {
-        const [jobRes, machinesRes, unitsRes, typesRes] = await Promise.all([
+        const [jobRes, machinesRes, unitsRes, typesRes, hintsRes] = await Promise.all([
           jobOrdersApi.get(id),
           jobOrdersApi.machines(),
           jobOrdersApi.machineUnits(),
           operationTypesApi.list(),
+          jobOrdersApi.targetHours(id).catch(() => ({ data: {} as Record<string, TargetHoursHint> })),
         ]);
         if (cancelled) return;
         const j = jobRes.data;
@@ -566,7 +572,9 @@ export default function JobOrderPlanningPage() {
         setMachineUnits(unitsRes.data || []);
         setOperationTypes(typesRes.data || []);
         const opsList = j.operations || [];
-        const rows: OpFormRow[] =
+        const hints = isPlanningStatus(j.status) ? hintsRes.data || {} : {};
+        setHourHints(hints);
+        const loadedRows: OpFormRow[] =
           opsList.length > 0
             ? opsList
                 .slice()
@@ -598,6 +606,8 @@ export default function JobOrderPlanningPage() {
                     assignedWorkerId: undefined,
                   },
                 ];
+        // Empty Target boxes start from the hours of finished work.
+        const rows = loadedRows.map((r) => autoHours(r, hints));
         setOperations(rows);
 
         // Restore schedule stage from persisted draft windows.
@@ -736,11 +746,13 @@ export default function JobOrderPlanningPage() {
         assignedWorkerId: undefined,
         helperIds: [],
         estimatedHours: null,
+        hoursAuto: false,
         turnaroundDays: current?.turnaroundDays ?? ot?.defaultTurnaroundDays ?? null,
       });
       return;
     }
     const machineTypeId = ot?.defaultMachineTypeId || undefined;
+    const hours = autoHours({ ...current, operationTypeId: typeId }, hourHints);
     patchRow(index, {
       operationTypeId: typeId,
       operationName: ot?.name || '',
@@ -748,6 +760,8 @@ export default function JobOrderPlanningPage() {
       machineUnitId: undefined,
       assignedWorkerId: undefined,
       turnaroundDays: null,
+      estimatedHours: hours.estimatedHours,
+      hoursAuto: hours.hoursAuto,
     });
     void loadRowWorkers(index, machineTypeId, true, typeId);
     void loadSuggestions(index, {
@@ -755,6 +769,7 @@ export default function JobOrderPlanningPage() {
       operationTypeId: typeId,
       operationName: ot?.name || '',
       machineTypeId,
+      estimatedHours: hours.estimatedHours,
     });
   };
 
@@ -1299,7 +1314,7 @@ export default function JobOrderPlanningPage() {
         value={record.estimatedHours ?? undefined}
         disabled={readOnly}
         onChange={(v) => {
-          patchRow(index, { estimatedHours: v });
+          patchRow(index, { estimatedHours: v, hoursAuto: false });
           // Keeps a valid lead; a row whose lead was not picked yet still gets
           // one (this request replaces the one started by the operation pick).
           void loadSuggestions(index, { ...record, estimatedHours: v ?? undefined }, { autoAssign: true, preserveExisting: true });
@@ -1470,7 +1485,7 @@ export default function JobOrderPlanningPage() {
             <div className="jo-op__field jo-op__field--machine" data-label="Machine unit">
               {renderMachineCell(record, index)}
             </div>
-            <div className="jo-op__field jo-op__field--crew" data-label="Crew">
+            <div className="jo-op__field jo-op__field--crew" data-label="Workers">
               <div className="jo-op__crew-wrap">
                 <div className="jo-op__crew-main">{renderCrewCell(record, index)}</div>
               {hasMore ? (
@@ -1498,6 +1513,11 @@ export default function JobOrderPlanningPage() {
             </div>
             <div className="jo-op__field jo-op__field--target" data-label={outsourced ? 'Turnaround' : 'Target'}>
               {renderTargetCell(record, index)}
+              {!outsourced && record.hoursAuto && record.operationTypeId && hourHints[record.operationTypeId] ? (
+                <Tooltip title={hintDetail(hourHints[record.operationTypeId])}>
+                  <div className="jo-op__hint" style={{ whiteSpace: 'nowrap', cursor: 'help' }}>{hintLabel(hourHints[record.operationTypeId])}</div>
+                </Tooltip>
+              ) : null}
             </div>
             <div className="jo-op__tools">
               {!readOnly ? (
@@ -1578,7 +1598,7 @@ export default function JobOrderPlanningPage() {
             <span>#</span>
             <span>Operation</span>
             <span>Machine unit</span>
-            <span>Crew</span>
+            <span>Workers</span>
             <span>Target</span>
             <span />
           </div>

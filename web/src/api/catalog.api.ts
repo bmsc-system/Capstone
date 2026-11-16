@@ -21,6 +21,7 @@ export interface CatalogItem {
   orderedFromSupplier?: boolean;
   quantityOnHand?: number | null;
   minimumStock?: number | null;
+  createdAt?: string | null;
 }
 
 export interface CatalogList {

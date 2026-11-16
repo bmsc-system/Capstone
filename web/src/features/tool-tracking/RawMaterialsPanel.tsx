@@ -28,6 +28,7 @@ import {
 } from './inventoryLook';
 import { formatPoMaterialLabel } from '../../components/MaterialInputs';
 import { confirmAction } from '../../utils/confirmAction';
+import { newestFirst } from '../../utils/newestFirst';
 
 function money(v: number | null | undefined) {
   if (v == null) return '—';
@@ -90,7 +91,7 @@ export default function RawMaterialsPanel() {
     setLoading(true);
     try {
       const { data } = await inventoryApi.materialPurchases({});
-      setRows(data.items);
+      setRows(newestFirst(data.items));
       setSummary(data.summary);
     } catch (err) {
       message.error(getErrorMessage(err));

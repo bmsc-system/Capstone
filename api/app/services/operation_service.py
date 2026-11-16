@@ -785,7 +785,7 @@ def _resolve_downtime_link(unit_id, operation_id, job_order_id, reporter_id, rep
         )
     if reporter_role == UserRole.PRODUCTION_WORKER.value and reporter_id not in op.crew_ids:
         raise AppError(
-            "You can only report a breakdown from an operation you are on the crew of.",
+            "You can only report a breakdown from an operation you are working on.",
             "FORBIDDEN",
             403,
         )

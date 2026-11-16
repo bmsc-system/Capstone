@@ -97,13 +97,6 @@
   color: var(--auth-gold);
 }
 
-.auth__tag {
-  margin: 0;
-  font-size: 18px;
-  color: #c9d1e0;
-  max-width: 520px;
-}
-
 .auth__address {
   font-size: 12px;
   color: #93a0b8;
@@ -458,10 +451,6 @@
     font-size: 30px;
     line-height: 1.12;
     letter-spacing: -0.6px;
-  }
-  .auth__mhead .auth__tag {
-    font-size: 14.5px;
-    line-height: 1.5;
   }
   .auth .login-card,
   .auth .login-card--wide {

@@ -220,6 +220,7 @@ def replenishment(today: date | None = None) -> dict:
         items.append(
             {
                 "toolId": tool.id,
+                "createdAt": tool.created_at.isoformat() if tool.created_at else None,
                 "name": tool.name,
                 "shopTerm": tool.shop_term,
                 "sizeSpec": tool.size_spec,

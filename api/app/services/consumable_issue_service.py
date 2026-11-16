@@ -307,11 +307,11 @@ def worker_view(worker_id: str) -> dict:
 
 
 def job_issues(job_order_id: str) -> list[dict]:
-    """Consumables handed out for a job's operations (not undone), oldest first."""
+    """Consumables handed out for a job's operations (not undone), latest first."""
     events = (
         _issues()
         .filter(ToolEvent.job_order_id == job_order_id, ToolEvent.undone_at.is_(None))
-        .order_by(ToolEvent.created_at.asc())
+        .order_by(ToolEvent.created_at.desc())
         .all()
     )
     return [event_row(e) for e in events]

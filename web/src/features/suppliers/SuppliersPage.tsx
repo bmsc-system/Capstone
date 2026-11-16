@@ -20,6 +20,7 @@ import { DataTable, EmptyState, EllipsisText, FilterBar, FilterSelect, RowAvatar
 import { Truck } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { PHONE_QUERY, useMediaQuery } from '../../hooks/useViewport';
+import { newestFirst } from '../../utils/newestFirst';
 
 const GRADE_COLOR: Record<string, PillColor> = { A: 'green', B: 'blue', C: 'amber', D: 'red' };
 
@@ -44,7 +45,7 @@ export default function SuppliersPage() {
     setLoading(true);
     try {
       const { data } = await suppliersApi.list();
-      setRows(data);
+      setRows(newestFirst(data));
     } catch (err) {
       message.error(getErrorMessage(err));
     } finally {

@@ -255,7 +255,7 @@ def _overrun_cause(clashes) -> str:
     parts = []
     for c in clashes:
         r = c["running"]
-        who = r.assigned_worker.full_name if r.assigned_worker else "the crew"
+        who = r.assigned_worker.full_name if r.assigned_worker else "the workers"
         unit = f", {r.machine_unit.label}" if r.machine_unit else ""
         parts.append(
             f"{_label(r)} ({who}{unit}) is running over: now expected to finish "

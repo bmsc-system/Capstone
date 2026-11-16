@@ -695,6 +695,8 @@ export interface Operation extends MaterialWait {
   jobNumber?: string;
   clientName?: string;
   dueDate?: string;
+  /** When the job order was entered (lists show the latest first). */
+  jobCreatedAt?: string | null;
   jobPriority?: JobPriority;
   sequenceNo: number;
   operationName: string;
@@ -2013,6 +2015,8 @@ export type ReplenishmentStatus = 'OVERDUE' | 'DUE_SOON' | 'OK' | 'LEARNING' | '
 /** One consumable in the replenishment forecast (Croston's method, SBA). */
 export interface ReplenishmentItem {
   toolId: string;
+  /** When the item was added to the catalog (lists show the latest first). */
+  createdAt?: string | null;
   name: string;
   shopTerm: string | null;
   sizeSpec: string | null;
@@ -2412,4 +2416,16 @@ export interface WorkerJobMaterials {
   dueDate: string | null;
   materialStatus: 'NOT_REQUIRED' | 'TO_ORDER' | 'ORDERED' | 'RECEIVED' | null;
   lines: WorkerMaterialLine[];
+}
+
+/** Target hours suggested from finished work for one operation type. */
+export interface TargetHoursHint {
+  hours: number;
+  /** SAME_JOB: the same job for the same client before; PAST_JOBS: median of the type. */
+  basis: 'SAME_JOB' | 'PAST_JOBS';
+  samples: number;
+  jobNumber?: string;
+  pastHours?: number;
+  pastQuantity?: number | null;
+  quantity?: number | null;
 }

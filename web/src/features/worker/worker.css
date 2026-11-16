@@ -753,17 +753,6 @@
   background: var(--c-surface-muted);
 }
 
-.w-job__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--c-text-muted);
-}
-
 .w-job__pills {
   display: inline-flex;
   gap: 4px;
@@ -778,29 +767,41 @@
   overflow-wrap: anywhere;
 }
 
+.w-job__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .w-job__client {
   font-size: 13px;
   color: var(--c-text-2);
-  margin-top: 1px;
-  overflow-wrap: anywhere;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.w-job__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin-top: 8px;
-  font-size: 12px;
+.w-job__when {
+  margin-top: 6px;
+  font-size: 12.5px;
   color: var(--c-text-muted);
 }
 
-.w-job__meta b {
-  color: var(--c-text);
-  font-weight: 700;
+.w-job-tools {
+  display: flex;
+  gap: 8px;
 }
 
-.w-job__meta .is-late {
-  color: var(--tone-red-fg);
+.w-job-tools .worker-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.w-job-sort {
+  flex: 0 0 auto;
+  width: 136px;
 }
 
 /* ---------------- Schedule ---------------- */

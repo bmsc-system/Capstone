@@ -27,6 +27,7 @@ import { confirmAction } from '../../utils/confirmAction';
 import { exportCsv } from '../../utils/csvExport';
 import { formatShop, isFutureShopDay, shopToday } from '../../utils/shopTime';
 import { CategoryTile, InventorySummaryCards, type InventorySummaryCard } from './inventoryLook';
+import { newestFirst } from '../../utils/newestFirst';
 
 const STATUS: Record<ReplenishmentItem['status'], { label: string; color: 'red' | 'amber' | 'green' | 'gray' }> = {
   OVERDUE: { label: 'Reorder now', color: 'red' },
@@ -249,7 +250,7 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
   const items = useMemo(() => data?.items ?? [], [data]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter((i) => {
+    const rows = items.filter((i) => {
       if (q && !`${i.name} ${i.shopTerm || ''} ${i.sizeSpec || ''}`.toLowerCase().includes(q)) return false;
       if (summaryKey === 'reported' && !reports[i.toolId]) return false;
       if (summaryKey === 'out' && (i.onHand ?? 0) > 0) return false;
@@ -257,7 +258,9 @@ export default function ConsumablesPanel({ canEdit }: { canEdit: boolean }) {
       if (summaryKey === 'due_soon' && i.status !== 'DUE_SOON') return false;
       if (summaryKey === 'ok' && i.status !== 'OK') return false;
       return true;
-    }).sort((a, b) => Number(!!reports[b.toolId]) - Number(!!reports[a.toolId]));
+    });
+    // Latest item on top; items a worker reported running low stay first.
+    return newestFirst(rows).sort((a, b) => Number(!!reports[b.toolId]) - Number(!!reports[a.toolId]));
   }, [items, query, summaryKey, reports]);
 
   const cards: InventorySummaryCard[] = useMemo(() => {

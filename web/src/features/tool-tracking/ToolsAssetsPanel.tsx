@@ -37,6 +37,7 @@ import {
   type InventorySummaryCard,
 } from './inventoryLook';
 import { confirmAction } from '../../utils/confirmAction';
+import { newestFirst } from '../../utils/newestFirst';
 
 function sectionLabel(text: string) {
   return <div className="app-form-section">{text}</div>;
@@ -98,7 +99,7 @@ export default function ToolsAssetsPanel() {
     setLoading(true);
     try {
       const { data } = await toolsApi.listTypes({ onlyWithOut: onlyOut });
-      setTypes(data);
+      setTypes(newestFirst(data));
     } catch (err) {
       message.error(getErrorMessage(err));
     } finally {
@@ -201,7 +202,7 @@ export default function ToolsAssetsPanel() {
   const loadUnits = async (typeId: string) => {
     try {
       const { data } = await toolsApi.getType(typeId);
-      setUnitsByType((prev) => ({ ...prev, [typeId]: data.units || [] }));
+      setUnitsByType((prev) => ({ ...prev, [typeId]: newestFirst(data.units || []) }));
     } catch (err) {
       message.error(getErrorMessage(err));
     }

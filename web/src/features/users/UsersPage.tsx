@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Button, Form, Input, Select, Dropdown, message, Tooltip, Space, Row, Col,
+  Button, Form, Input, Select, Dropdown, message, Space, Row, Col,
 } from 'antd';
 import type { MenuProps, TableColumnsType } from 'antd';
 import {
@@ -16,11 +16,12 @@ import {
 import { usersApi, type InviteDelivery } from '../../api/users.api';
 import { getErrorMessage } from '../../api/client';
 import StatusPill, { type PillColor } from '../../components/StatusPill';
-import SelectMultipleIcon from '../../components/SelectMultipleIcon';
 import { EllipsisText, ResponsiveTable, rowOpenProps, FormModal } from '../../components/ui';
 import UserIdentity from '../../components/UserIdentity';
+import { NARROW_QUERY, useMediaQuery } from '../../hooks/useViewport';
 import type { User, UserRole } from '../../types';
 import { confirmAction, showNotice } from '../../utils/confirmAction';
+import { newestFirst } from '../../utils/newestFirst';
 
 const roleStyle: Record<string, { label: string; color: PillColor }> = {
   ADMIN: { label: 'Administrator', color: 'blue' },
@@ -101,8 +102,9 @@ export default function UsersPage() {
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter[]>([]);
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  // Wide screens show the email in its own column; cards hide that column,
+  // so there it stays under the name.
+  const cards = useMediaQuery(NARROW_QUERY);
   const [form] = Form.useForm();
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -112,7 +114,7 @@ export default function UsersPage() {
     setLoading(true);
     try {
       const { data } = await usersApi.list();
-      setUsers(data);
+      setUsers(newestFirst(data));
     } finally {
       setLoading(false);
     }
@@ -282,8 +284,8 @@ export default function UsersPage() {
           userId={record.id}
           fullName={record.fullName}
           nickname={record.nickname}
-          email={record.email}
-          mobileNumber={record.mobileNumber}
+          email={cards ? record.email : null}
+          mobileNumber={cards ? record.mobileNumber : null}
           size={32}
           phoneEmptyContact="No email yet"
         />
@@ -469,23 +471,6 @@ export default function UsersPage() {
           />
         </div>
         <div className="std-list-actions">
-          <Tooltip title={selectMode ? 'Done selecting' : 'Select multiple'}>
-            <Button
-              className="ui-iconbtn"
-              icon={<SelectMultipleIcon />}
-              type={selectMode ? 'primary' : 'default'}
-              ghost={selectMode}
-              aria-label={selectMode ? 'Done selecting' : 'Select multiple'}
-              onClick={() => {
-                if (selectMode) {
-                  setSelectMode(false);
-                  setSelectedKeys([]);
-                } else {
-                  setSelectMode(true);
-                }
-              }}
-            />
-          </Tooltip>
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -497,19 +482,6 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {selectMode && (
-        <div className="std-list-bulk">
-          <span className="std-list-bulk__count">
-            {selectedKeys.length ? `${selectedKeys.length} selected` : 'Select users'}
-          </span>
-          {selectedKeys.length > 0 && (
-            <Button size="small" type="text" onClick={() => setSelectedKeys([])}>
-              Clear
-            </Button>
-          )}
-        </div>
-      )}
-
       <ResponsiveTable
         card={{ subtitle: ['role'], badge: 'status', hide: ['email'] }}
         cardsBelow="narrow"
@@ -519,7 +491,7 @@ export default function UsersPage() {
         dataSource={filtered}
         loading={loading}
         locale={{ emptyText: 'No users match your filters yet' }}
-        onRow={(r) => (selectMode ? {} : rowOpenProps(() => openEdit(r)))}
+        onRow={(r) => rowOpenProps(() => openEdit(r))}
         size="small"
         pagination={{
           pageSize: 20,
@@ -527,15 +499,6 @@ export default function UsersPage() {
           pageSizeOptions: [10, 20, 50],
           showTotal: (total) => `${total} user${total === 1 ? '' : 's'}`,
         }}
-        rowSelection={
-          selectMode
-            ? {
-                selectedRowKeys: selectedKeys,
-                onChange: (keys) => setSelectedKeys(keys.map(String)),
-                preserveSelectedRowKeys: true,
-              }
-            : undefined
-        }
       />
 
       <FormModal

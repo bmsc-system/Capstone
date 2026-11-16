@@ -51,7 +51,7 @@ function OperationBlock({
         {op.jobNumber && <IdChip to={`/job-orders/${op.jobOrderId}`}>{op.jobNumber}</IdChip>}
         {op.jobTitle && <span className="mdrawer__muted">{op.jobTitle}</span>}
       </div>
-      <Row label="Crew">
+      <Row label="Workers">
         <CrewChips
           crew={op.crew}
           lead={{
