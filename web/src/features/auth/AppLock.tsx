@@ -3,7 +3,7 @@ import axios from 'axios';
 import { authApi } from '../../api/auth.api';
 import { getErrorCode, getErrorMessage } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
-import { PIN_HINT_KEY } from '../../auth/pinHint';
+import { PIN_HINT_KEY, phoneHasPinHint } from '../../auth/pinHint';
 import {
   MAX_LOCK_FAILURES,
   awayTooLong,
@@ -23,11 +23,7 @@ import PinKeypad from './PinKeypad';
 import './AppLock.css';
 
 function phoneHasPin(): boolean {
-  try {
-    return localStorage.getItem(PIN_HINT_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return phoneHasPinHint();
 }
 
 /**

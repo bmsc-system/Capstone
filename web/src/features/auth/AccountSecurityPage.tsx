@@ -22,7 +22,7 @@ import type { UserDevice } from '../../types';
 import PinSetupKeypad from './PinSetupKeypad';
 import './AccountSecurityPage.css';
 import { confirmAction } from '../../utils/confirmAction';
-import { PIN_HINT_KEY } from '../../auth/pinHint';
+import { PIN_HINT_KEY, isPinDevice } from '../../auth/pinHint';
 import { clearPinCheck } from '../../auth/appLock';
 
 /** Other devices listed before "Show N more". */
@@ -101,7 +101,7 @@ function DeviceRow({
               This device
             </StatusPill>
           ) : null}
-          {showPin && device.hasPin ? (
+          {showPin && info.kind !== 'desktop' && device.hasPin ? (
             <StatusPill tone="green" compact>
               PIN on
             </StatusPill>
@@ -114,7 +114,7 @@ function DeviceRow({
           <span title={formatShop(device.createdAt, 'MMM D, YYYY h:mm A')}>
             First signed in {formatShop(device.createdAt, 'MMM D, YYYY')}
           </span>
-          {showPin && !device.hasPin ? <span>PIN off</span> : null}
+          {showPin && info.kind !== 'desktop' && !device.hasPin ? <span>PIN off</span> : null}
           <span className="sec-device__id" title="Device ID (stored in that browser)">
             ID {device.deviceId.slice(-4).toUpperCase()}
           </span>
@@ -377,6 +377,12 @@ export default function AccountSecurityPage() {
     >
       {loading ? (
         <Skeleton active paragraph={{ rows: 2 }} title={false} />
+      ) : !isPinDevice() ? (
+        <p className="sec-pin__blocked">
+          {pinOn
+            ? 'Your PIN is on. Use it in the app on your phone. On a computer, sign in with your password.'
+            : 'Set up your PIN in the app on your phone. On a computer, sign in with your password.'}
+        </p>
       ) : !thisDevice ? (
         <p className="sec-pin__blocked">
           To set up a PIN, log out and sign in again with your password on this {deviceWord}.

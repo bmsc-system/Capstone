@@ -10,7 +10,7 @@ import { createActionQueue } from '../../offline/actionQueue';
 import PinKeypad from './PinKeypad';
 import AuthShell, { AuthFooter } from './AuthShell';
 import './LoginPage.css';
-import { OLD_PIN_HINT_KEY, PIN_HINT_KEY } from '../../auth/pinHint';
+import { OLD_PIN_HINT_KEY, PIN_HINT_KEY, phoneHasPinHint } from '../../auth/pinHint';
 import { clearPinCheck, savePinCheck } from '../../auth/appLock';
 
 export default function LoginPage() {
@@ -34,7 +34,8 @@ export default function LoginPage() {
       try {
         // A 6-digit PIN from before PINs became 4 digits no longer works.
         localStorage.removeItem(OLD_PIN_HINT_KEY);
-        const hint = localStorage.getItem(PIN_HINT_KEY) === '1';
+        // Desktops always use the password; only phones open on the keypad.
+        const hint = phoneHasPinHint();
         // "Use password instead" on the app lock opens the password form.
         if (!cancelled) setPinMode(hint && new URLSearchParams(window.location.search).get('mode') !== 'password');
       } finally {
@@ -210,7 +211,7 @@ export default function LoginPage() {
           >
             Sign in
           </Button>
-          {localStorage.getItem(PIN_HINT_KEY) === '1' && (
+          {phoneHasPinHint() && (
             <Button type="link" block style={{ marginTop: 8 }} onClick={() => setPinMode(true)}>
               Use PIN instead
             </Button>

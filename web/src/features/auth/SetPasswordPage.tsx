@@ -7,7 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import PasswordRuleHints from './PasswordRuleHints';
 import AuthShell, { AuthFooter } from './AuthShell';
 import './LoginPage.css';
-import { PIN_HINT_KEY } from '../../auth/pinHint';
+import { PIN_HINT_KEY, isPinDevice } from '../../auth/pinHint';
 
 export default function SetPasswordPage() {
   const [params] = useSearchParams();
@@ -89,7 +89,9 @@ export default function SetPasswordPage() {
         values.identifier,
       );
       applySession(data);
-      if (data.device?.hasPin) {
+      if (!isPinDevice()) {
+        // Desktop: password only.
+      } else if (data.device?.hasPin) {
         localStorage.setItem(PIN_HINT_KEY, '1');
       } else if (data.user.role === 'PRODUCTION_WORKER') {
         sessionStorage.setItem('bmsc_offer_pin', '1');

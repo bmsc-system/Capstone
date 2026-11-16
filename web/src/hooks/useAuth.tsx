@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { authApi } from '../api/auth.api';
 import { recordSignOut } from '../api/client';
 import { markUnlocked } from '../auth/appLock';
-import { PIN_HINT_KEY } from '../auth/pinHint';
+import { PIN_HINT_KEY, isPinDevice } from '../auth/pinHint';
 import type { LoginResponse, User } from '../types';
 
 interface AuthContextType {
@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (identifier: string, password: string) => {
     const { data } = await authApi.login(identifier, password);
     // The worker's PIN already works on this phone (set on another phone).
-    if (data.device?.hasPin) localStorage.setItem(PIN_HINT_KEY, '1');
+    if (data.device?.hasPin && isPinDevice()) localStorage.setItem(PIN_HINT_KEY, '1');
     applySession(data);
   };
 
