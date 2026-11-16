@@ -23,6 +23,7 @@ import type { ConsumableIssue, JobOrder, Operation, OperationPauseReason } from 
 import { PageSkeleton } from '../../components/ui';
 import { isJobFinished } from '../job-orders/jobStage';
 import { useMyOperationsOptional } from './useMyOperations';
+import { workedMsSoFar } from './workedTime';
 import {
   announceRecorded,
   canStartOperation,
@@ -44,25 +45,6 @@ const PAUSE_REASONS: { value: OperationPauseReason; label: string }[] = [
   { value: 'OTHER', label: 'Other (add a note)' },
 ];
 
-
-function workedSecondsSoFar(op: Operation, nowMs: number): number {
-  const logs = [...(op.timeLogs || [])].sort(
-    (a, b) => dayjs(a.eventAt).valueOf() - dayjs(b.eventAt).valueOf()
-  );
-  let total = 0;
-  let open: number | null = null;
-  for (const log of logs) {
-    const t = dayjs(log.eventAt).valueOf();
-    if (log.event === 'START' || log.event === 'RESUME') {
-      if (open == null) open = t;
-    } else if (log.event === 'PAUSE' || log.event === 'COMPLETE') {
-      if (open != null && t > open) total += t - open;
-      open = null;
-    }
-  }
-  if (open != null && !op.isPaused) total += Math.max(0, nowMs - open);
-  return total;
-}
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000);
@@ -701,7 +683,7 @@ export default function AssignmentDetailPage() {
                     )}
                     {isMine && active && (
                       <div style={{ fontSize: 13, fontWeight: 700, color: colors.accent, marginTop: 2 }}>
-                        Worked {formatElapsed(workedSecondsSoFar(op, nowMs))}
+                        Worked {formatElapsed(workedMsSoFar(op, nowMs))}
                         {op.isPaused ? ' (paused)' : ''}
                       </div>
                     )}

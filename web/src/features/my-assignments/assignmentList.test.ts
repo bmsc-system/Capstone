@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { filterChips, filterOps, sortOps, whenLine } from './assignmentList';
+import { dateTile, filterChips, filterOps, groupOps, sortOps, whenLine } from './assignmentList';
+import { shopToday } from '../../utils/shopTime';
 
 const op = (id: string, extra: Record<string, unknown>) => ({ id, status: 'SCHEDULED', ...extra });
 
@@ -37,5 +38,40 @@ describe('worker assignment list', () => {
     expect(whenLine({ status: 'SCHEDULED', scheduledStart: '2026-03-02T00:00:00Z', machineUnitLabel: 'Lathe #1' })).toBe(
       'Starts Mar 2, 8:00 AM · Lathe #1'
     );
+  });
+});
+
+describe('worker job cards', () => {
+  const today = shopToday();
+  it('puts work under way in Now and the rest in Coming up', () => {
+    const ops = [
+      op('a', { status: 'SCHEDULED', scheduledStart: '2026-11-19T00:00:00Z' }),
+      op('b', { status: 'IN_PROGRESS', isPaused: true, actualStart: '2026-11-16T09:56:00Z' }),
+    ];
+    expect(groupOps(ops, 'active').map((g) => [g.label, g.ops.map((o) => o.id)])).toEqual([
+      ['Now', ['b']],
+      ['Coming up', ['a']],
+    ]);
+  });
+
+  it('groups finished work by month with the hours', () => {
+    const done = [
+      op('x', { status: 'COMPLETED', actualEnd: '2026-10-28T08:00:00Z', actualWorkedHours: 7.5 }),
+      op('y', { status: 'COMPLETED', actualEnd: '2026-10-27T08:00:00Z', actualWorkedHours: 1 }),
+      op('z', { status: 'COMPLETED', actualEnd: '2026-09-02T08:00:00Z', actualWorkedHours: 2 }),
+    ];
+    expect(groupOps(done, 'completed').map((g) => [g.label, g.note])).toEqual([
+      ['October 2026', '2 jobs · 8h 30m'],
+      ['September 2026', '1 job · 2h'],
+    ]);
+  });
+
+  it('shows the day in the tile, TODAY for today', () => {
+    expect(dateTile({ status: 'COMPLETED', actualEnd: '2026-10-28T08:00:00Z' })).toEqual({ day: '28', label: 'OCT' });
+    expect(dateTile({ status: 'IN_PROGRESS', actualStart: today.hour(9).toISOString() }, today)).toEqual({
+      day: today.format('D'),
+      label: 'TODAY',
+    });
+    expect(dateTile({ status: 'PENDING' })).toBeNull();
   });
 });
