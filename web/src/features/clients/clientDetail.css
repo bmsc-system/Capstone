@@ -113,10 +113,11 @@
   font-size: var(--fs-sm);
 }
 
-/* Summary strip: four figures in one card, split by rules. */
+/* Summary strip: four figures in one card, split by rules. The total value
+   gets the widest column so a long peso amount is not cut off. */
 .cd-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.4fr);
 }
 
 .cd-stat {
