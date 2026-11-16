@@ -78,7 +78,7 @@ type OpFormRow = {
   machineTypeId?: string;
   machineUnitId?: string;
   assignedWorkerId?: string;
-  /** Up to MAX_HELPERS; no helpers on outsourced work. */
+  /** Any number of helpers; none on outsourced work. */
   helperIds?: string[];
   estimatedHours?: number | null;
   turnaroundDays?: number | null;
@@ -88,7 +88,6 @@ type OpFormRow = {
   notes?: string;
 };
 
-const MAX_HELPERS = 2;
 
 /** Finishing is the final operation: it stays last, and new operations go before it. */
 const FINAL_OPERATION_CODE = 'FINISHING';
@@ -1133,7 +1132,7 @@ export default function JobOrderPlanningPage() {
         ),
       );
     const setHelpers = (next: string[]) => patchRow(index, { helperIds: next });
-    const canAddHelper = !readOnly && Boolean(record.assignedWorkerId) && helpers.length < MAX_HELPERS;
+    const canAddHelper = !readOnly && Boolean(record.assignedWorkerId);
     const suggestions = rowSuggestions[index] || [];
     const gate = rowGates[index];
     const applyPair = (workerId?: string, unitId?: string) => {
@@ -1237,7 +1236,7 @@ export default function JobOrderPlanningPage() {
             }}
           />
           {canAddHelper ? (
-            <Tooltip title={`Add a helper (up to ${MAX_HELPERS})`}>
+            <Tooltip title="Add a helper">
               <Button
                 type="text"
                 className="jo-op__icon-btn"
@@ -1359,12 +1358,12 @@ export default function JobOrderPlanningPage() {
     }
     const suggestions = rowSuggestions[index] || [];
     const qualifiedWorkers = rowWorkers[index] || [];
-    const helperSugs = (helperSuggestions[row?.key || ''] || []).slice(0, 5);
     const rowHelpers = (row?.helperIds || []).filter(Boolean);
-    const canAddHelper =
-      !readOnly &&
-      Boolean(row?.assignedWorkerId) &&
-      rowHelpers.length < MAX_HELPERS;
+    // Already on the crew: not suggested again.
+    const helperSugs = (helperSuggestions[row?.key || ''] || [])
+      .filter((s) => s.workerId !== row?.assignedWorkerId && !rowHelpers.includes(s.workerId))
+      .slice(0, 5);
+    const canAddHelper = !readOnly && Boolean(row?.assignedWorkerId);
     if (!suggestions.length && !helperSugs.length) return null;
     const topId = suggestions[0]?.workerId;
     const assignedId = row?.assignedWorkerId;
@@ -1440,7 +1439,7 @@ export default function JobOrderPlanningPage() {
           <>
             <div className="jo-op__more-head" style={{ marginTop: 10 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Suggested helpers — click to add (up to {MAX_HELPERS})
+                Suggested helpers — click to add
               </Text>
             </div>
             <div className="jo-op__picks">
@@ -1450,7 +1449,7 @@ export default function JobOrderPlanningPage() {
                   key={s.workerId}
                   onClick={() =>
                     patchRow(index, {
-                      helperIds: [...rowHelpers, s.workerId].slice(0, MAX_HELPERS),
+                      helperIds: [...rowHelpers, s.workerId],
                     })
                   }
                   className="jo-op__pick is-helper"

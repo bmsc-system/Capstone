@@ -151,9 +151,8 @@ def _validate_helpers(
     outsourced=False,
     exclude_operation_ids=None,
 ) -> list[str]:
-    """Helpers: up to two, distinct, not the lead, assignable and free. They
+    """Helpers: any number, distinct, not the lead, assignable and free. They
     need no machine skill. Outsourced work takes no helpers."""
-    from app.models.operation import MAX_HELPERS
     from app.services.worker_availability import assert_worker_available
     from app.services.worker_profile_service import is_assignable_worker
 
@@ -164,10 +163,6 @@ def _validate_helpers(
         raise AppError("Outsourced operations have no crew.", "VALIDATION_ERROR", 400)
     if not lead_id:
         raise AppError("Choose the lead worker before adding helpers.", "VALIDATION_ERROR", 400)
-    if len(helper_ids) > MAX_HELPERS:
-        raise AppError(
-            f"An operation has at most {MAX_HELPERS} helpers.", "TOO_MANY_HELPERS", 400
-        )
     if len(set(helper_ids)) != len(helper_ids) or lead_id in helper_ids:
         raise AppError(
             "Each crew member can appear only once.", "VALIDATION_ERROR", 400

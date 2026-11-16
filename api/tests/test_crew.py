@@ -174,12 +174,16 @@ def test_assign_sets_lead_and_helpers_and_lists_the_crew(client, shop):
     assert data["crewSize"] == 3
 
 
-def test_at_most_two_helpers_and_never_the_lead(client, shop):
+def test_any_number_of_helpers_but_never_the_lead(client, shop):
     op = _op(_job(shop), 1, shop["types"]["LAYOUT"])
     res = _assign(client, shop, op, shop["ana"], [shop["ben"], shop["cara"], shop["gio"]])
-    assert res.status_code == 400
-    assert res.get_json()["error"]["code"] == "TOO_MANY_HELPERS"
+    assert res.status_code == 200, res.get_json()
+    data = res.get_json()
+    assert data["helperIds"] == [shop["ben"].id, shop["cara"].id, shop["gio"].id]
+    assert data["crewSize"] == 4
     res = _assign(client, shop, op, shop["ana"], [shop["ana"]])
+    assert res.status_code == 400
+    res = _assign(client, shop, op, shop["ana"], [shop["ben"], shop["ben"]])
     assert res.status_code == 400
 
 
