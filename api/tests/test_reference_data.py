@@ -98,15 +98,19 @@ def test_fresh_database_gets_full_reference_data(app):
     assert ops["BENDING"].default_machine_type_id == machines["BENDING"].id
     assert ops["TURNING"].default_machine_type_id == machines["LATHE"].id
 
-    assert MaterialCatalogItem.query.count() == 15
-    teflon = MaterialCatalogItem.query.filter_by(name="Teflon").one()
-    assert teflon.shop_term == "PTFE" and teflon.grades == []
+    assert MaterialCatalogItem.query.count() == 12
+    gi = MaterialCatalogItem.query.filter_by(name="GI Pipe").one()
+    assert gi.shop_term == "Galvanized iron pipe" and gi.grades == []
     assert {i.default_unit for i in MaterialCatalogItem.query.all()} <= {"pcs", "sheet"}
 
     tools = {t.name: t for t in Tool.query.all()}
     assert tools["Sandpaper"].shop_term == "Liha"
     assert tools["Sandpaper"].unit == "pack"
-    assert tools["Tungsten carbide tip"].shop_term == "Tungatip"
+    assert set(tools) == {
+        "Cutting Disk", "Grinding Stone", "Flap Disk", "Fluids", "Sandpaper",
+        "Drill Bits", "Endmills", "Handtaps", "Bandsaw Blade",
+    }
+    assert tools["Fluids"].ordered_from_supplier
     assert all(t.minimum_stock is None for t in tools.values())
 
     settings = db.session.get(ShopSettings, 1)
@@ -215,7 +219,7 @@ def test_existing_records_updated_in_place_and_history_kept(app):
         db.session.add(MachineUnit(machine_type_id=lathe.id, label=f"Lathe #{n}", active=True))
     cutting = OperationType(code="CUTTING", name="Cutting")
     tonga = Tool(
-        name="Tonga tip", code="INV-TONGA-STD", category=ToolCategory.CONSUMABLE,
+        name="Cutting disc", code="INV-CUT-115", category=ToolCategory.CONSUMABLE,
         unit="pcs", quantity_on_hand=Decimal("40"), minimum_stock=Decimal("12"),
         ordered_from_supplier=True,
     )
@@ -263,10 +267,8 @@ def test_existing_records_updated_in_place_and_history_kept(app):
 
     assert db.session.get(MachineType, ids["lathe"]).units == 8
     tip = db.session.get(Tool, ids["tonga"])
-    assert (tip.name, tip.shop_term, tip.minimum_stock) == (
-        "Tungsten carbide tip", "Tungatip", Decimal("12.00"),
-    )
-    assert Tool.query.filter_by(name="Tungsten carbide tip").count() == 1
+    assert (tip.name, tip.minimum_stock) == ("Cutting Disk", Decimal("12.00"))
+    assert Tool.query.filter_by(name="Cutting Disk").count() == 1
 
 
 def test_po_number_carries_supplier_code(app):
@@ -330,8 +332,8 @@ def test_material_catalog_search_and_roles(app, client):
     res = client.get("/api/v1/material-catalog?search=41-40", headers=_headers(admin))
     assert res.status_code == 200
     assert [i["name"] for i in res.get_json()["items"]] == ["4140"]
-    res = client.get("/api/v1/material-catalog?search=delrin", headers=_headers(office))
-    assert [i["name"] for i in res.get_json()["items"]] == ["Acetal"]
+    res = client.get("/api/v1/material-catalog?search=black iron", headers=_headers(office))
+    assert [i["name"] for i in res.get_json()["items"]] == ["BI Pipe"]
 
     by_weight = {"name": "304", "defaultUnit": "kg", "category": "Stainless steel"}
     assert client.post("/api/v1/material-catalog", json=by_weight, headers=_headers(office)).status_code == 400

@@ -423,6 +423,15 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
     }
   };
 
+  // Drafts have nothing to do in bulk (no print, no delivery): no selecting there.
+  const canSelect = listTab !== 'drafts';
+  useEffect(() => {
+    if (!canSelect) {
+      setSelectMode(false);
+      setSelectedKeys([]);
+    }
+  }, [canSelect]);
+
   const handleBulkDeliver = async () => {
     if (!selectedCompletable.length) {
       message.info('Select completed jobs to set For Delivery.');
@@ -823,14 +832,16 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
                   <PlusOutlined />
                 </button>
               )}
-              <button
-                type="button"
-                className={`sched-m__icon${selectMode ? ' is-on' : ''}`}
-                onClick={toggleSelectMode}
-                aria-label={selectMode ? 'Done selecting' : 'Select multiple'}
-              >
-                <SelectMultipleIcon />
-              </button>
+              {canSelect ? (
+                <button
+                  type="button"
+                  className={`sched-m__icon${selectMode ? ' is-on' : ''}`}
+                  onClick={toggleSelectMode}
+                  aria-label={selectMode ? 'Done selecting' : 'Select multiple'}
+                >
+                  <SelectMultipleIcon />
+                </button>
+              ) : null}
               <Badge count={activeFilterCount} size="small" offset={[-4, 4]} className="sched-m__filter">
                 <button
                   type="button"
@@ -968,17 +979,19 @@ export default function JobOrderListPage({ mode = 'active' }: JobOrderListPagePr
               />
             </Tooltip>
           </Dropdown>
-          <Tooltip title={selectMode ? 'Done selecting' : 'Select multiple'}>
-            <Button
-              type={selectMode ? 'primary' : 'default'}
-              ghost={selectMode}
-              className="ui-iconbtn"
-              icon={<SelectMultipleIcon />}
-              onClick={toggleSelectMode}
-              aria-pressed={selectMode}
-              aria-label={selectMode ? 'Done selecting' : 'Select multiple'}
-            />
-          </Tooltip>
+          {canSelect ? (
+            <Tooltip title={selectMode ? 'Done selecting' : 'Select multiple'}>
+              <Button
+                type={selectMode ? 'primary' : 'default'}
+                ghost={selectMode}
+                className="ui-iconbtn"
+                icon={<SelectMultipleIcon />}
+                onClick={toggleSelectMode}
+                aria-pressed={selectMode}
+                aria-label={selectMode ? 'Done selecting' : 'Select multiple'}
+              />
+            </Tooltip>
+          ) : null}
           {!archivedOnly ? (
             <Tooltip title={`Archived job orders${archivedCount ? ` (${archivedCount})` : ''}`}>
               <Button

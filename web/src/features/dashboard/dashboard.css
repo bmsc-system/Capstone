@@ -1,0 +1,11 @@
+/* Admin dashboard: the To plan table keeps the job number and the Plan
+   button off the card's edges. Doubled class: beats the table's own padding. */
+.dashboard-plan.dashboard-plan .ant-table-wrapper .ant-table-thead > tr > th:first-child,
+.dashboard-plan.dashboard-plan .ant-table-wrapper .ant-table-tbody > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.dashboard-plan.dashboard-plan .ant-table-wrapper .ant-table-thead > tr > th:last-child,
+.dashboard-plan.dashboard-plan .ant-table-wrapper .ant-table-tbody > tr > td:last-child {
+  padding-right: 24px;
+}

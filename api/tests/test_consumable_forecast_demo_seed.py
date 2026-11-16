@@ -48,8 +48,8 @@ def test_forecast_demo_seed_mixes_labels(app):
         )
         for code in (
             NO_DATA_TOOL_CODE,
-            "INV-CENTER-B",
-            "INV-CENTER-A",
+            "INV-HANDTAP-M10",
+            "INV-HANDTAP-M8",
             "INV-DRILL-06",
             "INV-FLAP-115",
             "INV-ENDMILL-10",
@@ -68,7 +68,7 @@ def test_forecast_demo_seed_mixes_labels(app):
     today = shop_now().date()
     rows = {r["code"]: r for r in fs.consumable_run_out(today=today)["items"]}
     assert rows[NO_DATA_TOOL_CODE]["label"] == "No data yet"
-    assert rows["INV-CENTER-B"]["label"] == "Estimated"
-    assert rows["INV-CENTER-A"]["label"] == "Estimated"
+    assert rows["INV-HANDTAP-M10"]["label"] == "Estimated"
+    assert rows["INV-HANDTAP-M8"]["label"] == "Estimated"
     assert rows["INV-DRILL-06"]["label"] == "Computed"
     assert rows["INV-DRILL-06"]["status"] in ("REORDER_NOW", "REORDER_SOON", "OK")

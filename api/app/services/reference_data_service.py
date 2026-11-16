@@ -13,6 +13,8 @@ from decimal import Decimal
 
 from sqlalchemy import func
 
+from app.constants.inventory_names import CONSUMABLES as INVENTORY_CONSUMABLES
+from app.constants.inventory_names import MATERIALS as INVENTORY_MATERIALS
 from app.constants.machines import MACHINE_CATALOG, machine_unit_label
 from app.extensions import db
 from app.models.job_order import JobOrder
@@ -59,41 +61,11 @@ INACTIVE_SUPPLIERS = ["Seno Metals", "Metro Hardware"]
 
 DUPLICATE_SUFFIX = " (duplicate)"
 
-# Named the way the shop writes them on a PO; the size goes on each order line.
-MATERIAL_CATALOG = [
-    {"name": "1045", "shop_term": "10-45", "grades": [], "default_unit": "pcs", "category": "Steel"},
-    {"name": "4140", "shop_term": "41-40", "grades": [], "default_unit": "pcs", "category": "Steel"},
-    {"name": "SKD 11", "shop_term": None, "grades": [], "default_unit": "pcs", "category": "Steel"},
-    {"name": "MS", "shop_term": "Iron", "grades": [], "default_unit": "pcs", "category": "Steel"},
-    {"name": "A36", "shop_term": None, "grades": [], "default_unit": "pcs", "category": "Steel"},
-    {"name": "6061", "shop_term": "60-61", "grades": [], "default_unit": "pcs", "category": "Aluminium"},
-    {"name": "5052", "shop_term": "50-52", "grades": [], "default_unit": "sheet", "category": "Aluminium"},
-    {"name": "Brass", "shop_term": None, "grades": [], "default_unit": "pcs", "category": "Non-ferrous"},
-    {"name": "Bronze", "shop_term": "Magnolia", "grades": [], "default_unit": "pcs", "category": "Non-ferrous"},
-    {"name": "Copper", "shop_term": None, "grades": [], "default_unit": "pcs", "category": "Non-ferrous"},
-    {"name": "Nylon", "shop_term": None, "grades": [], "default_unit": "pcs", "category": "Plastic"},
-    {"name": "Acetal", "shop_term": "Delrin", "grades": [], "default_unit": "pcs", "category": "Plastic"},
-    {"name": "UHMW", "shop_term": "UHMW-PE", "grades": [], "default_unit": "pcs", "category": "Plastic"},
-    {"name": "Teflon", "shop_term": "PTFE", "grades": [], "default_unit": "pcs", "category": "Plastic"},
-    {"name": "Bakelite", "shop_term": "Phenolic", "grades": [], "default_unit": "pcs", "category": "Plastic"},
-]
-
-
-# An existing item with the name or an alias counts as present; one found
-# only by alias is renamed to the shop's name. Minimum stock is left blank.
-CONSUMABLES = [
-    {"name": "Drill bit", "code": "INV-DRILL-BIT", "unit": "pcs", "shop_term": None, "aliases": []},
-    {"name": "Cutting disc", "code": "INV-CUT-DISC", "unit": "pcs", "shop_term": None, "aliases": []},
-    {
-        "name": "Tungsten carbide tip",
-        "code": "INV-TC-TIP",
-        "unit": "pcs",
-        "shop_term": "Tungatip",
-        "aliases": ["Tonga tip", "Tungatip"],
-    },
-    {"name": "Sandpaper", "code": "INV-SANDPAPER", "unit": "pack", "shop_term": "Liha", "aliases": ["Liha"]},
-    {"name": "Grinding stone", "code": "INV-GRIND-STONE", "unit": "pcs", "shop_term": None, "aliases": []},
-]
+# The shop's own lists (app/constants/inventory_names.py); the size goes on
+# each order line. An existing consumable found under an alias is renamed to
+# the shop's name. Minimum stock is left blank.
+MATERIAL_CATALOG = [{**m, "grades": []} for m in INVENTORY_MATERIALS]
+CONSUMABLES = INVENTORY_CONSUMABLES
 
 
 @dataclass
@@ -335,6 +307,7 @@ def _load_consumables(report):
                 quantity_on_hand=Decimal("0"),
                 minimum_stock=None,
                 shop_term=spec["shop_term"],
+                ordered_from_supplier=bool(spec.get("ordered_from_supplier")),
             )
             db.session.add(tool)
             report.change(f"Consumable {spec['name']!r}: created ({tool.code}, {spec['unit']})")

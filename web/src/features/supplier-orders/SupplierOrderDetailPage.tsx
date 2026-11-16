@@ -751,7 +751,7 @@ export default function SupplierOrderDetailPage() {
           <Alert
             type="info"
             showIcon
-            style={{ marginBottom: 16 }}
+            style={{ margin: '16px 0' }}
             title="Waiting for the Admin's approval"
             description={
               [
@@ -775,7 +775,7 @@ export default function SupplierOrderDetailPage() {
           <Alert
             type="warning"
             showIcon
-            style={{ marginBottom: 16 }}
+            style={{ margin: '16px 0' }}
             title="The Admin sent this order back"
             description={order.returnNote}
           />

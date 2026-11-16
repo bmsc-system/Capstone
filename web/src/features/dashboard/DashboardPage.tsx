@@ -52,6 +52,7 @@ import { isJobFinished } from '../job-orders/jobStage';
 import { periodBounds } from '../schedule/scheduleTimelineUtils';
 import { useAuth } from '../../hooks/useAuth';
 import OfficeDashboard from './OfficeDashboard';
+import './dashboard.css';
 
 type Load<T> = { data: T | null; failed: boolean };
 
@@ -256,7 +257,7 @@ function AdminDashboard() {
           <CardError what="job orders to plan" />
         ) : (
           <DataTable<JobOrder>
-            card={{ title: 'title', subtitle: ['jobNumber', 'clientName'] }}
+            card={{ title: 'title', subtitle: ['jobNumber', 'clientName'], actions: 'plan' }}
             rowKey="id"
             loading={!drafts.data && !drafts.failed}
             dataSource={planQueue.slice(0, 5)}
@@ -267,7 +268,6 @@ function AdminDashboard() {
                 <EmptyState compact icon={<FileTextOutlined />} title="Nothing to plan" description="New job orders from the office show up here." />
               ),
             }}
-            onRow={(job) => rowOpenProps(() => navigate(`/job-orders/${job.id}/plan`))}
             columns={[
               {
                 title: 'Job #',
