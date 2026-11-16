@@ -1,0 +1,29 @@
+/* Full-screen PIN lock over the worker app. Opaque, so no job details show. */
+.app-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f6fa;
+  padding: calc(24px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px))
+    calc(24px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  overflow-y: auto;
+}
+
+.app-lock__inner {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-lock__who {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  text-align: center;
+}

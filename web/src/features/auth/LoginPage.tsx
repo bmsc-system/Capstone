@@ -11,6 +11,7 @@ import PinKeypad from './PinKeypad';
 import AuthShell, { AuthFooter } from './AuthShell';
 import './LoginPage.css';
 import { OLD_PIN_HINT_KEY, PIN_HINT_KEY } from '../../auth/pinHint';
+import { clearPinCheck, savePinCheck } from '../../auth/appLock';
 
 export default function LoginPage() {
   const { login, user, loading, applySession } = useAuth();
@@ -34,7 +35,8 @@ export default function LoginPage() {
         // A 6-digit PIN from before PINs became 4 digits no longer works.
         localStorage.removeItem(OLD_PIN_HINT_KEY);
         const hint = localStorage.getItem(PIN_HINT_KEY) === '1';
-        if (!cancelled) setPinMode(hint);
+        // "Use password instead" on the app lock opens the password form.
+        if (!cancelled) setPinMode(hint && new URLSearchParams(window.location.search).get('mode') !== 'password');
       } finally {
         if (!cancelled) setCheckingPin(false);
       }
@@ -70,11 +72,13 @@ export default function LoginPage() {
       const { data } = await authApi.unlockWithPin(pin);
       applySession(data);
       localStorage.setItem(PIN_HINT_KEY, '1');
+      void savePinCheck(pin);
     } catch (err) {
       const code = getErrorCode(err);
       const message = getErrorMessage(err);
       if (code === 'PIN_LOCKED' || code === 'PIN_DEVICE_UNKNOWN') {
         localStorage.removeItem(PIN_HINT_KEY);
+        clearPinCheck();
         setPinMode(false);
         setError(message);
         setPinError('');
@@ -115,15 +119,17 @@ export default function LoginPage() {
         />
       )}
       {online &&
-        (endReason === 'signed-out' || endReason === 'expired' || endReason === 'idle') &&
+        (endReason === 'signed-out' || endReason === 'expired' || endReason === 'idle' || endReason === 'pin-locked') &&
         !error && (
         <Alert
           className="login-alert"
-          type={endReason === 'signed-out' ? 'warning' : 'info'}
+          type={endReason === 'signed-out' || endReason === 'pin-locked' ? 'warning' : 'info'}
           showIcon
           title={
             endReason === 'signed-out'
               ? 'This device was signed out'
+              : endReason === 'pin-locked'
+                ? 'Too many wrong PINs. Sign in with your password.'
               : endReason === 'idle'
                 ? 'Signed out after 30 minutes idle'
                 : 'Session expired — sign in again'

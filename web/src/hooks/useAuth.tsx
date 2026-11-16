@@ -2,6 +2,7 @@ import axios from 'axios';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { authApi } from '../api/auth.api';
 import { recordSignOut } from '../api/client';
+import { markUnlocked } from '../auth/appLock';
 import type { LoginResponse, User } from '../types';
 
 interface AuthContextType {
@@ -82,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('accessToken', data.accessToken);
     localStorage.setItem('refreshToken', data.refreshToken);
     localStorage.setItem('user', JSON.stringify(data.user));
+    // Signing in is proof enough: the app lock does not ask again in this run.
+    markUnlocked();
     setUser(data.user);
   };
 

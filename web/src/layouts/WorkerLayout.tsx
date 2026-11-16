@@ -18,6 +18,7 @@ import { confirmLogout } from '../utils/confirmLogout';
 import { workerTheme } from '../theme/antTheme';
 import { colors as tokenColors, tones } from '../theme/tokens';
 import PinOfferModal from '../features/auth/PinOfferModal';
+import AppLock from '../features/auth/AppLock';
 import KeepAliveOutlet from '../navigation/KeepAliveOutlet';
 import RouteErrorBoundary from '../components/RouteErrorBoundary';
 import { useNavMemory } from '../navigation/navMemory';
@@ -266,6 +267,7 @@ export default function WorkerLayout() {
               </div>
             </main>
             <PinOfferModal />
+            <AppLock />
 
             <nav className="w-nav" aria-label="Main">
               {TABS.map((tab) => {

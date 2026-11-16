@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { getErrorMessage } from '../../api/client';
 import PinKeypad from './PinKeypad';
+import { savePinCheck } from '../../auth/appLock';
 
 // Same rules as the server (api/app/utils/passwords.py validate_pin), checked
 // on the first entry so the worker is not asked to type a refused PIN twice.
@@ -59,6 +60,7 @@ export default function PinSetupKeypad({ busy = false, onSave, footer }: PinSetu
     setError('');
     try {
       await onSave(pin);
+      await savePinCheck(pin);
     } catch (err) {
       restart(getErrorMessage(err));
     } finally {

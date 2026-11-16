@@ -8,6 +8,7 @@ import PasswordRuleHints from './PasswordRuleHints';
 import AuthShell, { AuthFooter } from './AuthShell';
 import './LoginPage.css';
 import { PIN_HINT_KEY } from '../../auth/pinHint';
+import { clearPinCheck } from '../../auth/appLock';
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -89,6 +90,7 @@ export default function ResetPasswordPage() {
       );
       applySession(data);
       localStorage.removeItem(PIN_HINT_KEY);
+      clearPinCheck();
       navigate(data.user.role === 'PRODUCTION_WORKER' ? '/home' : '/dashboard', {
         replace: true,
       });
