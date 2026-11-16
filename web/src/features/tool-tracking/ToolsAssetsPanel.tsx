@@ -843,7 +843,7 @@ export default function ToolsAssetsPanel() {
             rules={[{ required: true, message: 'Name is required' }]}
             style={{ marginBottom: 14 }}
           >
-            <Input placeholder="e.g. Angle grinder" />
+            <Input placeholder="e.g. Caliper" />
           </Form.Item>
           <Row gutter={12}>
             <Col xs={24} sm={12}>

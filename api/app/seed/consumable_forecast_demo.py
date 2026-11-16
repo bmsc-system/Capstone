@@ -23,12 +23,12 @@ EVENT_NOTE = f"{TAG} forecast demo scan"
 PO_NAME_PREFIX = f"[{TAG}]"
 
 # Stays out of HIST-SEED restock and this helper → forecast "No data yet".
-NO_DATA_TOOL_CODE = "INV-RUG-SHOP"
+NO_DATA_TOOL_CODE = "INV-BANDSAW"
 
 # Consumables that get PO lead-time lines (except NO_DATA_TOOL_CODE).
 PO_TOOL_CODES = (
-    "INV-CENTER-B",
-    "INV-CENTER-A",
+    "INV-HANDTAP-M10",
+    "INV-HANDTAP-M8",
     "INV-DRILL-06",
     "INV-FLAP-115",
     "INV-ENDMILL-10",
@@ -37,7 +37,7 @@ PO_TOOL_CODES = (
 )
 
 # Few scan days + PO → Estimated
-FEW_SCAN_TOOL_CODES = ("INV-CENTER-A", "INV-OIL-CUT")
+FEW_SCAN_TOOL_CODES = ("INV-HANDTAP-M8", "INV-OIL-CUT")
 
 # ≥14 working days of scans → Computed; on_hand tuned for reorder status
 COMPUTED_PROFILES = {
@@ -65,7 +65,6 @@ def _working_days_before(end: date, count: int) -> list[date]:
 def _remap_legacy_units():
     unit_remap = {
         "INV-OIL-CUT": ("bottle", "litre"),
-        "INV-LUBE-GEN": ("can", "litre"),
     }
     for code, (new_unit, old_unit) in unit_remap.items():
         tool = Tool.query.filter_by(code=code).first()
@@ -223,8 +222,8 @@ def seed_consumable_forecast_demo(*, replace: bool = False) -> dict:
     scan_count = 0
 
     lead_patterns = {
-        "INV-CENTER-B": [(5, 4), (35, 5), (65, 7)],
-        "INV-CENTER-A": [(10, 5), (45, 6)],
+        "INV-HANDTAP-M10": [(5, 4), (35, 5), (65, 7)],
+        "INV-HANDTAP-M8": [(10, 5), (45, 6)],
         "INV-DRILL-06": [(8, 5), (40, 8), (72, 5)],
         "INV-FLAP-115": [(12, 6), (50, 5)],
         "INV-ENDMILL-10": [(15, 7)],
@@ -236,7 +235,7 @@ def seed_consumable_forecast_demo(*, replace: bool = False) -> dict:
         tool = tools_by_code.get(code)
         if not tool:
             continue
-        sup = alt_supplier if code in ("INV-OIL-CUT", "INV-CENTER-B") else supplier
+        sup = alt_supplier if code in ("INV-OIL-CUT", "INV-HANDTAP-M10") else supplier
         leads = lead_patterns.get(code, [(10, 5)])
         _add_po_lines(tool, sup, today, leads)
         po_count += len(leads)

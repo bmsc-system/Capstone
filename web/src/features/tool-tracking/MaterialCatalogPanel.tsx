@@ -448,7 +448,7 @@ export default function MaterialCatalogPanel({ canEdit }: { canEdit: boolean }) 
               <Form.Item name="name" label="Name" rules={[{ required: true }]}>
                 <Input
                   placeholder={
-                    isMaterial ? 'e.g. 1045' : 'e.g. Cutting disc'
+                    isMaterial ? 'e.g. 1045' : 'e.g. Cutting Disk'
                   }
                 />
               </Form.Item>

@@ -94,39 +94,35 @@ def _inventory_catalog():
     """Consumable item types — stocktake model (one code per size/spec)."""
     C = ToolCategory.CONSUMABLE
     return [
-        ("Drill bit", "INV-DRILL-06", C, "6mm", "pcs", 30, 10),
-        ("Drill bit", "INV-DRILL-08", C, "8mm", "pcs", 28, 10),
-        ("Drill bit", "INV-DRILL-10", C, "10mm", "pcs", 24, 8),
-        ("Drill bit", "INV-DRILL-12", C, "12mm", "pcs", 18, 6),
-        ("End mill", "INV-ENDMILL-10", C, "10mm", "pcs", 16, 5),
-        ("End mill", "INV-ENDMILL-12", C, "12mm", "pcs", 14, 5),
-        ("Tungsten carbide tip", "INV-TONGA-STD", C, None, "pcs", 40, 12),
-        ("Center drill", "INV-CENTER-A", C, "A", "pcs", 20, 6),
-        ("Center drill", "INV-CENTER-B", C, "B", "pcs", 16, 5),
-        ("Cutting oil", "INV-OIL-CUT", C, None, "bottle", 20, 5),
-        ("Lubricant", "INV-LUBE-GEN", C, None, "can", 12, 4),
-        ("Rugs", "INV-RUG-SHOP", C, None, "pcs", 80, 20),
-        ("Grinding stone", "INV-GRIND-ST", C, None, "pcs", 10, 3),
-        ("Flap disc", "INV-FLAP-115", C, "115mm", "pcs", 36, 12),
-        ("Cutting disc", "INV-CUT-115", C, "115mm", "pcs", 40, 12),
+        # Names from the shop's list (app/constants/inventory_names.py).
+        ("Drill Bits", "INV-DRILL-06", C, "6mm", "pcs", 30, 10),
+        ("Drill Bits", "INV-DRILL-08", C, "8mm", "pcs", 28, 10),
+        ("Drill Bits", "INV-DRILL-10", C, "10mm", "pcs", 24, 8),
+        ("Drill Bits", "INV-DRILL-12", C, "12mm", "pcs", 18, 6),
+        ("Endmills", "INV-ENDMILL-10", C, "10mm", "pcs", 16, 5),
+        ("Endmills", "INV-ENDMILL-12", C, "12mm", "pcs", 14, 5),
+        ("Handtaps", "INV-HANDTAP-M8", C, "M8", "pcs", 20, 6),
+        ("Handtaps", "INV-HANDTAP-M10", C, "M10", "pcs", 16, 5),
+        ("Fluids", "INV-OIL-CUT", C, "Cutting oil", "bottle", 20, 5),
+        ("Sandpaper", "INV-SANDPAPER", C, "grit 120", "pack", 30, 10),
+        ("Bandsaw Blade", "INV-BANDSAW", C, None, "pcs", 6, 2),
+        ("Grinding Stone", "INV-GRIND-ST", C, None, "pcs", 10, 3),
+        ("Flap Disk", "INV-FLAP-115", C, "115mm", "pcs", 36, 12),
+        ("Cutting Disk", "INV-CUT-115", C, "115mm", "pcs", 40, 12),
     ]
 
 
 def _tool_asset_catalog():
     """
-    Seed placeholders for individually tracked tools (client list pending).
+    Individually tracked tools from the shop's list (app/constants/inventory_names.py).
     Each entry: (name, type_code, description, unit_count)
     """
     return [
-        ("Angle grinder", "SEED-ANGLE-GRINDER", "Seed placeholder — client list pending", 3),
-        ("Welding machine SMAW", "SEED-WELD-SMAW", "Seed placeholder — client list pending", 2),
-        ("Welding machine TIG", "SEED-WELD-TIG", "Seed placeholder — client list pending", 1),
-        ("Welding machine MIG", "SEED-WELD-MIG", "Seed placeholder — client list pending", 1),
-        ("Bench vise", "SEED-BENCH-VISE", "Seed placeholder — client list pending", 2),
-        ("Micrometer", "SEED-MICROMETER", "Seed placeholder — client list pending", 2),
-        ("Vernier caliper", "SEED-VERNIER", "Seed placeholder — client list pending", 3),
-        ("Torque wrench", "SEED-TORQUE", "Seed placeholder — client list pending", 1),
-        ("Hand drill", "SEED-HAND-DRILL", "Seed placeholder — client list pending", 2),
+        ("Caliper", "TL-CALIPER", None, 3),
+        ("Micrometer", "TL-MICROMETER", None, 2),
+        ("Hammers", "TL-HAMMERS", None, 3),
+        ("Collets", "TL-COLLETS", None, 4),
+        ("Clamps", "TL-CLAMPS", None, 4),
     ]
 
 
@@ -151,7 +147,6 @@ def _ensure_inventory_catalog():
     # Countable-container remaps (old unit kept as legacy_unit for Office review).
     unit_remap = {
         "INV-OIL-CUT": ("bottle", "litre"),
-        "INV-LUBE-GEN": ("can", "litre"),
         "INV-SANDPAPER": ("pack", "sheet"),
     }
     if not has_legacy and not empty:
@@ -204,7 +199,7 @@ def _ensure_suppliers():
 
 
 def _ensure_tool_assets():
-    """Seed placeholder ToolType + ToolUnit rows when none exist."""
+    """The shop's tool types and a few units each, when none exist."""
     from app.models.tool_type import ToolType, ToolUnit, ToolUnitStatus
 
     if ToolType.query.first():
@@ -226,12 +221,12 @@ def _ensure_tool_assets():
                     tool_type_id=tt.id,
                     asset_code=f"{code}-{i:03d}",
                     status=ToolUnitStatus.AVAILABLE,
-                    notes="Seed placeholder unit",
+                    notes=None,
                 )
             )
         types.append(tt)
     db.session.flush()
-    print(f"Tool assets: {len(types)} types seeded (placeholders).")
+    print(f"Tool assets: {len(types)} types seeded.")
     return types
 
 
@@ -530,7 +525,7 @@ def seed_database():
         sync_job_material_from_purchases(job2)
 
     sample_unit = (
-        ToolUnit.query.filter_by(asset_code="SEED-ANGLE-GRINDER-001").first()
+        ToolUnit.query.filter_by(asset_code="TL-CALIPER-001").first()
         or ToolUnit.query.first()
     )
     if sample_unit and workers:

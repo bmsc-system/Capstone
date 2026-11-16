@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, Space, Select, Dropdown, message, Tooltip } from 'antd';
+import { Button, Input, Select, Dropdown, message } from 'antd';
 import type { MenuProps, TableColumnsType } from 'antd';
 import {
   PlusOutlined,
@@ -10,7 +10,6 @@ import {
 import { clientsApi } from '../../api/jobOrders.api';
 import { getErrorMessage } from '../../api/client';
 import StatusPill from '../../components/StatusPill';
-import SelectMultipleIcon from '../../components/SelectMultipleIcon';
 import { EllipsisText, ResponsiveTable, RowAvatar, rowOpenProps } from '../../components/ui';
 import { Building2 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -34,8 +33,6 @@ export default function ClientsPage() {
   const [editing, setEditing] = useState<Client | null>(null);
   const [search, setSearch] = useState('');
   const [notifyFilter, setNotifyFilter] = useState<NotifyFilter[]>([]);
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
 
   const fetchClients = async () => {
     setLoading(true);
@@ -224,23 +221,6 @@ export default function ClientsPage() {
           />
         </div>
         <div className="std-list-actions">
-          <Tooltip title={selectMode ? 'Done selecting' : 'Select multiple'}>
-            <Button
-              className="ui-iconbtn"
-              icon={<SelectMultipleIcon />}
-              type={selectMode ? 'primary' : 'default'}
-              ghost={selectMode}
-              aria-label={selectMode ? 'Done selecting' : 'Select multiple'}
-              onClick={() => {
-                if (selectMode) {
-                  setSelectMode(false);
-                  setSelectedKeys([]);
-                } else {
-                  setSelectMode(true);
-                }
-              }}
-            />
-          </Tooltip>
           {canEdit && (
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate} style={{ fontWeight: 700 }}>
               Create client
@@ -248,21 +228,6 @@ export default function ClientsPage() {
           )}
         </div>
       </div>
-
-      {selectMode && (
-        <div className="std-list-bulk">
-          <span className="std-list-bulk__count">
-            {selectedKeys.length ? `${selectedKeys.length} selected` : 'Select clients'}
-          </span>
-          <Space size={8}>
-            {selectedKeys.length > 0 && (
-              <Button size="small" type="text" onClick={() => setSelectedKeys([])}>
-                Clear
-              </Button>
-            )}
-          </Space>
-        </div>
-      )}
 
       <ResponsiveTable
         card={{ subtitle: ['contact'], badge: 'notify' }}
@@ -280,22 +245,7 @@ export default function ClientsPage() {
           showTotal: (total) => `${total} client${total === 1 ? '' : 's'}`,
         }}
         locale={{ emptyText: 'No clients match your filters yet' }}
-        onRow={(r) =>
-          rowOpenProps(() =>
-            selectMode
-              ? setSelectedKeys((keys) => (keys.includes(r.id) ? keys.filter((k) => k !== r.id) : [...keys, r.id]))
-              : navigate(`/clients/${r.id}`)
-          )
-        }
-        rowSelection={
-          selectMode
-            ? {
-                selectedRowKeys: selectedKeys,
-                onChange: (keys) => setSelectedKeys(keys.map(String)),
-                preserveSelectedRowKeys: true,
-              }
-            : undefined
-        }
+        onRow={(r) => rowOpenProps(() => navigate(`/clients/${r.id}`))}
       />
 
       <ClientFormModal
