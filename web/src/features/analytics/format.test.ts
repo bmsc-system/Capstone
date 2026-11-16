@@ -22,6 +22,14 @@ describe('analytics format', () => {
     expect(fmtCompact(42)).toBe('42');
   });
 
+  it('moves to millions once rounding reaches 1,000k', () => {
+    expect(fmtCompact(999_800)).toBe('1.0M');
+    expect(fmtCompact(999_400)).toBe('999k');
+    expect(fmtCompact(9_960_000)).toBe('10M');
+    expect(fmtCompact(999.6)).toBe('1k');
+    expect(fmtCompact(-999_800)).toBe('-1.0M');
+  });
+
   it('signs differences from target', () => {
     expect(fmtSignedPct(12.4)).toBe('+12%');
     expect(fmtSignedPct(-8)).toBe('−8%');
