@@ -157,7 +157,8 @@ def suggested_action(row) -> str | None:
     hours = _h(top["hours"]) if top else None
     if cause in ("MACHINE_DOWNTIME", OperationPauseReason.MACHINE_DOWN.value):
         return (
-            f"Check {where} first ({hours} over {top['count']} stops): plan its maintenance, "
+            f"Check {where} first ({hours} over {top['count']} stop{'s' if top['count'] != 1 else ''}): "
+            "plan its maintenance, "
             "or keep another unit free for its jobs."
             if top
             else "Plan maintenance for the machines that stop most."

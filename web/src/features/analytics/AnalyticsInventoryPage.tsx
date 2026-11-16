@@ -327,7 +327,7 @@ export default function AnalyticsInventoryPage() {
           span={7}
           takeaway={
             nextRows.length
-              ? `The ${nextRows.length} to reorder next${counts.overdue ? ` · ${counts.overdue} to reorder now are in the To buy list` : ''}`
+              ? `The ${nextRows.length} to reorder next${counts.overdue ? ` · ${counts.overdue} to reorder now ${counts.overdue === 1 ? 'is' : 'are'} in the To buy list` : ''}`
               : undefined
           }
           info={

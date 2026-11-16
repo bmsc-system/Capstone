@@ -110,3 +110,10 @@ def test_admin_relabels_an_other_pause_and_the_first_reason_is_kept(client, shop
 
     row = next(r for r in _delays()["causes"] if r["cause"] == "WAITING_TOOL")
     assert row["incidents"][0]["originalReason"] == "OTHER"
+
+
+def test_machine_downtime_action_counts_one_stop_or_several():
+    one = {"cause": "MACHINE_DOWNTIME", "details": [{"label": "Lathe #3", "hours": 3.0, "count": 1}]}
+    two = {"cause": "MACHINE_DOWNTIME", "details": [{"label": "Lathe #3", "hours": 5.0, "count": 2}]}
+    assert "(3.0 h over 1 stop)" in pareto_insights.suggested_action(one)
+    assert "(5.0 h over 2 stops)" in pareto_insights.suggested_action(two)
