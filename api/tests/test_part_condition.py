@@ -193,3 +193,18 @@ def test_repair_starts_as_client_supplied_item():
     db.session.refresh(job)
     advance_part_condition(job)
     assert job.part_condition == PartCondition.MACHINED
+
+
+def test_job_page_shows_the_stage_from_completed_operations_even_if_never_saved():
+    """Sample history completes operations without advancing the saved stage."""
+    job = _job(JobType.FABRICATION)
+    _add_op(job, "CUTTING", OperationStatus.COMPLETED)
+    _add_op(job, "WELDING", OperationStatus.COMPLETED, seq=2)
+    _add_op(job, "FINISHING", OperationStatus.PENDING, seq=3)
+    db.session.refresh(job)
+    assert job.part_condition == PartCondition.RAW_MATERIAL
+    assert job.to_dict(include_operations=True)["partCondition"] == "ASSEMBLED"
+    # List cards keep the saved stage, so they need no operation types loaded.
+    assert job.to_dict()["partCondition"] == "RAW_MATERIAL"
+    # Reading never changes the saved stage.
+    assert job.part_condition == PartCondition.RAW_MATERIAL

@@ -283,15 +283,18 @@ def _rank(condition: PartCondition | None) -> int:
     return _PART_CONDITION_RANK.get(condition, 0)
 
 
-def advance_part_condition(job: JobOrder):
-    """Advance part stage from completed operation types; never move backwards."""
-    ops = list(job.operations or [])
-    if not ops:
-        return
+def part_stage_now(job: JobOrder, ops=None) -> PartCondition:
+    """Stage reached by the operations completed so far, never earlier than the saved one.
 
+    Read-only, so a job whose operations were completed without passing through
+    ``advance_part_condition`` (e.g. sample history) still shows the right stage.
+    """
+    ops = list(job.operations or []) if ops is None else list(ops)
     current = job.part_condition or PartCondition.RAW_MATERIAL
-    best = current
+    if not ops:
+        return current
 
+    best = current
     for op in ops:
         if op.status != OperationStatus.COMPLETED:
             continue
@@ -299,9 +302,17 @@ def advance_part_condition(job: JobOrder):
         if stage is not None and _rank(stage) > _rank(best):
             best = stage
 
-    if ops and all(op.status == OperationStatus.COMPLETED for op in ops):
+    if all(op.status == OperationStatus.COMPLETED for op in ops):
         best = PartCondition.FINISHED
+    return best
 
+
+def advance_part_condition(job: JobOrder):
+    """Advance part stage from completed operation types; never move backwards."""
+    if not job.operations:
+        return
+    current = job.part_condition or PartCondition.RAW_MATERIAL
+    best = part_stage_now(job)
     if _rank(best) > _rank(current):
         job.part_condition = best
 
