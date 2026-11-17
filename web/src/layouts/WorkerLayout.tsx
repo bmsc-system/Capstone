@@ -1,7 +1,9 @@
 import { STAY_OPEN } from '../components/ui/stayOpen';
-import { ConfigProvider, Popover } from 'antd';
+import { ConfigProvider, Popover, message } from 'antd';
 import {
+  ArrowDownOutlined,
   CalendarOutlined,
+  LoadingOutlined,
   HomeOutlined,
   IdcardOutlined,
   LeftOutlined,
@@ -11,7 +13,7 @@ import {
   QrcodeOutlined,
   ToolOutlined,
 } from '@ant-design/icons';
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { confirmLogout } from '../utils/confirmLogout';
@@ -21,13 +23,14 @@ import PinOfferModal from '../features/auth/PinOfferModal';
 import AppLock from '../features/auth/AppLock';
 import KeepAliveOutlet from '../navigation/KeepAliveOutlet';
 import RouteErrorBoundary from '../components/RouteErrorBoundary';
-import { useNavMemory } from '../navigation/navMemory';
+import { getNavSection, useNavMemory } from '../navigation/navMemory';
+import { PULL_TRIGGER, pullLabel, usePullToRefresh } from '../offline/pullToRefresh';
 import NeedsConnection from '../offline/NeedsConnection';
 import OfflineStatusBar from '../offline/OfflineStatusBar';
 import { useOffline } from '../offline/OfflineProvider';
 import { offlineCache } from '../offline/offlineCache';
 import { PersonAvatar } from '../components/PersonAvatar';
-import { MyOperationsProvider } from '../features/my-assignments/useMyOperations';
+import { MyOperationsProvider, useMyOperationsOptional } from '../features/my-assignments/useMyOperations';
 import WorkerBell from '../features/worker/WorkerBell';
 import './topBar.css';
 import '../features/worker/worker.css';
@@ -203,6 +206,75 @@ function isTabActive(key: string, pathname: string) {
   return pathname === key || pathname.startsWith(`${key}/`);
 }
 
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+/**
+ * The scroll area of the worker app, with pull to refresh at the top: it sends
+ * any actions waiting on the phone, then loads the open page and the worker's
+ * operations again. Offline, the phone's saved copy stays on screen.
+ */
+function WorkerMain({ className, canPull, children }: { className: string; canPull: boolean; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  const location = useLocation();
+  const { colors } = useWorkerTheme();
+  const { online, syncNow } = useOffline();
+  const mine = useMyOperationsOptional();
+  const { reloadSection } = useNavMemory();
+
+  const onRefresh = useCallback(async () => {
+    if (!online) {
+      await wait(400);
+      message.info("You're offline. Showing what's saved on this phone.");
+      return;
+    }
+    const work = (async () => {
+      try {
+        await syncNow();
+      } catch {
+        /* a refused action stays listed on the phone */
+      }
+      mine?.reload();
+      const section = getNavSection(location.pathname);
+      if (section) reloadSection(section);
+    })();
+    // Keep the spinner up long enough to be seen.
+    await Promise.all([work, wait(600)]);
+  }, [online, syncNow, mine, reloadSection, location.pathname]);
+
+  const { offset, refreshing, dragging } = usePullToRefresh(ref, { enabled: canPull, onRefresh });
+  const ready = offset >= PULL_TRIGGER;
+
+  return (
+    <>
+      {canPull && (
+        // Floats over the page, so the page itself does not move.
+        <div
+          className="w-ptr"
+          aria-live="polite"
+          aria-hidden={offset === 0 && !refreshing}
+          style={{
+            // Ready (and refreshing) just below the page's top bar.
+            transform: `translate(-50%, ${offset + 6}px)`,
+            opacity: refreshing ? 1 : Math.min(1, offset / PULL_TRIGGER),
+            color: ready || refreshing ? colors.accent : colors.textSecondary,
+            transition: dragging ? 'none' : 'transform 0.2s ease, opacity 0.2s ease',
+          }}
+        >
+          {refreshing ? (
+            <LoadingOutlined />
+          ) : (
+            <ArrowDownOutlined className={`w-ptr__arrow${ready ? ' w-ptr__arrow--ready' : ''}`} />
+          )}
+          <span>{pullLabel(offset, refreshing)}</span>
+        </div>
+      )}
+      <main ref={ref} className={className}>
+        {children}
+      </main>
+    </>
+  );
+}
+
 export default function WorkerLayout() {
   const { user, logout: authLogout } = useAuth();
   const navigate = useNavigate();
@@ -253,7 +325,7 @@ export default function WorkerLayout() {
               overflow: 'hidden',
             }}
           >
-            <main className={`w-main${isScan && !needsConnection ? ' w-main--scan' : ''}`}>
+            <WorkerMain className={`w-main${isScan && !needsConnection ? ' w-main--scan' : ''}`} canPull={!isScan}>
               {needsConnection && (
                 <>
                   <WorkerPageHeader title="Offline" />
@@ -265,7 +337,7 @@ export default function WorkerLayout() {
                   <KeepAliveOutlet />
                 </RouteErrorBoundary>
               </div>
-            </main>
+            </WorkerMain>
             <PinOfferModal />
             <AppLock />
 

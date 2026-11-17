@@ -86,6 +86,8 @@ type NavMemoryValue = {
     reset: boolean;
   };
   clearSectionCache: (sectionKey: string) => void;
+  /** Remounts the section's kept-alive page where it is, so it loads again (pull to refresh). */
+  reloadSection: (sectionKey: string) => void;
   /**
    * Called during render by a route guard that redirects away. A denied path is
    * never remembered or kept alive: its cached <Navigate> only fires on mount,
@@ -151,6 +153,13 @@ export function NavMemoryProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const reloadSection = useCallback((sectionKey: string) => {
+    setGenerationBySection((prev) => ({
+      ...prev,
+      [sectionKey]: (prev[sectionKey] || 0) + 1,
+    }));
+  }, []);
+
   const resolveSectionNav = useCallback(
     (sectionKey: string) => {
       const current = getNavSection(location.pathname);
@@ -177,10 +186,11 @@ export function NavMemoryProvider({ children }: { children: ReactNode }) {
       generationBySection,
       resolveSectionNav,
       clearSectionCache,
+      reloadSection,
       markDenied,
       isDenied,
     }),
-    [lastBySection, generationBySection, resolveSectionNav, clearSectionCache, markDenied, isDenied]
+    [lastBySection, generationBySection, resolveSectionNav, clearSectionCache, reloadSection, markDenied, isDenied]
   );
 
   return (
