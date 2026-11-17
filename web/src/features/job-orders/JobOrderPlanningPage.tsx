@@ -96,9 +96,6 @@ type OpFormRow = {
 /** Finishing is the final operation: it stays last, and new operations go before it. */
 const FINAL_OPERATION_CODE = 'FINISHING';
 
-/** Steps pre-filled when planning a Fabrication job, in shop order. */
-const FABRICATION_SEQUENCE = ['LAYOUT', 'CUTTING', 'BENDING', 'FITTING', FINAL_OPERATION_CODE];
-
 function isOutsourcedType(ot?: OperationType | null): boolean {
   return Boolean(ot?.isOutsourced);
 }
@@ -108,9 +105,10 @@ function isFinalType(ot?: OperationType | null, operationName?: string): boolean
   return (operationName || '').trim().toLowerCase().startsWith('finishing');
 }
 
-function prefillRows(types: OperationType[], jobType?: string): OpFormRow[] {
-  const codes = jobType === 'FABRICATION' ? FABRICATION_SEQUENCE : [FINAL_OPERATION_CODE];
-  return codes.map((code) => types.find((t) => t.code === code))
+/** A new plan starts with only Finishing; the Admin adds the job's own steps before it. */
+function prefillRows(types: OperationType[]): OpFormRow[] {
+  return [FINAL_OPERATION_CODE]
+    .map((code) => types.find((t) => t.code === code))
     .filter((t): t is OperationType => Boolean(t))
     .map((t) => ({
       key: newRowKey(),
@@ -595,8 +593,8 @@ export default function JobOrderPlanningPage() {
                   status: op.status,
                   notes: op.notes || undefined,
                 }))
-            : prefillRows(typesRes.data || [], j.jobType).length
-              ? prefillRows(typesRes.data || [], j.jobType)
+            : prefillRows(typesRes.data || []).length
+              ? prefillRows(typesRes.data || [])
               : [
                   {
                     key: newRowKey(),

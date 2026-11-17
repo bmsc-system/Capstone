@@ -173,9 +173,6 @@ OPERATION_TYPE_SEED = [
     {"code": "FITTING", "name": "Fitting", "machine": None},
 ]
 
-# Steps pre-filled when planning a Fabrication job, in shop order.
-FABRICATION_SEQUENCE = ["LAYOUT", "CUTTING", "BENDING", "FITTING", "FINISHING"]
-
 # The final operation: it stays last on a job, and operations added later go before it.
 FINAL_OPERATION_CODE = "FINISHING"
 
