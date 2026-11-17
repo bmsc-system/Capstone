@@ -94,7 +94,12 @@ def operation_replacements(operation_id):
             "from": start.isoformat(),
             "to": end.isoformat(),
             "helpers": [
-                {"workerId": h.worker_id, "fullName": h.worker.full_name if h.worker else None}
+                {
+                    "workerId": h.worker_id,
+                    "fullName": h.worker.full_name if h.worker else None,
+                    "nickname": h.worker.nickname if h.worker else None,
+                    "photoVersion": h.worker.photo_version if h.worker else None,
+                }
                 for h in operation.helpers
             ],
             "candidates": cover.replacements(operation, start, end),
