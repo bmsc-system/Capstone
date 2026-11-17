@@ -135,6 +135,11 @@ def test_admin_hands_over_a_paused_operation_and_the_new_worker_resumes(client, 
 
     options = client.get(f"{url}/replacements", headers=admin).get_json()
     assert cara.id in [c["workerId"] for c in options["candidates"]]
+    row = next(c for c in options["candidates"] if c["workerId"] == cara.id)
+    # The dialog shows each person's photo, score and its parts.
+    for key in ("nickname", "photoVersion", "score", "efficiency", "workload"):
+        assert key in row
+    assert 0 <= row["score"] <= 1 and 0 <= row["workload"] <= 1
     res = client.post(f"{url}/hand-over", json={"workerId": cara.id}, headers=admin)
     assert res.status_code == 200, res.get_json()
     assert res.get_json()["to"] == "Cara Crew" and res.get_json()["from"] == "Ana Crew"

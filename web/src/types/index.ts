@@ -209,12 +209,19 @@ export interface OperationReplacements {
   operationId: string;
   from: string;
   to: string;
-  helpers: { workerId: string; fullName: string | null }[];
+  helpers: { workerId: string; fullName: string | null; nickname?: string | null; photoVersion?: number | null }[];
   candidates: {
     workerId: string;
     fullName: string;
+    nickname?: string | null;
+    photoVersion?: number | null;
+    /** Weighted score, 0 to 1. */
     score?: number | null;
     proficiency?: number | null;
+    /** Past performance, 0 to 1 (0.5 when there is too little history). */
+    efficiency?: number | null;
+    /** Share of the week still free, 0 to 1. */
+    workload?: number | null;
     attendanceWarning?: string | null;
   }[];
 }

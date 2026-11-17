@@ -135,10 +135,14 @@ def replacements(op: JobOperation, start, end, *, exclude=(), as_helper_for=None
             {
                 "workerId": wid,
                 "fullName": s["fullName"],
+                "nickname": s.get("nickname"),
+                "photoVersion": s.get("photoVersion"),
                 "score": s.get("score"),
                 "proficiency": s.get("proficiency"),
+                # Past performance and free share of the week, each 0 to 1.
+                "efficiency": (s.get("components") or {}).get("efficiency"),
+                "workload": (s.get("components") or {}).get("workload"),
                 "attendanceWarning": s.get("attendanceWarning"),
-                "reasons": s.get("reasons"),
             }
         )
     rows.sort(key=lambda r: r["attendanceWarning"] is not None)
