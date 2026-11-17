@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useArmed } from '../../hooks/useArmed';
 import { confirmAction } from '../../utils/confirmAction';
 import { formatHoursMinutes } from '../../utils/duration';
@@ -926,7 +927,7 @@ export default function AssignmentDetailPage() {
           })}
         </div>
 
-        {pauseForOp && (
+        {pauseForOp && createPortal(
           <div
             style={{
               position: 'fixed',
@@ -946,8 +947,10 @@ export default function AssignmentDetailPage() {
                 background: colors.card,
                 borderTopLeftRadius: 16,
                 borderTopRightRadius: 16,
-                padding: '16px 16px 24px',
+                padding: '16px 16px calc(24px + env(safe-area-inset-bottom, 0px))',
                 boxShadow: colors.shadow,
+                maxHeight: '90vh',
+                overflowY: 'auto',
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1033,10 +1036,11 @@ export default function AssignmentDetailPage() {
               </div>
               )}
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
-        {reportForOp && (
+        {reportForOp && createPortal(
           <div
             style={{
               position: 'fixed',
@@ -1056,8 +1060,10 @@ export default function AssignmentDetailPage() {
                 background: colors.card,
                 borderTopLeftRadius: 16,
                 borderTopRightRadius: 16,
-                padding: '16px 16px 24px',
+                padding: '16px 16px calc(24px + env(safe-area-inset-bottom, 0px))',
                 boxShadow: colors.shadow,
+                maxHeight: '90vh',
+                overflowY: 'auto',
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -1102,7 +1108,8 @@ export default function AssignmentDetailPage() {
                 </Button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
         {job.description && (
