@@ -46,6 +46,34 @@
   display: none;
 }
 
+/* Pull to refresh: a pill that slides down from the top while the finger pulls. */
+.w-ptr {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.w-ptr__arrow {
+  transition: transform 0.15s ease;
+}
+
+.w-ptr__arrow--ready {
+  transform: rotate(180deg);
+}
+
 .w-main--scan {
   padding-bottom: calc(var(--w-nav-h) + env(safe-area-inset-bottom, 0px));
   overflow: hidden;
