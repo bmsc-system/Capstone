@@ -36,6 +36,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { formatShop, shopToday } from '../../utils/shopTime';
 import './opCard.css';
 import { isJobFinished, isJobReleasedForDelivery, nextDeliveryStep } from './jobStage';
+import { PART_STAGE_HINT, partStageLabel } from './partStage';
 import MarkDeliveredModal from './MarkDeliveredModal';
 import BookletGuide from './BookletGuide';
 import { jobOrdersApi } from '../../api/jobOrders.api';
@@ -1140,6 +1141,11 @@ function JobOrderDetailView() {
                           : '—'
                 }
               />
+              <DetailRow
+                label="Stage of the part"
+                value={partStageLabel(job.partCondition) ?? '—'}
+                hint={PART_STAGE_HINT}
+              />
               <DetailRow label="Created" value={fmtDate(job.createdAt)} />
             </div>
             {job.description ? (
@@ -1546,10 +1552,20 @@ function JobOrderDetailView() {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <>
-      <div style={{ color: MUTED }}>{label}</div>
+      <div style={{ color: MUTED }}>
+        {label}
+        {hint ? (
+          <>
+            {' '}
+            <Tooltip title={hint}>
+              <InfoCircleOutlined style={{ fontSize: 12 }} aria-label={hint} />
+            </Tooltip>
+          </>
+        ) : null}
+      </div>
       <div style={{ color: NAVY, fontWeight: 600, textAlign: 'right' }}>{value}</div>
     </>
   );

@@ -512,6 +512,15 @@ class JobOrder(db.Model):
             "delayedAt": self.material_delayed_at.isoformat(),
         }
 
+    def _part_stage(self, ops, from_operations):
+        """Detail views work the stage out from the completed operations (their
+        operation types are loaded); list cards show the saved stage."""
+        if from_operations:
+            from app.services.job_order_service import part_stage_now
+
+            return part_stage_now(self, ops)
+        return self.part_condition or PartCondition.RAW_MATERIAL
+
     def to_dict(self, include_operations=False, viewer_role=None, include_estimate=True):
         from app.models.operation import OperationStatus
         from app.models.user import UserRole
@@ -542,11 +551,7 @@ class JobOrder(db.Model):
             "status": self.status.value,
             "priority": self.priority.value if self.priority else JobPriority.MODERATE.value,
             "jobType": self.job_type.value if self.job_type else JobType.FABRICATION.value,
-            "partCondition": (
-                self.part_condition.value
-                if self.part_condition
-                else PartCondition.RAW_MATERIAL.value
-            ),
+            "partCondition": self._part_stage(ops, include_operations).value,
             "quantity": _num(self.quantity),
             "unitOfMeasure": self.unit_of_measure,
             "rawMaterials": self.raw_materials or [],

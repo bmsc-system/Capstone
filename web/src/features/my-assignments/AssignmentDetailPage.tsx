@@ -22,6 +22,7 @@ import { SHOP_TZ, formatShop, shopToday } from '../../utils/shopTime';
 import type { ConsumableIssue, JobOrder, Operation, OperationPauseReason } from '../../types';
 import { PageSkeleton } from '../../components/ui';
 import { isJobFinished } from '../job-orders/jobStage';
+import { partStageLabel } from '../job-orders/partStage';
 import { useMyOperationsOptional } from './useMyOperations';
 import { workedMsSoFar } from './workedTime';
 import {
@@ -431,6 +432,13 @@ export default function AssignmentDetailPage() {
               <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 8 }}>
                 Qty {job.quantity}
                 {job.unitOfMeasure ? ` ${job.unitOfMeasure}` : ''}
+              </div>
+            )}
+            {partStageLabel(job.partCondition) && (
+              <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 6 }}>
+                <span style={{ fontWeight: 700, color: colors.text }}>Stage of the part</span>
+                {': '}
+                {partStageLabel(job.partCondition)}
               </div>
             )}
           </div>
